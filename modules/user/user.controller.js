@@ -94,20 +94,30 @@ export class UserController {
             const uploadResult = await S3Service.upload(updateData.profileImage, 'profiles');
             updateData.profileImage = uploadResult.url;
           } else {
-            // If it's a string or missing, we don't update the image via this field
             delete updateData.profileImage;
           }
-        } else {
+        } else if (contentType.includes('application/json') || !contentType) {
+          // Default to JSON if content-type is application/json or missing
           const body = await req.json();
           updateData = {
-            fullName: body.fullName,
-            email: body.email
-            // profileImage is NOT supported via JSON as per requirements (only upload)
+            fullName: body?.fullName,
+            email: body?.email
           };
+        } else {
+          return Response.json({ 
+            success: false, 
+            message: `Unsupported Content-Type: ${contentType}. Please use multipart/form-data or application/json.` 
+          }, { status: 400 });
         }
       } catch (e) {
         console.error('[UserController.updateProfile Parsing Error]', e);
-        return Response.json({ success: false, message: 'Invalid request body or format' }, { status: 400 });
+        
+        let message = 'Invalid request body or format';
+        if (e instanceof SyntaxError && e.message.includes('JSON')) {
+          message = 'Invalid JSON format. If you are uploading an image, ensure Content-Type is set to multipart/form-data.';
+        }
+        
+        return Response.json({ success: false, message }, { status: 400 });
       }
 
       // 3. Update (Mobile number is NOT passed here, ensuring it cannot be changed)
