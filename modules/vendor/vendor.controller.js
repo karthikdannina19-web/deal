@@ -14,56 +14,72 @@ export class VendorController {
   /**
    * POST /api/vendor/register/step-1
    * Vendor Signup (Basic Info) - Step 1
-   * AUTH: Not Required
+   * Creates or updates vendor with name, email, mobile
+   * @body { mobileNumber, ownerName, email }
    */
   static async registerStep1(req) {
     try {
-      // 1. Ensure DB connection
       await dbConnect();
 
-      // 2. Extract and Validate Input
+      // 1. Extract and Validate Input
       let body;
       try {
         body = await req.json();
       } catch (err) {
-        return Response.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
+        return Response.json({ 
+          success: false, 
+          message: 'Invalid JSON body format' 
+        }, { status: 400 });
       }
 
-      const { mobileNumber, businessName } = body;
+      const { mobileNumber, ownerName, email } = body;
 
+      // 2. Validate Mobile Number
       if (!mobileNumber || !/^[6-9]\d{9}$/.test(mobileNumber)) {
         return Response.json({ 
           success: false, 
-          message: 'Validation failed: Valid 10-digit mobile number is required' 
+          message: 'Valid 10-digit mobile number is required (starting with 6-9)' 
         }, { status: 400 });
       }
 
-      if (!businessName || businessName.trim().length < 2) {
+      // 3. Validate Owner Name
+      if (!ownerName || ownerName.trim().length < 2) {
         return Response.json({ 
           success: false, 
-          message: 'Validation failed: Business name must be at least 2 characters' 
+          message: 'Owner name must be at least 2 characters long' 
         }, { status: 400 });
       }
 
-      // 3. Process Signup Step 1
-      const { vendor } = await VendorService.registerVendorStep1({
-        ownerName,
+      // 4. Validate Email
+      if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+        return Response.json({ 
+          success: false, 
+          message: 'Valid email address is required' 
+        }, { status: 400 });
+      }
+
+      // 5. Process Signup Step 1
+      const result = await VendorService.registerVendorStep1({
         mobileNumber,
-        email,
+        ownerName: ownerName.trim(),
+        email: email.trim().toLowerCase(),
       });
 
-      // 4. Successful Response
+      // 6. Successful Response
       return Response.json({
         success: true,
-        vendorId: vendor._id,
-        status: vendor.status
+        message: 'Step 1 completed successfully',
+        vendorId: result.vendor._id,
+        status: result.vendor.status,
+        registrationStep: 1,
+        isNewVendor: result.isNew || false
       }, { status: 200 });
 
     } catch (error) {
-      console.error('[VendorController Step 1 Error]', error);
+      console.error('[VendorController.registerStep1 Error]', error);
       return Response.json({
         success: false,
-        message: error.message || 'Internal server error'
+        message: error.message || 'Failed to complete Step 1'
       }, { status: 500 });
     }
   }
@@ -71,32 +87,91 @@ export class VendorController {
   /**
    * POST /api/vendor/register/step-2
    * Vendor Registration Step 2: Business Details
-   * AUTH: Not Required
+   * @body { vendorId, storeName, category, storeAbout, state, district, mandal, thumbnailUrl?, bannerUrl? }
    */
   static async registerStep2(req) {
     try {
       await dbConnect();
 
-      const body = await req.json();
-      const { vendorId, businessName, category, businessHours, images } = body;
-
-      if (!vendorId || !businessName || !category) {
-        return Response.json({ success: false, message: 'Missing required fields' }, { status: 400 });
+      // 1. Parse request
+      let body;
+      try {
+        body = await req.json();
+      } catch (err) {
+        return Response.json({ 
+          success: false, 
+          message: 'Invalid JSON body format' 
+        }, { status: 400 });
       }
 
-      const vendor = await VendorService.registerVendorStep2(body);
+      const { 
+        vendorId, storeName, category, storeAbout, 
+        state, district, mandal, thumbnailUrl, bannerUrl 
+      } = body;
 
+      // 2. Validate Required Fields
+      if (!vendorId) {
+        return Response.json({ 
+          success: false, 
+          message: 'Vendor ID is required' 
+        }, { status: 400 });
+      }
+
+      if (!storeName || storeName.trim().length < 2) {
+        return Response.json({ 
+          success: false, 
+          message: 'Store name must be at least 2 characters long' 
+        }, { status: 400 });
+      }
+
+      if (!category) {
+        return Response.json({ 
+          success: false, 
+          message: 'Store category is required' 
+        }, { status: 400 });
+      }
+
+      if (!storeAbout || storeAbout.trim().length < 10) {
+        return Response.json({ 
+          success: false, 
+          message: 'Store description must be at least 10 characters long' 
+        }, { status: 400 });
+      }
+
+      if (!state || !district || !mandal) {
+        return Response.json({ 
+          success: false, 
+          message: 'Location details (State, District, Mandal) are required' 
+        }, { status: 400 });
+      }
+
+      // 3. Process Step 2
+      const vendor = await VendorService.registerVendorStep2({
+        vendorId,
+        storeName: storeName.trim(),
+        category,
+        storeAbout: storeAbout.trim(),
+        state,
+        district,
+        mandal,
+        thumbnailUrl,
+        bannerUrl
+      });
+
+      // 4. Success Response
       return Response.json({
         success: true,
+        message: 'Step 2 completed successfully',
+        vendorId: vendor._id,
         status: vendor.status,
-        stepCompleted: 2
+        registrationStep: 2
       }, { status: 200 });
 
     } catch (error) {
-      console.error('[VendorController Step 2 Error]', error);
+      console.error('[VendorController.registerStep2 Error]', error);
       return Response.json({
         success: false,
-        message: error.message || 'Internal server error'
+        message: error.message || 'Failed to complete Step 2'
       }, { status: 500 });
     }
   }
@@ -104,31 +179,62 @@ export class VendorController {
   /**
    * POST /api/vendor/register/step-3
    * Vendor Registration Step 3: Location + Final Submit
-   * AUTH: Not Required
+   * @body { vendorId, fullAddress, locationCoordinates?, agentCode? }
    */
   static async registerStep3(req) {
     try {
       await dbConnect();
 
-      const body = await req.json();
-      const { vendorId, state, district, mandal, address, location } = body;
-
-      if (!vendorId || !state || !district || !mandal || !address || !location) {
-        return Response.json({ success: false, message: 'Missing required fields' }, { status: 400 });
+      // 1. Parse request
+      let body;
+      try {
+        body = await req.json();
+      } catch (err) {
+        return Response.json({ 
+          success: false, 
+          message: 'Invalid JSON body format' 
+        }, { status: 400 });
       }
 
-      const vendor = await VendorService.registerVendorStep3(body);
+      const { vendorId, fullAddress, locationCoordinates, agentCode } = body;
 
+      // 2. Validate Required Fields
+      if (!vendorId) {
+        return Response.json({ 
+          success: false, 
+          message: 'Vendor ID is required' 
+        }, { status: 400 });
+      }
+
+      if (!fullAddress || fullAddress.trim().length < 10) {
+        return Response.json({ 
+          success: false, 
+          message: 'Full address is required and must be at least 10 characters' 
+        }, { status: 400 });
+      }
+
+      // 3. Process Step 3
+      const vendor = await VendorService.registerVendorStep3({
+        vendorId,
+        fullAddress: fullAddress.trim(),
+        locationCoordinates,
+        agentCode
+      });
+
+      // 4. Success Response
       return Response.json({
         success: true,
-        status: vendor.status
+        message: 'Registration completed successfully! Your application is under review.',
+        vendorId: vendor._id,
+        status: vendor.status,
+        registrationStep: 3
       }, { status: 200 });
 
     } catch (error) {
-      console.error('[VendorController Step 3 Error]', error);
+      console.error('[VendorController.registerStep3 Error]', error);
       return Response.json({
         success: false,
-        message: error.message || 'Internal server error'
+        message: error.message || 'Failed to complete Step 3'
       }, { status: 500 });
     }
   }
@@ -187,43 +293,77 @@ export class VendorController {
 
   /**
    * POST /api/vendor/check-vendor
-   * Checks if a vendor exists
+   * Checks if vendor exists by mobile number
+   * Returns: { exists: boolean, vendorId?: string, status?: string }
    */
   static async checkVendor(req) {
     try {
+      await dbConnect();
+      
       const body = await req.json();
       const { mobileNumber } = body;
 
-      if (!mobileNumber) {
-        return Response.json({ success: false, message: 'Mobile number is required' }, { status: 400 });
+      if (!mobileNumber || !/^[6-9]\d{9}$/.test(mobileNumber)) {
+        return Response.json({ 
+          success: false, 
+          message: 'Valid 10-digit mobile number is required',
+          exists: false 
+        }, { status: 400 });
       }
 
       const result = await VendorService.checkVendorExists(mobileNumber);
-      return Response.json(result, { status: result.exists ? 200 : 404 });
+      
+      // Always return 200, but indicate if vendor exists
+      return Response.json({
+        success: true,
+        exists: result.exists,
+        vendorId: result.vendorId || null,
+        status: result.status || null,
+        message: result.exists ? 'Vendor found' : 'Vendor not found - please register'
+      }, { status: 200 });
 
     } catch (error) {
-      return Response.json({ success: false, message: 'Internal server error' }, { status: 500 });
+      console.error('[VendorController.checkVendor Error]', error);
+      return Response.json({ 
+        success: false, 
+        message: 'Internal server error',
+        exists: false 
+      }, { status: 500 });
     }
   }
 
   /**
    * POST /api/vendor/send-otp
    * Sends OTP to vendor mobile
+   * Works for existing vendors only (new vendors must register first)
    */
   static async sendOtp(req) {
     try {
+      await dbConnect();
+
       const body = await req.json();
       const { mobileNumber } = body;
 
-      if (!mobileNumber) {
-        return Response.json({ success: false, message: 'Mobile number is required' }, { status: 400 });
+      if (!mobileNumber || !/^[6-9]\d{9}$/.test(mobileNumber)) {
+        return Response.json({ 
+          success: false, 
+          message: 'Valid 10-digit mobile number is required' 
+        }, { status: 400 });
       }
 
       const result = await VendorService.sendVendorOtp(mobileNumber);
-      return Response.json(result, { status: 200 });
+      return Response.json({
+        success: true,
+        message: result.message || 'OTP sent successfully',
+        mobileNumber: mobileNumber
+      }, { status: 200 });
 
     } catch (error) {
-      return Response.json({ success: false, message: error.message }, { status: 400 });
+      console.error('[VendorController.sendOtp Error]', error);
+      return Response.json({ 
+        success: false, 
+        message: error.message || 'Failed to send OTP' 
+      }, { status: 400 });
     }
   }
 

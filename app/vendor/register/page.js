@@ -1,0 +1,482 @@
+'use client';
+
+import React, { useState, useEffect, Suspense } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  User, Mail, Phone, ArrowRight, ArrowLeft, 
+  Store, MapPin, CheckCircle, Upload, Image as ImageIcon,
+  Loader2, Map, Navigation, ShieldCheck
+} from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+// Wrap the main component in Suspense to handle useSearchParams()
+export default function VendorRegistrationPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><Loader2 className="w-8 h-8 animate-spin text-[#005596]" /></div>}>
+      <RegistrationForm />
+    </Suspense>
+  );
+}
+
+function RegistrationForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialMobile = searchParams.get('mobileNumber') || '';
+
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [vendorId, setVendorId] = useState(null);
+
+  // Form State
+  const [formData, setFormData] = useState({
+    // Step 1
+    ownerName: '',
+    email: '',
+    mobileNumber: initialMobile,
+    
+    // Step 2
+    category: '',
+    storeName: '',
+    storeAbout: '',
+    state: '',
+    district: '',
+    mandal: '',
+    thumbnailUrl: '',
+    bannerUrl: '',
+
+    // Step 3
+    fullAddress: '',
+    agentCode: '',
+    locationCoordinates: [0, 0] // [lng, lat]
+  });
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      if (res.ok) setCategories(data.data || []);
+    } catch (err) {
+      console.error('Failed to fetch categories');
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleNextStep = async () => {
+    setLoading(true);
+    try {
+      if (step === 1) {
+        const res = await fetch('/api/vendor/register/step-1', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ownerName: formData.ownerName,
+            email: formData.email,
+            mobileNumber: formData.mobileNumber
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setVendorId(data.vendorId);
+          setStep(2);
+        } else {
+          alert(data.message || 'Step 1 failed');
+        }
+      } else if (step === 2) {
+        const res = await fetch('/api/vendor/register/step-2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendorId,
+            storeName: formData.storeName,
+            category: formData.category,
+            storeAbout: formData.storeAbout,
+            state: formData.state,
+            district: formData.district,
+            mandal: formData.mandal,
+            thumbnailUrl: formData.thumbnailUrl,
+            bannerUrl: formData.bannerUrl
+          })
+        });
+        if (res.ok) setStep(3);
+        else {
+          const data = await res.json();
+          alert(data.message || 'Step 2 failed');
+        }
+      }
+    } catch (err) {
+      alert('Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/vendor/register/step-3', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vendorId,
+          fullAddress: formData.fullAddress,
+          locationCoordinates: formData.locationCoordinates,
+          agentCode: formData.agentCode
+        })
+      });
+      if (res.ok) {
+        setStep(4); // Success Step
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Registration failed');
+      }
+    } catch (err) {
+      alert('Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setFormData(prev => ({
+          ...prev,
+          locationCoordinates: [pos.coords.longitude, pos.coords.latitude]
+        }));
+        alert('Location captured successfully!');
+      }, () => {
+        alert('Could not get your location. Please allow location permissions.');
+      });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC]">
+      {/* Header */}
+      <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-slate-100 z-50 p-4">
+        <div className="max-w-xl mx-auto flex items-center justify-between">
+          <button onClick={() => step > 1 ? setStep(step - 1) : router.back()} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+            <ArrowLeft className="w-6 h-6 text-[#1E293B]" />
+          </button>
+          <h1 className="text-xl font-bold text-[#1E293B]">Vendor Registration</h1>
+          <div className="w-10 h-10" /> {/* Spacer */}
+        </div>
+      </div>
+
+      <div className="max-w-xl mx-auto p-6 pb-24">
+        {/* Progress Bar */}
+        {step < 4 && (
+          <div className="mb-10">
+             <div className="flex justify-center mb-4">
+                <span className="px-4 py-1.5 bg-[#005596]/10 text-[#005596] rounded-full text-xs font-bold uppercase tracking-wider">
+                  Step 0{step} of 03
+                </span>
+             </div>
+             <div className="flex gap-2">
+                {[1, 2, 3].map((s) => (
+                  <div 
+                    key={s} 
+                    className={`h-1.5 flex-1 rounded-full transition-all duration-500 ${
+                      s <= step ? 'bg-[#005596]' : 'bg-slate-200'
+                    }`} 
+                  />
+                ))}
+             </div>
+          </div>
+        )}
+
+        <AnimatePresence mode="wait">
+          {step === 1 && (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Name</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      type="text" 
+                      name="ownerName"
+                      value={formData.ownerName}
+                      onChange={handleInputChange}
+                      placeholder="Enter your full name"
+                      className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#005596]/10 focus:border-[#005596] outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Email Address</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      type="email" 
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      placeholder="name@company.com"
+                      className="w-full pl-12 pr-4 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-[#005596]/10 focus:border-[#005596] outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-tight">Mobile Number</label>
+                  <div className="relative">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                       <span className="text-slate-900 font-bold">+91</span>
+                    </div>
+                    <input 
+                      type="tel" 
+                      readOnly
+                      value={formData.mobileNumber}
+                      className="w-full pl-16 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-400 font-medium cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleNextStep}
+                disabled={!formData.ownerName || !formData.email || loading}
+                className="w-full bg-[#005596] text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-[#005596]/20 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continue to Business Details <ArrowRight className="w-5 h-5" /></>}
+              </button>
+            </motion.div>
+          )}
+
+          {step === 2 && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-6"
+            >
+              <div className="bg-slate-100/50 p-6 rounded-3xl space-y-6 border border-slate-200/50">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Store Category</label>
+                  <select 
+                    name="category"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#005596]/10"
+                  >
+                    <option value="">Select category</option>
+                    {categories.map(c => <option key={c._id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Store Name</label>
+                  <input 
+                    type="text" 
+                    name="storeName"
+                    value={formData.storeName}
+                    onChange={handleInputChange}
+                    placeholder="Enter your business name"
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#005596]/10"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Store About</label>
+                  <textarea 
+                    name="storeAbout"
+                    value={formData.storeAbout}
+                    onChange={handleInputChange}
+                    placeholder="Write about your store in detail."
+                    rows="4"
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#005596]/10 resize-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Select State</label>
+                    <select name="state" value={formData.state} onChange={handleInputChange} className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none">
+                      <option value="">Select state</option>
+                      <option value="Andhra Pradesh">Andhra Pradesh</option>
+                      <option value="Telangana">Telangana</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Select District</label>
+                      <select name="district" value={formData.district} onChange={handleInputChange} className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none">
+                        <option value="">Select district</option>
+                        <option value="Hyderabad">Hyderabad</option>
+                        <option value="Krishna">Krishna</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-slate-700 mb-2">Select Mandal</label>
+                      <select name="mandal" value={formData.mandal} onChange={handleInputChange} className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none">
+                        <option value="">Select mandal</option>
+                        <option value="Ameerpet">Ameerpet</option>
+                        <option value="Vijayawada">Vijayawada</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Uploads Section */}
+              <div className="bg-slate-100/50 p-6 rounded-3xl space-y-6 border border-slate-200/50">
+                <div className="space-y-4">
+                  <label className="block text-sm font-bold text-slate-700">Store Thumbnail</label>
+                  <div className="aspect-square w-full border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:border-[#005596] transition-colors cursor-pointer group">
+                    <div className="w-12 h-12 bg-[#005596]/5 rounded-full flex items-center justify-center group-hover:bg-[#005596]/10 transition-colors">
+                       <Upload className="w-6 h-6 text-[#005596]" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-slate-700">Square ratio (1:1)</p>
+                      <p className="text-xs text-slate-400">PNG or JPG, max 5MB</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="block text-sm font-bold text-slate-700">Store Banner</label>
+                  <div className="aspect-[16/9] w-full border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:border-[#005596] transition-colors cursor-pointer group">
+                    <div className="w-12 h-12 bg-[#005596]/5 rounded-full flex items-center justify-center group-hover:bg-[#005596]/10 transition-colors">
+                       <ImageIcon className="w-6 h-6 text-[#005596]" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-slate-700">Wide ratio (16:9)</p>
+                      <p className="text-xs text-slate-400">Recommended 1920×1080</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button onClick={() => setStep(1)} className="flex-1 bg-white text-slate-700 py-4 rounded-2xl font-bold border border-slate-200 active:scale-95 transition-all">Back</button>
+                <button 
+                  onClick={handleNextStep}
+                  disabled={!formData.storeName || !formData.category || loading}
+                  className="flex-[2] bg-[#005596] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#005596]/20 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue'}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {step === 3 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-8"
+            >
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black text-[#005596]">Final Details</h2>
+                <p className="text-slate-500 font-medium">Complete your registration to start managing your listings.</p>
+              </div>
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-[#005596] mb-3">Business Location</label>
+                  <div 
+                    onClick={getCurrentLocation}
+                    className="relative aspect-video rounded-3xl bg-slate-200 overflow-hidden cursor-pointer group"
+                  >
+                    <div className="absolute inset-0 bg-[#005596]/10 group-hover:bg-[#005596]/20 transition-all flex flex-col items-center justify-center gap-4 text-[#005596]">
+                       <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          <Navigation className="w-8 h-8" />
+                       </div>
+                       <span className="font-bold">Get current location</span>
+                    </div>
+                    {/* Fake Map Elements */}
+                    <div className="absolute inset-0 -z-1 opacity-50 grayscale">
+                       <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=2000&auto=format&fit=crop" className="w-full h-full object-cover" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-[#005596] mb-2">Full address</label>
+                  <textarea 
+                    name="fullAddress"
+                    value={formData.fullAddress}
+                    onChange={handleInputChange}
+                    placeholder="Enter your street address, city, and zip code"
+                    rows="3"
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#005596]/10"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-[#005596] mb-2">Agent code</label>
+                  <input 
+                    type="text" 
+                    name="agentCode"
+                    value={formData.agentCode}
+                    onChange={handleInputChange}
+                    placeholder="Enter the Agent code"
+                    className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-[#005596]/10"
+                  />
+                </div>
+
+                <div className="bg-slate-100 p-6 rounded-2xl flex gap-4 items-start">
+                   <ShieldCheck className="w-6 h-6 text-[#005596] shrink-0" />
+                   <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                     By clicking Register, you agree to our Vendor Terms of Service and Privacy Policy. Your location data helps us verify your business premises.
+                   </p>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleRegister}
+                disabled={!formData.fullAddress || loading}
+                className="w-full bg-[#005596] text-white py-5 rounded-3xl font-bold flex items-center justify-center gap-2 shadow-[0_10px_40px_rgba(0,85,150,0.3)] active:scale-95 transition-all disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Register <ArrowRight className="w-5 h-5" /></>}
+              </button>
+            </motion.div>
+          )}
+
+          {step === 4 && (
+            <motion.div
+              key="success"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-center py-12 space-y-6"
+            >
+              <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto text-green-600">
+                <CheckCircle className="w-12 h-12" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-3xl font-black text-[#1E293B]">Application Submitted!</h2>
+                <p className="text-slate-500 font-medium max-w-xs mx-auto">Your vendor registration is currently pending approval. We will notify you once it's active.</p>
+              </div>
+              <button 
+                onClick={() => router.push('/vendor/login')}
+                className="bg-[#005596] text-white px-10 py-4 rounded-2xl font-bold shadow-lg shadow-[#005596]/20 transition-all active:scale-95"
+              >
+                Back to Login
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}

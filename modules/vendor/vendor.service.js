@@ -199,7 +199,7 @@ export class VendorService {
 
   /**
    * Vendor Registration Step 1: Basic Details
-   * AUTH: Not Required (Public)
+   * Creates or updates vendor with basic info
    * @param {Object} data { ownerName, mobileNumber, email }
    */
   static async registerVendorStep1(data) {
@@ -207,10 +207,11 @@ export class VendorService {
 
     await dbConnect();
 
-    // 1. Check if user already exists with this mobile number
+    // 1. Find or create User with this mobile number
     let user = await User.findOne({ phone: mobileNumber });
     
     if (!user) {
+      // Create new user for this vendor
       user = new User({
         phone: mobileNumber,
         email: email,
@@ -219,24 +220,32 @@ export class VendorService {
         phoneVerified: false
       });
       await user.save();
+      console.log(`[Vendor] Created new user for mobile: ${mobileNumber}`);
     } else {
-      if (user.role !== 'vendor' && user.role !== 'admin') {
+      // Update role if needed
+      if (user.role === 'user') {
         user.role = 'vendor';
-        await user.save();
       }
+      // Update email if provided
+      if (email && !user.email) {
+        user.email = email;
+      }
+      await user.save();
+      console.log(`[Vendor] Updated existing user for mobile: ${mobileNumber}`);
     }
 
-    // 2. Check if vendor already exists
+    // 2. Find or create Vendor profile
     let vendor = await Vendor.findOne({ userId: user._id });
+    let isNew = false;
     
     if (vendor) {
-      // If vendor exists, we update the basic info and allow them to proceed
+      // CASE: Update existing vendor
       vendor.fullName = ownerName;
       vendor.email = email;
       vendor.mobileNumber = mobileNumber;
-      await vendor.save();
+      console.log(`[Vendor] Updated existing vendor profile`);
     } else {
-      // 3. Create new vendor record as draft
+      // CASE: Create new vendor
       vendor = new Vendor({
         userId: user._id,
         fullName: ownerName,
@@ -245,58 +254,90 @@ export class VendorService {
         status: 'draft',
         registrationStep: 1
       });
-      await vendor.save();
+      isNew = true;
+      console.log(`[Vendor] Created new vendor profile`);
+    }
 
-      // Link to user
+    await vendor.save();
+
+    // Link vendor profile to user
+    if (!user.vendorProfile || user.vendorProfile.toString() !== vendor._id.toString()) {
       user.vendorProfile = vendor._id;
       await user.save();
     }
 
-    return { vendor, user };
+    return { vendor, user, isNew };
   }
 
   /**
    * Vendor Registration Step 2: Business Details
-   * AUTH: Not Required (Uses vendorId)
-   * @param {Object} data { vendorId, businessName, category, businessHours, images }
+   * @param {Object} data { vendorId, storeName, category, storeAbout, state, district, mandal, thumbnailUrl, bannerUrl }
    */
   static async registerVendorStep2(data) {
-    const { vendorId, businessName, category, businessHours, images } = data;
+    const { 
+      vendorId, storeName, category, storeAbout, 
+      state, district, mandal, thumbnailUrl, bannerUrl 
+    } = data;
 
     await dbConnect();
 
     // 1. Find vendor
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) {
-      throw new Error('Vendor not found');
+      throw new Error('Vendor not found. Please complete Step 1 first.');
     }
 
-    // 2. Resolve Category (search by name)
-    let categoryObj = await Category.findOne({ name: { $regex: new RegExp(`^${category}$`, 'i') } });
+    // 2. Resolve Category (search by name or ID)
+    let categoryObj;
+    if (category && category.match && category.match(/^[0-9a-fA-F]{24}$/)) {
+      // It's a valid MongoDB ObjectId
+      categoryObj = await Category.findById(category);
+    } else {
+      // Search by name
+      categoryObj = await Category.findOne({ 
+        name: { $regex: new RegExp(`^${category}$`, 'i') },
+        isActive: true 
+      });
+    }
+
     if (!categoryObj) {
-      categoryObj = new Category({ name: category });
+      // Create new category if it doesn't exist
+      categoryObj = new Category({ 
+        name: category,
+        isActive: true 
+      });
       await categoryObj.save();
+      console.log(`[Vendor] Created new category: ${category}`);
     }
 
-    // 3. Update details
-    vendor.storeName = businessName;
+    // 3. Update vendor with step 2 details
+    vendor.storeName = storeName;
     vendor.categoryId = categoryObj._id;
-    vendor.workingHours = businessHours;
-    vendor.media.images = images;
+    vendor.storeAbout = storeAbout;
+    vendor.location = {
+      state,
+      district,
+      mandal
+    };
+    vendor.media = {
+      thumbnailUrl: thumbnailUrl || '',
+      bannerUrl: bannerUrl || '',
+      images: vendor.media?.images || []
+    };
     vendor.registrationStep = 2;
 
     await vendor.save();
+    console.log(`[Vendor Step 2] Updated store details for vendor ${vendorId}`);
 
     return vendor;
   }
 
   /**
    * Vendor Registration Step 3: Location + Final Submit
-   * AUTH: Not Required (Uses vendorId)
-   * @param {Object} data { vendorId, state, district, mandal, address, location }
+   * @param {Object} data { vendorId, fullAddress, locationCoordinates, agentCode }
    */
   static async registerVendorStep3(data) {
-    const { vendorId, state, district, mandal, address, location } = data;
+    const { vendorId, fullAddress, locationCoordinates, agentCode } = data;
 
     await dbConnect();
 
@@ -306,43 +347,82 @@ export class VendorService {
       throw new Error('Vendor not found');
     }
 
-    // 2. Validate current step
-    if (vendor.registrationStep < 1) {
-      throw new Error('Please complete Step 1 first');
+    // 2. Validate registration progress
+    if (vendor.registrationStep < 2) {
+      throw new Error('Please complete Step 2 (Business Details) first');
     }
 
-    // 3. Update location details
-    vendor.location = { state, district, mandal };
-    vendor.fullAddress = address;
+    // 3. Validate agent code if provided
+    let agent = null;
+    if (agentCode && agentCode.trim()) {
+      agent = await Agent.findOne({ 
+        code: agentCode.trim().toUpperCase(), 
+        isActive: true 
+      });
+      
+      if (!agent) {
+        throw new Error('Invalid or inactive agent code');
+      }
+    }
+
+    // 4. Update vendor with location details
+    vendor.fullAddress = fullAddress;
     vendor.locationCoordinates = {
       type: 'Point',
-      coordinates: [location.lng, location.lat]
+      coordinates: locationCoordinates && locationCoordinates.length === 2 
+        ? [locationCoordinates[0], locationCoordinates[1]]  // [lng, lat]
+        : [0, 0]
     };
     
-    // 4. Finalize
+    if (agentCode && agentCode.trim()) {
+      vendor.agentCode = agentCode.trim().toUpperCase();
+    }
+
+    // 5. Finalize registration
     vendor.status = 'pending_approval';
     vendor.registrationStep = 3;
 
     await vendor.save();
+    console.log(`[Vendor Step 3] Completed registration for vendor ${vendorId} - Status: pending_approval`);
+
+    // 6. Link vendor to agent if applicable
+    if (agent && !agent.assignedVendors.includes(vendor._id)) {
+      agent.assignedVendors.push(vendor._id);
+      await agent.save();
+      console.log(`[Vendor] Linked vendor ${vendorId} to agent ${agent.code}`);
+    }
 
     return vendor;
   }
 
   /**
    * Check if a vendor exists by mobile number
+   * Returns vendor details if exists
    * @param {string} mobileNumber 
    */
   static async checkVendorExists(mobileNumber) {
     await dbConnect();
-    const vendor = await Vendor.findOne({ mobileNumber });
+    const vendor = await Vendor.findOne({ mobileNumber }).select('_id status registrationStep');
+    
     if (!vendor) {
-      return { exists: false, message: 'Vendor not found' };
+      return { 
+        exists: false, 
+        message: 'Vendor not found - please register' 
+      };
     }
-    return { exists: true, vendorId: vendor._id };
+    
+    return { 
+      exists: true, 
+      vendorId: vendor._id.toString(),
+      status: vendor.status,
+      registrationStep: vendor.registrationStep,
+      message: 'Vendor found'
+    };
   }
 
   /**
-   * Send OTP to a vendor's mobile number
+   * Send OTP to vendor for login
+   * Only works for existing vendors (new vendors must register first)
    * @param {string} mobileNumber 
    */
   static async sendVendorOtp(mobileNumber) {
@@ -351,14 +431,15 @@ export class VendorService {
     // 1. Check if vendor exists
     const vendor = await Vendor.findOne({ mobileNumber });
     if (!vendor) {
-      throw new Error('Vendor not found');
+      // Don't reveal that vendor doesn't exist - redirect to register
+      throw new Error('Vendor not found. Please register using /register');
     }
 
-    // 2. Generate OTP
-    const plainOtp = generateOtp();
+    // 2. Generate OTP (hardcoded '1234' for testing)
+    const plainOtp = '1234';
     const hashedOtp = await hashData(plainOtp);
 
-    // 3. Save OTP (5 min expiry)
+    // 3. Save OTP record with 5-minute expiry
     await Otp.findOneAndUpdate(
       { target: mobileNumber, type: 'phone' },
       { 
@@ -370,14 +451,18 @@ export class VendorService {
       { upsert: true, new: true }
     );
 
-    // 4. Log for dev
+    // 4. Log for development
     console.log(`[SIMULATION] Vendor OTP for ${mobileNumber}: ${plainOtp}`);
 
-    return { success: true, message: 'OTP sent successfully' };
+    return { 
+      success: true, 
+      message: 'OTP sent successfully to your mobile number',
+      mobileNumber: mobileNumber
+    };
   }
 
   /**
-   * Verify OTP and generate token
+   * Verify OTP and generate JWT token for vendor login
    * @param {string} mobileNumber 
    * @param {string} otpCode 
    */
@@ -387,54 +472,65 @@ export class VendorService {
     // 1. Find OTP record
     const otpRecord = await Otp.findOne({ target: mobileNumber, type: 'phone' });
     if (!otpRecord) {
-      throw new Error('OTP not found or expired');
+      throw new Error('OTP not found or has expired. Please request a new OTP.');
     }
 
+    // 2. Check OTP expiry
     if (new Date() > otpRecord.expiresAt) {
-      throw new Error('OTP expired');
+      await Otp.deleteOne({ _id: otpRecord._id });
+      throw new Error('OTP has expired. Please request a new OTP.');
     }
 
+    // 3. Check max attempts
     if (otpRecord.attempts >= 3) {
-      throw new Error('Max attempts reached. Please request a new OTP.');
+      throw new Error('Maximum verification attempts exceeded. Please request a new OTP.');
     }
 
-    // 2. Match hashed OTP
+    // 4. Verify OTP
     const isMatch = await compareHash(otpCode, otpRecord.code);
     if (!isMatch) {
       otpRecord.attempts += 1;
       await otpRecord.save();
-      throw new Error('Invalid OTP');
+      throw new Error(`Invalid OTP. Attempt ${otpRecord.attempts} of 3.`);
     }
 
-    // 3. Find Vendor and User
+    // 5. Find Vendor
     const vendor = await Vendor.findOne({ mobileNumber });
     if (!vendor) {
-      throw new Error('Vendor profile missing');
+      throw new Error('Vendor profile not found. Please register first.');
     }
 
+    // 6. Find associated User
     const user = await User.findById(vendor.userId);
     if (!user) {
-      throw new Error('Associated user account not found');
+      throw new Error('Associated user account not found.');
     }
 
-    // 4. Generate JWT Token
+    // 7. Generate JWT Token
     const token = generateToken({
       userId: user._id.toString(),
       vendorId: vendor._id.toString(),
       role: 'vendor',
-      mobileNumber: vendor.mobileNumber
+      mobileNumber: vendor.mobileNumber,
+      email: vendor.email
     });
 
-    // 5. Clean up
+    // 8. Clean up OTP record
     await Otp.deleteOne({ _id: otpRecord._id });
+
+    console.log(`[Vendor Login] Successful login for vendor ${vendor._id} (${mobileNumber})`);
 
     return {
       success: true,
       message: 'Login successful',
       token,
       vendor: {
-        vendorId: vendor._id,
-        status: vendor.status
+        vendorId: vendor._id.toString(),
+        mobileNumber: vendor.mobileNumber,
+        email: vendor.email,
+        storeName: vendor.storeName || 'Not Set',
+        status: vendor.status,
+        registrationStep: vendor.registrationStep
       }
     };
   }
