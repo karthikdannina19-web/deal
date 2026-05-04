@@ -147,42 +147,32 @@ export class S3Service {
    * @param {string}   folder  Destination folder/prefix (e.g. "profiles")
    * @returns {Promise<{url: string, key: string, publicId: string}>}
    */
-  static async upload(file, folder = 'general') {
+  static async upload(file, folder = 'general', customName = null, customType = null) {
     // ── Materialise the bytes BEFORE anything else ─────────────────────────
-    // Calling file.arrayBuffer() here converts the Web ReadableStream (from
-    // Next.js multipart parsing) into a concrete Buffer in memory.
-    // This is safe and does NOT double-consume the stream.
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer      = Buffer.from(arrayBuffer);
+    const buffer = typeof file.arrayBuffer === 'function'
+      ? Buffer.from(await file.arrayBuffer())
+      : file;
 
-    if (buffer.length === 0) {
-      throw new Error('Upload file is empty (0 bytes). The stream may have been consumed before reaching this point.');
+    if (!buffer || buffer.length === 0) {
+      throw new Error('Upload file is empty (0 bytes).');
     }
 
-    const extension   = (file.name || 'upload').split('.').pop().toLowerCase() || 'bin';
-    const key         = `${folder}/${crypto.randomUUID()}.${extension}`;
+    const extension = (customName || file.name || 'upload').split('.').pop().toLowerCase() || 'bin';
+    const key = `${folder}/${crypto.randomUUID()}.${extension}`;
+    
     const mimeMap = {
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'gif': 'image/gif',
-      'webp': 'image/webp',
-      'pdf': 'application/pdf'
+      'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+      'gif': 'image/gif', 'webp': 'image/webp', 'pdf': 'application/pdf'
     };
-    const contentType = file.type && file.type !== 'application/octet-stream'
-      ? file.type
-      : (mimeMap[extension] || 'image/jpeg');
 
-    console.log(`[S3Service.upload] Starting upload:`);
-    console.log(`  file.name    : ${file.name}`);
-    console.log(`  file.type    : ${file.type}`);
-    console.log(`  buffer.length: ${buffer.length} bytes  ← actual materialised bytes`);
-    console.log(`  key          : ${key}`);
-    console.log(`  contentType  : ${contentType} (used in signing)`);
+    const contentType = customType || (file.type && file.type !== 'application/octet-stream'
+      ? file.type
+      : (mimeMap[extension] || 'image/jpeg'));
+
+    console.log(`[S3Service.upload] Uploading: ${customName || file.name || 'raw_buffer'} (${buffer.length} bytes)`);
 
     const url = await putObjectRaw(buffer, contentType, key);
 
-    console.log(`[S3Service.upload] ✅ Done → ${url}`);
     return { url, key, publicId: key };
   }
 
@@ -266,6 +256,6 @@ export class S3Service {
 /**
  * Standalone upload utility (exported for compatibility)
  */
-export const uploadToS3 = async (file, folder) => {
-  return await S3Service.upload(file, folder);
+export const uploadToS3 = async (file, folder, customName, customType) => {
+  return await S3Service.upload(file, folder, customName, customType);
 };
