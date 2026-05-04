@@ -87,67 +87,94 @@ export class UserController {
       let updateData = {};
       let fullName, email, profileImage;
 
-      // Ensure we don't peek at the body to prevent stream consumption issues
-      // 3. Strict Parser Selection based on Content-Type
-      const isMultipart = contentType.includes('multipart/form-data');
-      console.log(`[DEBUG] Selected Parser Branch: ${isMultipart ? 'formData' : 'json'}`);
+      // 3. Robust Parser Selection
+      // If header is correct, we call formData() directly to avoid stream consumption issues.
+      // If header is NOT multipart (e.g. application/json), we peek at the buffer to catch hidden multiparts.
+      const isMultipartHeader = contentType.includes('multipart/form-data');
+      console.log(`[DEBUG] Content-Type Header: ${contentType}`);
 
-      if (isMultipart) {
+      if (isMultipartHeader) {
         try {
-          // DO NOT call req.text() or req.arrayBuffer() before this
+          console.log(`[DEBUG] Branch: Native Multipart`);
           const formData = await req.formData();
-          
           fullName = formData.get('fullName');
           email = formData.get('email');
-          profileImage = formData.get('profileImage'); // Can be a File object or string
-
-          console.log(`[DEBUG] Multipart parse results:`);
-          console.log(` - fullName: ${fullName}`);
-          console.log(` - email: ${email}`);
-          console.log(` - profileImage present: ${!!profileImage}`);
-          if (profileImage && typeof profileImage !== 'string') {
-            console.log(` - profileImage type: ${profileImage.type}, size: ${profileImage.size}`);
-          }
-
-          updateData = { fullName, email, profileImage };
-
-          // Handle image upload if it's a file
-          if (profileImage && typeof profileImage !== 'string' && profileImage.name) {
-            const uploadResult = await S3Service.upload(profileImage, 'profiles');
-            updateData.profileImage = uploadResult.url;
-            console.log(`[DEBUG] Profile image uploaded to S3: ${updateData.profileImage}`);
-          } else if (typeof profileImage === 'string' && profileImage.startsWith('http')) {
-            // Keep existing URL if passed as string
-            console.log(`[DEBUG] Using existing profile image URL`);
-          } else {
-            // No new image or invalid format
-            delete updateData.profileImage;
-          }
-        } catch (formDataError) {
-          console.error('[DEBUG] req.formData() failed:', formDataError);
-          return Response.json({ 
-            success: false, 
-            message: 'Failed to parse multipart data. Ensure the Content-Type boundary is valid.' 
-          }, { status: 400 });
+          profileImage = formData.get('profileImage');
+        } catch (err) {
+          console.error('[DEBUG] Native formData() failed:', err);
+          return Response.json({ success: false, message: 'Invalid multipart data' }, { status: 400 });
         }
       } else {
-        // Assume JSON if not multipart
         try {
-          // DO NOT call req.text() or req.arrayBuffer() before this
-          const body = await req.json();
-          fullName = body.fullName;
-          email = body.email;
-          
-          console.log(`[DEBUG] JSON parse results:`, body);
-          updateData = { fullName, email };
-        } catch (jsonError) {
-          console.error(`[DEBUG] JSON parse failed:`, jsonError);
+          console.log(`[DEBUG] Branch: Buffer Fallback (Header was not multipart)`);
+          const arrayBuffer = await req.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+
+          if (buffer.length > 0 && buffer[0] === 45) { // ASCII 45 is '-'
+            console.log(`[DEBUG] Detected hidden multipart in JSON-tagged request`);
+            
+            // Extract boundary from the first line
+            let actualBoundary = '';
+            let boundaryEnd = 0;
+            for (let i = 0; i < 200 && i < buffer.length; i++) {
+              if (buffer[i] === 13 && buffer[i+1] === 10) { boundaryEnd = i; break; }
+            }
+            if (boundaryEnd > 2) {
+              actualBoundary = new TextDecoder().decode(buffer.subarray(2, boundaryEnd));
+            }
+
+            const newHeaders = new Headers(req.headers);
+            if (actualBoundary) {
+              newHeaders.set('content-type', `multipart/form-data; boundary=${actualBoundary}`);
+            }
+
+            const parsedReq = new Request(req.url, {
+              method: req.method,
+              headers: newHeaders,
+              body: buffer,
+              duplex: 'half'
+            });
+
+            const formData = await parsedReq.formData();
+            fullName = formData.get('fullName');
+            email = formData.get('email');
+            profileImage = formData.get('profileImage');
+          } else {
+            console.log(`[DEBUG] Parsing as standard JSON`);
+            const body = JSON.parse(new TextDecoder().decode(buffer));
+            fullName = body.fullName;
+            email = body.email;
+            profileImage = body.profileImage; // Might be a string URL or null
+          }
+        } catch (err) {
+          console.error('[DEBUG] Fallback parsing failed:', err);
           return Response.json({ 
             success: false, 
-            message: 'Invalid JSON body. For image uploads, ensure Content-Type is multipart/form-data.' 
+            message: 'Invalid request body format. Ensure Content-Type is correct.' 
           }, { status: 400 });
         }
       }
+
+      // 4. Common Processing Logic
+      updateData = { fullName, email, profileImage };
+      console.log(`[DEBUG] Extracted Data:`, { fullName, email, profileImagePresent: !!profileImage });
+
+      // Handle image upload if it's a file object
+      if (profileImage && typeof profileImage !== 'string' && profileImage.name) {
+        try {
+          const uploadResult = await S3Service.upload(profileImage, 'profiles');
+          updateData.profileImage = uploadResult.url;
+          console.log(`[DEBUG] S3 Upload Success: ${updateData.profileImage}`);
+        } catch (uploadError) {
+          console.error('[DEBUG] S3 Upload Error:', uploadError);
+          return Response.json({ success: false, message: 'Failed to upload profile image' }, { status: 500 });
+        }
+      } else if (typeof profileImage === 'string' && profileImage.startsWith('http')) {
+        console.log(`[DEBUG] Using existing image URL`);
+      } else {
+        delete updateData.profileImage;
+      }
+
 
       // 3. Update (Mobile number is NOT passed here, ensuring it cannot be changed)
       const updatedUser = await UserService.updateProfile(authUser.id, updateData);
