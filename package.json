@@ -13,6 +13,7 @@
     "env:check": "node -e \"require('dotenv').config({ path: '.env.local' }); console.log('Environment loaded');\""
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1041.0",
     "aws-sdk": "^2.1693.0",
     "axios": "^1.15.1",
     "bcrypt": "^6.0.0",

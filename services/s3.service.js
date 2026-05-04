@@ -1,13 +1,14 @@
-import AWS from 'aws-sdk';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import crypto from 'crypto';
 
-// Initialize S3 Client
-const s3 = new AWS.S3({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  endpoint: `https://${process.env.AWS_S3_DOMAIN.split('/')[0]}`, // e.g., sin1.contabostorage.com
-  s3ForcePathStyle: true, // Required for many S3-compatible providers
-  signatureVersion: 'v4',
+// Initialize S3 Client using AWS SDK v3
+const s3 = new S3Client({
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+  endpoint: `https://${process.env.AWS_S3_DOMAIN?.split('/')[0]}`, // e.g., sin1.contabostorage.com
+  forcePathStyle: true, // Required for many S3-compatible providers like Contabo
   region: process.env.AWS_REGION || 'SIN'
 });
 
@@ -29,29 +30,35 @@ export class S3Service {
       const buffer = Buffer.from(arrayBuffer);
 
       // 2. Generate unique filename
-      const fileExtension = file.name.split('.').pop();
+      const fileExtension = file.name ? file.name.split('.').pop() : 'bin';
       const fileName = `${folder}/${crypto.randomUUID()}.${fileExtension}`;
 
       // 3. Setup S3 parameters
-      const params = {
+      const command = new PutObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: fileName,
         Body: buffer,
-        ContentType: file.type,
+        ContentType: file.type || 'application/octet-stream',
         ACL: 'public-read' // Contabo S3 supports public ACLs
-      };
+      });
 
       // 4. Upload to S3
-      const result = await s3.upload(params).promise();
+      await s3.send(command);
+
+      // 5. Construct public URL manually (v3 does not return Location for PutObject)
+      const endpointDomain = process.env.AWS_S3_DOMAIN.split('/')[0];
+      const bucketName = process.env.AWS_BUCKET_NAME;
+      const url = `https://${endpointDomain}/${encodeURIComponent(bucketName)}/${fileName}`;
 
       return {
-        url: result.Location,
-        key: result.Key,
-        publicId: result.Key // Mapping for compatibility with existing code
+        url: url,
+        key: fileName,
+        publicId: fileName // Mapping for compatibility with existing code
       };
     } catch (error) {
-      console.error('S3 Upload Error:', error);
-      throw new Error('Storage upload failed: ' + error.message);
+      // With SDK v3, we will get actual JSON errors from Contabo instead of XML parse failures!
+      console.error('[S3Service.upload Error]:', error);
+      throw new Error(`Storage upload failed: ${error.message}`);
     }
   }
 
@@ -61,12 +68,13 @@ export class S3Service {
    */
   static async delete(key) {
     try {
-      await s3.deleteObject({
+      const command = new DeleteObjectCommand({
         Bucket: process.env.AWS_BUCKET_NAME,
         Key: key
-      }).promise();
+      });
+      await s3.send(command);
     } catch (error) {
-      console.error('S3 Delete Error:', error);
+      console.error('[S3Service.delete Error]:', error);
     }
   }
 }
