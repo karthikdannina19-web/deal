@@ -60,15 +60,15 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
   console.log(`  access key id   : ${accessKeyId.slice(0, 5)}...`);
   console.log('[S3 SigV4 Debug] ─────────────────────────────────────');
 
-  // Canonical headers (alphabetically sorted by header name)
+  // Canonical headers
+  // Using UNSIGNED-PAYLOAD makes the signature much more resilient to any 
+  // modifications by intermediate proxies or fetch implementation details.
   const canonicalHeaders =
-    `content-type:${contentType}\n` +
     `host:${host}\n` +
-    `x-amz-acl:public-read\n` +
-    `x-amz-content-sha256:${payloadHash}\n` +
+    `x-amz-content-sha256:UNSIGNED-PAYLOAD\n` +
     `x-amz-date:${amzDate}\n`;
 
-  const signedHeaders = 'content-type;host;x-amz-acl;x-amz-content-sha256;x-amz-date';
+  const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
 
   const canonicalRequest = [
     'PUT',
@@ -76,7 +76,7 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
     '', // no query string
     canonicalHeaders,
     signedHeaders,
-    payloadHash,
+    'UNSIGNED-PAYLOAD', // Hash of payload is replaced by this literal
   ].join('\n');
 
   // credentialScope already declared above for logging
@@ -100,9 +100,9 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
   const response = await fetch(fullUrl, {
     method: 'PUT',
     headers: {
+      'Host':                 host,
       'Content-Type':         contentType,
-      'x-amz-acl':            'public-read',
-      'x-amz-content-sha256': payloadHash,
+      'x-amz-content-sha256': 'UNSIGNED-PAYLOAD',
       'x-amz-date':           amzDate,
       'Authorization':        authHeader,
     },
