@@ -19,23 +19,22 @@ function getSigningKey(secretKey, dateStamp, region, service) {
 }
 
 /**
- * Upload a buffer to an S3-compatible endpoint using a raw signed PUT request.
- * Works reliably with Contabo Object Storage (which returns JSON errors, not XML)
- * because we bypass the AWS SDK's XML error parser entirely.
+ * Upload a buffer to Contabo S3 using a raw signed PUT request.
+ * Bypasses the AWS SDK XML parser — Contabo returns JSON errors which the SDK can't handle.
  */
 async function putObjectRaw(bodyBuffer, contentType, key) {
   const accessKeyId     = process.env.AWS_ACCESS_KEY_ID;
   const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
   const region          = process.env.AWS_REGION || 'SIN';
-  const bucketName      = process.env.AWS_BUCKET_NAME;              // e.g. "d9a91b8a...:hotelrockdale"
-  const s3Domain        = process.env.AWS_S3_DOMAIN.split('/')[0];  // e.g. "sin1.contabostorage.com"
+  const bucketName      = process.env.AWS_BUCKET_NAME;
+  const s3Domain        = process.env.AWS_S3_DOMAIN.split('/')[0]; // sin1.contabostorage.com
 
   // Encode bucket name safely (handles the colon in Contabo tenant:bucket names)
   const encodedBucket = encodeURIComponent(bucketName);
   const encodedKey    = key.split('/').map(encodeURIComponent).join('/');
-
-  const host    = s3Domain;
-  const urlPath = `/${encodedBucket}/${encodedKey}`;
+  const host          = s3Domain;
+  const urlPath       = `/${encodedBucket}/${encodedKey}`;
+  const fullUrl       = `https://${host}${urlPath}`;
 
   // Date/time stamps
   const now       = new Date();
@@ -44,7 +43,21 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
 
   const payloadHash = sha256hex(bodyBuffer);
 
-  // Canonical headers (alphabetically sorted)
+  // ── Log everything the reviewer asked for ──────────────────────────────────
+  console.log('[S3 SigV4 Debug] ─────────────────────────────────────');
+  console.log(`  bucket        : ${bucketName}`);
+  console.log(`  key           : ${key}`);
+  console.log(`  region        : ${region}`);
+  console.log(`  endpoint host : ${host}`);
+  console.log(`  full URL      : ${fullUrl}`);
+  console.log(`  x-amz-date    : ${amzDate}`);
+  console.log(`  content-type  : ${contentType}`);
+  console.log(`  body size     : ${bodyBuffer.length} bytes`);
+  console.log(`  payload hash  : ${payloadHash}`);
+  console.log(`  x-amz-content-sha256 included: YES (= payload hash above)`);
+  console.log('[S3 SigV4 Debug] ─────────────────────────────────────');
+
+  // Canonical headers (alphabetically sorted by header name)
   const canonicalHeaders =
     `content-type:${contentType}\n` +
     `host:${host}\n` +
@@ -57,7 +70,7 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
   const canonicalRequest = [
     'PUT',
     urlPath,
-    '',   // no query string
+    '', // no query string
     canonicalHeaders,
     signedHeaders,
     payloadHash,
@@ -78,7 +91,10 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
     `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${credentialScope}, ` +
     `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
-  const response = await fetch(`https://${host}${urlPath}`, {
+  // NOTE: Do NOT manually set Content-Length — it is a "forbidden" header in
+  // the Fetch API (Node.js undici/Vercel) and setting it causes the request
+  // to be dropped or malformed. Let fetch calculate it automatically from the body.
+  const response = await fetch(fullUrl, {
     method: 'PUT',
     headers: {
       'Content-Type':         contentType,
@@ -86,18 +102,19 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
       'x-amz-content-sha256': payloadHash,
       'x-amz-date':           amzDate,
       'Authorization':        authHeader,
-      'Content-Length':       String(bodyBuffer.length),
     },
-    body: bodyBuffer,
+    body: bodyBuffer, // Buffer — confirmed as materialised bytes, NOT a stream
   });
 
+  // Always read and log the full Contabo response so we can diagnose issues
+  const responseText = await response.text();
+  console.log(`[S3 Raw PUT] Contabo response → HTTP ${response.status}`);
+  console.log(`[S3 Raw PUT] Contabo body     → ${responseText}`);
+
   if (!response.ok) {
-    const errText = await response.text();
-    console.error(`[S3 Raw PUT] HTTP ${response.status}: ${errText}`);
-    throw new Error(`S3 upload failed (HTTP ${response.status}): ${errText}`);
+    throw new Error(`S3 upload failed (HTTP ${response.status}): ${responseText}`);
   }
 
-  // Construct and return the public URL
   return `https://${host}/${encodedBucket}/${encodedKey}`;
 }
 
@@ -105,7 +122,7 @@ async function putObjectRaw(bodyBuffer, contentType, key) {
 
 /**
  * S3 Storage Service
- * Handles media uploads to Contabo S3 via raw signed HTTP requests (no SDK dependency).
+ * Handles media uploads to Contabo S3 via raw signed HTTP (no AWS SDK).
  */
 export class S3Service {
   /**
@@ -115,22 +132,38 @@ export class S3Service {
    * @returns {Promise<{url: string, key: string, publicId: string}>}
    */
   static async upload(file, folder = 'general') {
+    // ── Materialise the bytes BEFORE anything else ─────────────────────────
+    // Calling file.arrayBuffer() here converts the Web ReadableStream (from
+    // Next.js multipart parsing) into a concrete Buffer in memory.
+    // This is safe and does NOT double-consume the stream.
     const arrayBuffer = await file.arrayBuffer();
     const buffer      = Buffer.from(arrayBuffer);
+
+    if (buffer.length === 0) {
+      throw new Error('Upload file is empty (0 bytes). The stream may have been consumed before reaching this point.');
+    }
+
     const extension   = (file.name || 'upload').split('.').pop().toLowerCase() || 'bin';
     const key         = `${folder}/${crypto.randomUUID()}.${extension}`;
-    const contentType = file.type || 'application/octet-stream';
+    const contentType = file.type && file.type !== 'application/octet-stream'
+      ? file.type
+      : 'image/jpeg'; // Contabo sometimes rejects raw octet-stream; default to jpeg for profile pics
 
-    console.log(`[S3Service.upload] key=${key} size=${buffer.length} type=${contentType}`);
+    console.log(`[S3Service.upload] Starting upload:`);
+    console.log(`  file.name    : ${file.name}`);
+    console.log(`  file.type    : ${file.type}`);
+    console.log(`  buffer.length: ${buffer.length} bytes  ← actual materialised bytes`);
+    console.log(`  key          : ${key}`);
+    console.log(`  contentType  : ${contentType} (used in signing)`);
 
     const url = await putObjectRaw(buffer, contentType, key);
 
-    console.log(`[S3Service.upload] Success → ${url}`);
+    console.log(`[S3Service.upload] ✅ Done → ${url}`);
     return { url, key, publicId: key };
   }
 
   /**
-   * Delete a file from S3 using a raw signed DELETE request.
+   * Delete a file from S3 via a raw signed DELETE request.
    * @param {string} key  File key (path inside the bucket)
    */
   static async delete(key) {
