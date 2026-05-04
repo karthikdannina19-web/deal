@@ -72,95 +72,76 @@ export class UserController {
     try {
       await dbConnect();
 
-      // 1. Authenticate
+      // 1. Logging for backend debugging (requested by user)
+      const contentType = req.headers.get('content-type') || '';
+      console.log(`[DEBUG] Update Profile Request Headers:`);
+      console.log(` - content-type: ${contentType}`);
+
+      // 2. Authenticate
       const { user: authUser, error: authError } = await authenticate(req);
-      if (authError) return authError;
+      if (authError) {
+        console.warn('[DEBUG] Authentication failed for update-profile');
+        return authError;
+      }
 
-      // 2. Parse Body (Handle JSON or Multipart)
-      const contentType = (req.headers.get('content-type') || '').toLowerCase();
       let updateData = {};
+      let fullName, email, profileImage;
 
-      try {
-        // Super-robust detection: Peek at the body to see what it actually is
-        const clonedReq = req.clone();
-        const textBody = await clonedReq.text();
-
-        if (textBody.trim().startsWith('--')) {
-          // Definitely Multipart (starts with boundary)
-          let formData;
-          
-          if (contentType.includes('multipart/form-data')) {
-            // Header is correct, use standard parser
-            formData = await req.formData();
-          } else {
-            // Header is INCORRECT (likely application/json but body is multipart).
-            // We manually extract the boundary and re-parse to avoid TypeError.
-            const firstLine = textBody.split('\n')[0].trim();
-            const boundary = firstLine.startsWith('--') ? firstLine.substring(2).trim() : '';
-            
-            const tempReq = new Request('http://localhost', {
-              method: 'POST',
-              headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
-              body: textBody
-            });
-            formData = await tempReq.formData();
-          }
-
-          updateData = {
-            fullName: formData.get('fullName'),
-            email: formData.get('email'),
-            profileImage: formData.get('profileImage')
-          };
-
-          if (updateData.profileImage && typeof updateData.profileImage !== 'string') {
-            const uploadResult = await S3Service.upload(updateData.profileImage, 'profiles');
-            updateData.profileImage = uploadResult.url;
-          } else {
-            delete updateData.profileImage;
-          }
-        } else if (textBody.trim().startsWith('{') || textBody.trim().startsWith('[')) {
-          // Likely JSON
-          const body = JSON.parse(textBody);
-          updateData = {
-            fullName: body?.fullName,
-            email: body?.email
-          };
-        } else if (contentType.includes('multipart/form-data')) {
-          // Fallback to Content-Type if peek was inconclusive but header exists
+      // 3. Robust Parsing based on Content-Type
+      // We prioritize req.formData() for multipart/form-data as it is the "real" parser in Next.js App Router
+      if (contentType.includes('multipart/form-data')) {
+        try {
           const formData = await req.formData();
-          updateData = {
-            fullName: formData.get('fullName'),
-            email: formData.get('email'),
-            profileImage: formData.get('profileImage')
-          };
+          
+          fullName = formData.get('fullName');
+          email = formData.get('email');
+          profileImage = formData.get('profileImage'); // Can be a File object or string
 
-          if (updateData.profileImage && typeof updateData.profileImage !== 'string') {
-            const uploadResult = await S3Service.upload(updateData.profileImage, 'profiles');
+          console.log(`[DEBUG] Multipart parse results:`);
+          console.log(` - fullName: ${fullName}`);
+          console.log(` - email: ${email}`);
+          console.log(` - profileImage present: ${!!profileImage}`);
+          if (profileImage && typeof profileImage !== 'string') {
+            console.log(` - profileImage type: ${profileImage.type}, size: ${profileImage.size}`);
+          }
+
+          updateData = { fullName, email, profileImage };
+
+          // Handle image upload if it's a file
+          if (profileImage && typeof profileImage !== 'string' && profileImage.name) {
+            const uploadResult = await S3Service.upload(profileImage, 'profiles');
             updateData.profileImage = uploadResult.url;
+            console.log(`[DEBUG] Profile image uploaded to S3: ${updateData.profileImage}`);
+          } else if (typeof profileImage === 'string' && profileImage.startsWith('http')) {
+            // Keep existing URL if passed as string
+            console.log(`[DEBUG] Using existing profile image URL`);
           } else {
+            // No new image or invalid format
             delete updateData.profileImage;
           }
-        } else {
-          // Last resort: assume JSON if anything is there
-          try {
-            const body = JSON.parse(textBody || '{}');
-            updateData = {
-              fullName: body?.fullName,
-              email: body?.email
-            };
-          } catch (e) {
-            throw new Error('UNABLE_TO_PARSE_BODY');
-          }
+        } catch (formDataError) {
+          console.error('[DEBUG] req.formData() failed:', formDataError);
+          return Response.json({ 
+            success: false, 
+            message: 'Failed to parse multipart data. Ensure the boundary is correct.' 
+          }, { status: 400 });
         }
-      } catch (e) {
-        console.error(`[UserController.updateProfile Parsing Error] CT: ${contentType}`, e);
-        
-        let message = 'Invalid request body or format';
-        if (e instanceof SyntaxError && e.message.includes('JSON')) {
-          message = 'Invalid JSON format. If you are uploading an image, ensure Content-Type is set to multipart/form-data.';
+      } else {
+        // Assume JSON if not multipart
+        try {
+          const body = await req.json();
+          fullName = body.fullName;
+          email = body.email;
+          
+          console.log(`[DEBUG] JSON parse results:`, body);
+          updateData = { fullName, email };
+        } catch (jsonError) {
+          console.error(`[DEBUG] JSON parse failed:`, jsonError);
+          return Response.json({ 
+            success: false, 
+            message: 'Invalid JSON body. For image uploads, use multipart/form-data.' 
+          }, { status: 400 });
         }
-        
-        return Response.json({ success: false, message }, { status: 400 });
       }
 
       // 3. Update (Mobile number is NOT passed here, ensuring it cannot be changed)
