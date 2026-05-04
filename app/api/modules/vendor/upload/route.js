@@ -13,27 +13,84 @@ export const POST = asyncHandler(async (req) => {
   await dbConnect();
 
   const contentType = req.headers.get('content-type') || '';
-  if (!contentType.includes('multipart/form-data')) {
-    return Response.json({
-      success: false,
-      error: {
-        type: 'VALIDATION_ERROR',
-        message: 'Invalid Content-Type. Use multipart/form-data for file uploads.',
-      },
-    }, { status: 400 });
-  }
+  console.log(`[DEBUG] Vendor Upload Request Headers: ${contentType}`);
 
   let formData;
-  try {
-    formData = await req.formData();
-  } catch (err) {
-    return Response.json({
-      success: false,
-      error: {
-        type: 'VALIDATION_ERROR',
-        message: 'Failed to parse form data. Ensure request is multipart/form-data with a file field.',
-      },
-    }, { status: 400 });
+  
+  // Robust Parsing Strategy (similar to update-profile fix)
+  if (contentType.includes('multipart/form-data')) {
+    try {
+      formData = await req.formData();
+    } catch (err) {
+      console.error('[DEBUG] Native formData() failed:', err.message);
+      return Response.json({
+        success: false,
+        error: {
+          type: 'VALIDATION_ERROR',
+          message: 'Failed to parse multipart data. ' + err.message,
+        },
+      }, { status: 400 });
+    }
+  } else {
+    // Fallback: Check if the body contains a multipart boundary even if the header is wrong
+    try {
+      console.log(`[DEBUG] Branch: Buffer Fallback (Header was: ${contentType})`);
+      const arrayBuffer = await req.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // ASCII 45 is '-' (multipart boundary prefix)
+      if (buffer.length > 0 && buffer[0] === 45) {
+        console.log(`[DEBUG] Detected multipart boundary in buffer, correcting headers...`);
+        
+        // Find the first line to extract the boundary
+        let actualBoundary = '';
+        let boundaryEnd = 0;
+        for (let i = 0; i < 200 && i < buffer.length; i++) {
+          if (buffer[i] === 13 && buffer[i+1] === 10) { // \r\n
+            boundaryEnd = i;
+            break;
+          }
+        }
+        if (boundaryEnd > 2) {
+          actualBoundary = new TextDecoder().decode(buffer.subarray(2, boundaryEnd)).trim();
+        }
+
+        const newHeaders = new Headers(req.headers);
+        if (actualBoundary) {
+          newHeaders.set('content-type', `multipart/form-data; boundary=${actualBoundary}`);
+          console.log(`[DEBUG] Set corrected content-type with boundary: ${actualBoundary}`);
+        } else {
+          // Default fallback boundary check
+          newHeaders.set('content-type', 'multipart/form-data');
+        }
+
+        const parsedReq = new Request(req.url, {
+          method: req.method,
+          headers: newHeaders,
+          body: buffer,
+          duplex: 'half'
+        });
+
+        formData = await parsedReq.formData();
+      } else {
+        return Response.json({
+          success: false,
+          error: {
+            type: 'VALIDATION_ERROR',
+            message: 'Invalid Content-Type. Use multipart/form-data for file uploads.',
+          },
+        }, { status: 400 });
+      }
+    } catch (err) {
+      console.error('[DEBUG] Robust parsing failed:', err.message);
+      return Response.json({
+        success: false,
+        error: {
+          type: 'VALIDATION_ERROR',
+          message: 'Could not parse request body as multipart/form-data.',
+        },
+      }, { status: 400 });
+    }
   }
 
   const file = formData.get('file');
