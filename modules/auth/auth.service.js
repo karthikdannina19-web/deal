@@ -43,7 +43,7 @@ export class AuthService {
     let role = user ? user.role : 'user'; // Default to 'user' for app flow
 
     // 3. Generate and Hash OTP
-    const plainOtp = generateOtp();
+    const plainOtp = "1234"; // Hardcoded to 1234 for now as per user request
     const hashedOtp = await hashData(plainOtp);
 
     // 4. Update the DB record (5 min expiry)
@@ -108,7 +108,9 @@ export class AuthService {
 
     // 4. Handle Referral (Optional)
     if (referralCode) {
-       const referrer = await User.findOne({ referralCode });
+       const referrer = await User.findOne({ 
+         $or: [{ referralCode }, { phone: referralCode }] 
+       });
        if (referrer) {
          user.referredBy = referrer._id;
        }
