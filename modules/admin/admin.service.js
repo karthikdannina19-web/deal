@@ -4,7 +4,6 @@ import Ad from '../../models/ad.model.js';
 import Payment from '../../models/payment.model.js';
 import CoinTransaction from '../../models/coinTransaction.model.js';
 import Store from '../../models/store.model.js';
-import Offer from '../../models/offer.model.js';
 import { compareHash } from '../../utils/hash.js';
 import { generateToken } from '../../utils/jwt.js';
 
@@ -422,7 +421,7 @@ export class AdminService {
   static async reviewOffer(offerId, action) {
     const status = action === 'approve' ? 'approved' : 'rejected';
 
-    const offer = await Offer.findByIdAndUpdate(
+    const offer = await Ad.findByIdAndUpdate(
       offerId,
       { status },
       { new: true }

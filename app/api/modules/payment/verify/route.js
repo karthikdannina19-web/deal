@@ -5,7 +5,7 @@
  */
 
 import { dbConnect } from '../../../../../config/database.js';
-import { verifyPayment } from '../../../../../services/razorpay.service.js';
+import { PaymentService } from '../../../../../modules/payment/payment.service.js';
 import { asyncHandler } from '../../../../../utils/errorHandler.js';
 
 export const POST = asyncHandler(async (req) => {
@@ -32,17 +32,18 @@ export const POST = asyncHandler(async (req) => {
     }, { status: 400 });
   }
 
-  const result = await verifyPayment(
-    { razorpay_order_id, razorpay_payment_id, razorpay_signature },
-    userId
-  );
+  const result = await PaymentService.verifyAndActivateSubscription(userId, {
+    orderId: razorpay_order_id,
+    paymentId: razorpay_payment_id,
+    signature: razorpay_signature
+  });
 
   return Response.json({
     success: true,
-    message: result.message,
+    message: 'Payment verified and subscription activated',
     data: {
-      payment: result.payment,
-      subscription: result.subscription,
+      subscription: result,
     },
   });
 });
+

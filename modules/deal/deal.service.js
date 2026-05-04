@@ -1,4 +1,4 @@
-import Offer from '../../models/offer.model.js';
+import Ad from '../../models/ad.model.js';
 import Store from '../../models/store.model.js';
 import { dbConnect } from '../../config/database.js';
 
@@ -21,35 +21,32 @@ export class DealService {
       query.category = category;
     }
 
-    // 2. Fetch Deals
-    let deals = await Offer.find(query)
+    // 2. Fetch Deals (using Ad model)
+    let deals = await Ad.find(query)
       .populate({
-        path: 'storeId',
-        select: 'businessName location address'
+        path: 'vendor',
+        select: 'storeName location fullAddress media'
       })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
 
-    // 3. Location Filter (if lat/lng provided)
-    // For now, we'll return all and could add geospatial logic later if needed
-    // But basic population is enough for the current request
-
     return deals.map(deal => ({
       offerId: deal._id,
       title: deal.title,
       description: deal.description,
-      discountValue: deal.discountValue,
-      discountType: deal.discountType,
+      discountValue: deal.price, // Using price as fallback for discountValue
+      discountType: 'fixed',
       images: deal.images,
       store: {
-        businessName: deal.storeId?.businessName,
+        businessName: deal.vendor?.storeName,
         location: {
-          lat: deal.storeId?.location?.coordinates[1],
-          lng: deal.storeId?.location?.coordinates[0]
+          lat: deal.vendor?.locationCoordinates?.coordinates[1],
+          lng: deal.vendor?.locationCoordinates?.coordinates[0]
         },
-        address: deal.storeId?.address
+        address: deal.vendor?.fullAddress
       }
     }));
   }
 }
+

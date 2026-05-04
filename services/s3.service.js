@@ -70,3 +70,10 @@ export class S3Service {
     }
   }
 }
+
+/**
+ * Standalone upload utility (exported for compatibility)
+ */
+export const uploadToS3 = async (file, folder) => {
+  return await S3Service.upload(file, folder);
+};
