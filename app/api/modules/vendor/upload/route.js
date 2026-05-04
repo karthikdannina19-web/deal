@@ -12,7 +12,30 @@ import { asyncHandler } from '../../../../../utils/errorHandler.js';
 export const POST = asyncHandler(async (req) => {
   await dbConnect();
 
-  const formData = await req.formData();
+  const contentType = req.headers.get('content-type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return Response.json({
+      success: false,
+      error: {
+        type: 'VALIDATION_ERROR',
+        message: 'Invalid Content-Type. Use multipart/form-data for file uploads.',
+      },
+    }, { status: 400 });
+  }
+
+  let formData;
+  try {
+    formData = await req.formData();
+  } catch (err) {
+    return Response.json({
+      success: false,
+      error: {
+        type: 'VALIDATION_ERROR',
+        message: 'Failed to parse form data. Ensure request is multipart/form-data with a file field.',
+      },
+    }, { status: 400 });
+  }
+
   const file = formData.get('file');
   const vendorId = formData.get('vendorId');
   const docType = formData.get('docType');
@@ -47,13 +70,14 @@ export const POST = asyncHandler(async (req) => {
     }, { status: 400 });
   }
 
-  // Validate file type
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  // Validate file type: allow any image mime type plus PDF
+  const allowedTypes = ['application/pdf'];
   const mimeType = file.type;
-  if (!allowedTypes.includes(mimeType)) {
+  const isImage = typeof mimeType === 'string' && mimeType.startsWith('image/');
+  if (!isImage && !allowedTypes.includes(mimeType)) {
     return Response.json({
       success: false,
-      error: { type: 'VALIDATION_ERROR', message: 'Only JPEG, PNG, WebP, and PDF files are allowed' },
+      error: { type: 'VALIDATION_ERROR', message: 'Only image files or PDF are allowed' },
     }, { status: 400 });
   }
 

@@ -27,6 +27,7 @@ function RegistrationForm() {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [vendorId, setVendorId] = useState(null);
+  const [uploading, setUploading] = useState({ thumbnail: false, banner: false });
 
   // Form State
   const [formData, setFormData] = useState({
@@ -68,6 +69,52 @@ function RegistrationForm() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleImageUpload = async (file, type) => {
+    if (!file) return;
+    if (!vendorId) {
+      alert('Please complete Step 1 first.');
+      return;
+    }
+
+    const isValidType = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+    if (!isValidType) {
+      alert('Only JPEG, PNG, and WebP images are allowed.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size must be less than 5MB.');
+      return;
+    }
+
+    setUploading(prev => ({ ...prev, [type]: true }));
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('vendorId', vendorId);
+      form.append('docType', type === 'thumbnail' ? 'logo' : 'certificate');
+
+      const res = await fetch('/api/modules/vendor/upload', {
+        method: 'POST',
+        body: form
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data?.success || !data?.data?.url) {
+        throw new Error(data?.error?.message || data?.message || 'Image upload failed');
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        thumbnailUrl: type === 'thumbnail' ? data.data.url : prev.thumbnailUrl,
+        bannerUrl: type === 'banner' ? data.data.url : prev.bannerUrl
+      }));
+    } catch (err) {
+      alert(err.message || 'Image upload failed');
+    } finally {
+      setUploading(prev => ({ ...prev, [type]: false }));
+    }
   };
 
   const handleNextStep = async () => {
@@ -340,36 +387,52 @@ function RegistrationForm() {
               <div className="bg-slate-100/50 p-6 rounded-3xl space-y-6 border border-slate-200/50">
                 <div className="space-y-4">
                   <label className="block text-sm font-bold text-slate-700">Store Thumbnail</label>
-                  <div className="aspect-square w-full border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:border-[#005596] transition-colors cursor-pointer group">
+                  <label className="aspect-square w-full border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:border-[#005596] transition-colors cursor-pointer group">
                     <div className="w-12 h-12 bg-[#005596]/5 rounded-full flex items-center justify-center group-hover:bg-[#005596]/10 transition-colors">
                        <Upload className="w-6 h-6 text-[#005596]" />
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-bold text-slate-700">Square ratio (1:1)</p>
-                      <p className="text-xs text-slate-400">PNG or JPG, max 5MB</p>
+                      <p className="text-xs text-slate-400">
+                        {uploading.thumbnail ? 'Uploading...' : (formData.thumbnailUrl ? 'Uploaded' : 'PNG or JPG, max 5MB')}
+                      </p>
                     </div>
-                  </div>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e.target.files?.[0], 'thumbnail')}
+                    />
+                  </label>
                 </div>
 
                 <div className="space-y-4">
                   <label className="block text-sm font-bold text-slate-700">Store Banner</label>
-                  <div className="aspect-[16/9] w-full border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:border-[#005596] transition-colors cursor-pointer group">
+                  <label className="aspect-[16/9] w-full border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center gap-3 bg-white hover:border-[#005596] transition-colors cursor-pointer group">
                     <div className="w-12 h-12 bg-[#005596]/5 rounded-full flex items-center justify-center group-hover:bg-[#005596]/10 transition-colors">
                        <ImageIcon className="w-6 h-6 text-[#005596]" />
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-bold text-slate-700">Wide ratio (16:9)</p>
-                      <p className="text-xs text-slate-400">Recommended 1920×1080</p>
+                      <p className="text-xs text-slate-400">
+                        {uploading.banner ? 'Uploading...' : (formData.bannerUrl ? 'Uploaded' : 'Recommended 1920x1080')}
+                      </p>
                     </div>
-                  </div>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImageUpload(e.target.files?.[0], 'banner')}
+                    />
+                  </label>
                 </div>
-              </div>
+                </div>
 
               <div className="flex gap-4">
                 <button onClick={() => setStep(1)} className="flex-1 bg-white text-slate-700 py-4 rounded-2xl font-bold border border-slate-200 active:scale-95 transition-all">Back</button>
                 <button 
                   onClick={handleNextStep}
-                  disabled={!formData.storeName || !formData.category || loading}
+                  disabled={!formData.storeName || !formData.category || loading || uploading.thumbnail || uploading.banner}
                   className="flex-[2] bg-[#005596] text-white py-4 rounded-2xl font-bold shadow-lg shadow-[#005596]/20 active:scale-95 transition-all disabled:opacity-50"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Continue'}
@@ -480,3 +543,4 @@ function RegistrationForm() {
     </div>
   );
 }
+
