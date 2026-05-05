@@ -5,9 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, Mail, Phone, ArrowRight, ArrowLeft, 
   Store, MapPin, CheckCircle, Upload, Image as ImageIcon,
-  Loader2, Map, Navigation, ShieldCheck
+  Loader2, Map, Navigation, ShieldCheck, LocateFixed
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
 
 // Wrap the main component in Suspense to handle useSearchParams()
 export default function VendorRegistrationPage() {
@@ -22,6 +23,11 @@ function RegistrationForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialMobile = searchParams.get('mobileNumber') || '';
+
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+  });
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -51,8 +57,10 @@ function RegistrationForm() {
     // Step 3
     fullAddress: '',
     agentCode: '',
-    locationCoordinates: [0, 0] // [lng, lat]
+    locationCoordinates: [78.4867, 17.3850] // Default to Hyderabad [lng, lat]
   });
+
+  const [mapCenter, setMapCenter] = useState({ lat: 17.3850, lng: 78.4867 });
 
   useEffect(() => {
     fetchCategories();
@@ -201,15 +209,37 @@ function RegistrationForm() {
   const getCurrentLocation = () => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude } = pos.coords;
         setFormData(prev => ({
           ...prev,
-          locationCoordinates: [pos.coords.longitude, pos.coords.latitude]
+          locationCoordinates: [longitude, latitude]
         }));
+        setMapCenter({ lat: latitude, lng: longitude });
         alert('Location captured successfully!');
-      }, () => {
-        alert('Could not get your location. Please allow location permissions.');
+      }, (err) => {
+        console.error(err);
+        alert('Could not get your location. Please ensure location permissions are enabled.');
       });
     }
+  };
+
+  const onMapClick = (e) => {
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+    setFormData(prev => ({
+      ...prev,
+      locationCoordinates: [lng, lat]
+    }));
+    setMapCenter({ lat, lng });
+  };
+
+  const onMarkerDragEnd = (e) => {
+    const lat = e.latLng.lat();
+    const lng = e.latLng.lng();
+    setFormData(prev => ({
+      ...prev,
+      locationCoordinates: [lng, lat]
+    }));
   };
 
   return (
@@ -462,22 +492,47 @@ function RegistrationForm() {
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-[#005596] mb-3">Business Location</label>
-                  <div 
-                    onClick={getCurrentLocation}
-                    className="relative aspect-video rounded-3xl bg-slate-200 overflow-hidden cursor-pointer group"
-                  >
-                    <div className="absolute inset-0 bg-[#005596]/10 group-hover:bg-[#005596]/20 transition-all flex flex-col items-center justify-center gap-4 text-[#005596]">
-                       <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                          <Navigation className="w-8 h-8" />
-                       </div>
-                       <span className="font-bold">Get current location</span>
-                    </div>
-                    {/* Fake Map Elements */}
-                    <div className="absolute inset-0 -z-1 opacity-50 grayscale">
-                       <img src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?q=80&w=2000&auto=format&fit=crop" className="w-full h-full object-cover" />
-                    </div>
+                  <label className="block text-sm font-bold text-[#005596] mb-3">Business Location (Pin on map)</label>
+                  <div className="relative aspect-video rounded-3xl bg-slate-200 overflow-hidden border border-slate-200 shadow-inner">
+                    {isLoaded ? (
+                      <GoogleMap
+                        mapContainerStyle={{ width: '100%', height: '100%' }}
+                        center={mapCenter}
+                        zoom={15}
+                        onClick={onMapClick}
+                        options={{
+                          disableDefaultUI: false,
+                          zoomControl: true,
+                          streetViewControl: false,
+                          mapTypeControl: false,
+                          fullscreenControl: true,
+                        }}
+                      >
+                        <MarkerF
+                          position={mapCenter}
+                          draggable={true}
+                          onDragEnd={onMarkerDragEnd}
+                          animation={2} // DROP
+                        />
+                      </GoogleMap>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-400 font-medium bg-slate-50">
+                        <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                        Loading Map...
+                      </div>
+                    )}
+                    
+                    <button 
+                      onClick={getCurrentLocation}
+                      className="absolute bottom-4 right-4 bg-white text-[#005596] px-4 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2 hover:bg-slate-50 transition-all z-10"
+                    >
+                      <LocateFixed className="w-4 h-4" />
+                      Current Location
+                    </button>
                   </div>
+                  <p className="mt-2 text-xs text-slate-400 font-medium">
+                    Click anywhere on the map or drag the marker to pin your exact business location.
+                  </p>
                 </div>
 
                 <div>
