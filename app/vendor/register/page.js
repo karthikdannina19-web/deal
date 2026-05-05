@@ -9,19 +9,12 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getStates, getDistricts, getMandals } from '../../../utils/locationData';
-import 'leaflet/dist/leaflet.css';
-import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
+import dynamic from 'next/dynamic';
 
-// Fix for Leaflet default icon issue in Next.js
-if (typeof window !== 'undefined') {
-  delete L.Icon.Default.prototype._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-  });
-}
+const VendorMap = dynamic(() => import('../../../components/VendorMap'), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center h-full bg-slate-50"><Loader2 className="w-6 h-6 animate-spin text-slate-400" /></div>
+});
 
 // Wrap the main component in Suspense to handle useSearchParams()
 export default function VendorRegistrationPage() {
@@ -252,20 +245,12 @@ function RegistrationForm() {
     }
   };
 
-  const MapEvents = () => {
-    useMapEvents({
-      moveend: (e) => {
-        const center = e.target.getCenter();
-        const lat = center.lat;
-        const lng = center.lng;
-        setFormData(prev => ({
-          ...prev,
-          locationCoordinates: [lng, lat]
-        }));
-        reverseGeocode(lat, lng);
-      },
-    });
-    return null;
+  const onMapMoveEnd = (lat, lng) => {
+    setFormData(prev => ({
+      ...prev,
+      locationCoordinates: [lng, lat]
+    }));
+    reverseGeocode(lat, lng);
   };
 
   return (
@@ -526,26 +511,10 @@ function RegistrationForm() {
                 <div>
                   <label className="block text-sm font-bold text-[#005596] mb-3">Business Location (Move map to select)</label>
                   <div className="relative aspect-video rounded-3xl bg-slate-200 overflow-hidden border border-slate-200 shadow-inner z-0">
-                    <MapContainer
-                      center={[mapCenter.lat, mapCenter.lng]}
-                      zoom={17}
-                      style={{ width: '100%', height: '100%' }}
-                      scrollWheelZoom={true}
-                    >
-                      <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                      />
-                      <MapEvents />
-                    </MapContainer>
-
-                    {/* Fixed Center Pin Overlay */}
-                    <div className="absolute inset-0 pointer-events-none flex items-center justify-center pb-8 z-[400]">
-                       <div className="relative">
-                          <MapPin className="w-10 h-10 text-[#005596] drop-shadow-lg animate-bounce" fill="white" />
-                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-black/20 rounded-full blur-[1px]" />
-                       </div>
-                    </div>
+                    <VendorMap 
+                      center={mapCenter} 
+                      onMoveEnd={onMapMoveEnd} 
+                    />
                     
                     <button 
                       onClick={getCurrentLocation}
