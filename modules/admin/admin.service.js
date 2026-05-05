@@ -5,15 +5,44 @@ import { dbConnect } from '../../config/database.js';
 
 export class AdminService {
   /**
-   * List all vendors with a specific status
-   * @param {string} status 'pending_approval', 'active', etc.
+   * List all vendors with filters
+   * @param {Object} filters { status, search, page, limit }
    */
-  static async listVendors(status = 'pending_approval') {
+  static async listVendors(filters = {}) {
     await dbConnect();
-    return await Vendor.find({ status })
+    const { status, search, page = 1, limit = 10 } = filters;
+    
+    const query = {};
+    
+    // Status Filter
+    if (status && status !== 'all' && status !== 'undefined') {
+      // Map 'pending' from frontend to 'pending_approval' in DB
+      query.status = status === 'pending' ? 'pending_approval' : status;
+    }
+
+    // Search Filter (Store Name or Owner Name or Email)
+    if (search) {
+      query.$or = [
+        { storeName: { $regex: search, $options: 'i' } },
+        { fullName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const total = await Vendor.countDocuments(query);
+    const vendors = await Vendor.find(query)
       .populate('userId', 'fullName email phone')
       .populate('categoryId', 'name')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return {
+      vendors,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   /**

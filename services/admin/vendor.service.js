@@ -21,7 +21,7 @@ export const vendorService = {
    */
   approveVendor: async (id) => {
     try {
-      const response = await api.put(`/api/admin/vendors/approve/${id}`);
+      const response = await api.patch(`/api/admin/vendors/${id}`, { status: 'active' });
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to approve vendor';
@@ -33,7 +33,10 @@ export const vendorService = {
    */
   rejectVendor: async (id, reason) => {
     try {
-      const response = await api.put(`/api/admin/vendors/reject/${id}`, { reason });
+      const response = await api.patch(`/api/admin/vendors/${id}`, { 
+        status: 'rejected',
+        reason 
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to reject vendor';
@@ -45,7 +48,7 @@ export const vendorService = {
    */
   suspendVendor: async (id) => {
     try {
-      const response = await api.put(`/api/admin/vendors/suspend/${id}`);
+      const response = await api.patch(`/api/admin/vendors/${id}`, { status: 'suspended' });
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to suspend vendor';

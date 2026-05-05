@@ -61,9 +61,15 @@ export class AdminController {
   static async getVendors(req) {
     try {
       const { searchParams } = new URL(req.url);
-      const status = searchParams.get('status') || 'pending_approval';
-      const vendors = await AdminService.listVendors(status);
-      return Response.json({ success: true, data: vendors }, { status: 200 });
+      const filters = {
+        status: searchParams.get('status'),
+        search: searchParams.get('search'),
+        page: searchParams.get('page'),
+        limit: searchParams.get('limit')
+      };
+      
+      const result = await AdminService.listVendors(filters);
+      return Response.json({ success: true, ...result }, { status: 200 });
     } catch (error) {
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
