@@ -504,21 +504,11 @@ export class VendorService {
       throw new Error('Vendor not found. Please register using /register');
     }
 
-    if (vendor.status !== 'active') {
-      if (vendor.status === 'pending_approval') {
-        throw new Error('Your registration is under review. Admin approval is required before login.');
-      }
-      if (vendor.status === 'rejected') {
-        const reasonText = vendor.rejectionReason ? ` Reason: ${vendor.rejectionReason}` : '';
-        throw new Error(`Your registration was rejected.${reasonText} Please contact admin or re-apply.`);
-      }
-      if (vendor.status === 'suspended') {
-        throw new Error('Your vendor account is suspended. Please contact admin support.');
-      }
-      throw new Error('Your vendor account is not eligible for login yet.');
-    }
-
-    // 2. Generate OTP (hardcoded '1234' for testing)
+    // 2. Status Check - Optional: We could block suspended/rejected here, 
+    // but the user wants them to reach the OTP page.
+    // We will allow all statuses for now, and handle status-based access in the frontend.
+    
+    // 3. Generate OTP (hardcoded '1234' for testing)
     const plainOtp = '1234';
     const hashedOtp = await hashData(plainOtp);
 
@@ -581,21 +571,6 @@ export class VendorService {
     const vendor = await Vendor.findOne({ mobileNumber });
     if (!vendor) {
       throw new Error('Vendor profile not found. Please register first.');
-    }
-
-    // Check if vendor is approved
-    if (vendor.status !== 'active') {
-      if (vendor.status === 'pending_approval') {
-        throw new Error('Your registration is still pending admin approval.');
-      }
-      if (vendor.status === 'rejected') {
-        const reasonText = vendor.rejectionReason ? ` Reason: ${vendor.rejectionReason}` : '';
-        throw new Error(`Your registration was rejected.${reasonText} Please contact admin or re-apply.`);
-      }
-      if (vendor.status === 'suspended') {
-        throw new Error('Your vendor account is suspended. Please contact admin support.');
-      }
-      throw new Error('Your vendor account is not active.');
     }
 
     // 6. Find associated User

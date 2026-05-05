@@ -322,8 +322,7 @@ export class VendorController {
         success: true,
         exists: result.exists,
         vendorId: result.vendorId || null,
-        status: result.status || null,
-        message: result.exists ? 'Vendor found' : 'Vendor not found - please register'
+        status: result.status || null
       }, { status: 200 });
 
     } catch (error) {
