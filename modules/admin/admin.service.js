@@ -50,13 +50,14 @@ export class AdminService {
    * @param {string} vendorId 
    * @param {string} status 'active' or 'rejected'
    */
-  static async updateVendorStatus(vendorId, status) {
+  static async updateVendorStatus(vendorId, status, reason = '') {
     await dbConnect();
     
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) throw new Error('Vendor not found');
 
     vendor.status = status;
+    vendor.rejectionReason = status === 'rejected' ? String(reason || '').trim() : '';
     await vendor.save();
 
     // If approved, update the associated user's role to 'vendor'

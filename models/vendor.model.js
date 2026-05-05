@@ -109,6 +109,11 @@ const vendorSchema = new mongoose.Schema(
       enum: ['draft', 'pending_approval', 'active', 'suspended', 'rejected'],
       default: 'draft',
     },
+    rejectionReason: {
+      type: String,
+      trim: true,
+      default: '',
+    },
 
     // Wallet
     coinBalance: {

@@ -504,6 +504,20 @@ export class VendorService {
       throw new Error('Vendor not found. Please register using /register');
     }
 
+    if (vendor.status !== 'active') {
+      if (vendor.status === 'pending_approval') {
+        throw new Error('Your registration is under review. Admin approval is required before login.');
+      }
+      if (vendor.status === 'rejected') {
+        const reasonText = vendor.rejectionReason ? ` Reason: ${vendor.rejectionReason}` : '';
+        throw new Error(`Your registration was rejected.${reasonText} Please contact admin or re-apply.`);
+      }
+      if (vendor.status === 'suspended') {
+        throw new Error('Your vendor account is suspended. Please contact admin support.');
+      }
+      throw new Error('Your vendor account is not eligible for login yet.');
+    }
+
     // 2. Generate OTP (hardcoded '1234' for testing)
     const plainOtp = '1234';
     const hashedOtp = await hashData(plainOtp);
@@ -571,7 +585,17 @@ export class VendorService {
 
     // Check if vendor is approved
     if (vendor.status !== 'active') {
-      throw new Error('Your account is pending approval. Please wait for an administrator to review your application.');
+      if (vendor.status === 'pending_approval') {
+        throw new Error('Your registration is still pending admin approval.');
+      }
+      if (vendor.status === 'rejected') {
+        const reasonText = vendor.rejectionReason ? ` Reason: ${vendor.rejectionReason}` : '';
+        throw new Error(`Your registration was rejected.${reasonText} Please contact admin or re-apply.`);
+      }
+      if (vendor.status === 'suspended') {
+        throw new Error('Your vendor account is suspended. Please contact admin support.');
+      }
+      throw new Error('Your vendor account is not active.');
     }
 
     // 6. Find associated User

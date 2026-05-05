@@ -83,13 +83,13 @@ export class AdminController {
     try {
       const { id } = params;
       const body = await req.json();
-      const { status } = body; // 'active' or 'rejected'
+      const { status, reason } = body; // 'active' or 'rejected'
 
       if (!['active', 'rejected', 'suspended'].includes(status)) {
         return Response.json({ success: false, message: 'Invalid status' }, { status: 400 });
       }
 
-      const vendor = await AdminService.updateVendorStatus(id, status);
+      const vendor = await AdminService.updateVendorStatus(id, status, reason);
       return Response.json({ 
         success: true, 
         message: `Vendor ${status === 'active' ? 'approved' : status} successfully`,
