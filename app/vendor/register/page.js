@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, Mail, Phone, ArrowRight, ArrowLeft, 
   Store, MapPin, CheckCircle, Upload, Image as ImageIcon,
-  Loader2, Map, Navigation, ShieldCheck, LocateFixed
+  Loader2, Map, Navigation, ShieldCheck, LocateFixed, Pin
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { GoogleMap, useJsApiLoader, MarkerF } from '@react-google-maps/api';
@@ -26,10 +26,12 @@ function RegistrationForm() {
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: ['places']
   });
 
   const [step, setStep] = useState(1);
+  const [mapRef, setMapRef] = useState(null);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
   const [vendorId, setVendorId] = useState(null);
@@ -223,23 +225,38 @@ function RegistrationForm() {
     }
   };
 
-  const onMapClick = (e) => {
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
-    setFormData(prev => ({
-      ...prev,
-      locationCoordinates: [lng, lat]
-    }));
-    setMapCenter({ lat, lng });
+  const reverseGeocode = async (lat, lng) => {
+    if (!window.google) return;
+    const geocoder = new window.google.maps.Geocoder();
+    try {
+      const response = await geocoder.geocode({ location: { lat, lng } });
+      if (response.results[0]) {
+        setFormData(prev => ({
+          ...prev,
+          fullAddress: response.results[0].formatted_address
+        }));
+      }
+    } catch (err) {
+      console.error('Geocoding failed:', err);
+    }
   };
 
-  const onMarkerDragEnd = (e) => {
-    const lat = e.latLng.lat();
-    const lng = e.latLng.lng();
+  const onMapIdle = () => {
+    if (!mapRef) return;
+    const center = mapRef.getCenter();
+    const lat = center.lat();
+    const lng = center.lng();
+    
     setFormData(prev => ({
       ...prev,
       locationCoordinates: [lng, lat]
     }));
+    
+    reverseGeocode(lat, lng);
+  };
+
+  const onLoad = (map) => {
+    setMapRef(map);
   };
 
   return (
@@ -492,29 +509,30 @@ function RegistrationForm() {
 
               <div className="space-y-6">
                 <div>
-                  <label className="block text-sm font-bold text-[#005596] mb-3">Business Location (Pin on map)</label>
+                  <label className="block text-sm font-bold text-[#005596] mb-3">Business Location (Move map to select)</label>
                   <div className="relative aspect-video rounded-3xl bg-slate-200 overflow-hidden border border-slate-200 shadow-inner">
                     {isLoaded ? (
-                      <GoogleMap
-                        mapContainerStyle={{ width: '100%', height: '100%' }}
-                        center={mapCenter}
-                        zoom={15}
-                        onClick={onMapClick}
-                        options={{
-                          disableDefaultUI: false,
-                          zoomControl: true,
-                          streetViewControl: false,
-                          mapTypeControl: false,
-                          fullscreenControl: true,
-                        }}
-                      >
-                        <MarkerF
-                          position={mapCenter}
-                          draggable={true}
-                          onDragEnd={onMarkerDragEnd}
-                          animation={2} // DROP
+                      <>
+                        <GoogleMap
+                          mapContainerStyle={{ width: '100%', height: '100%' }}
+                          center={mapCenter}
+                          zoom={17}
+                          onLoad={onLoad}
+                          onIdle={onMapIdle}
+                          options={{
+                            disableDefaultUI: true,
+                            zoomControl: false,
+                            gestureHandling: 'greedy'
+                          }}
                         />
-                      </GoogleMap>
+                        {/* Fixed Center Pin Overlay */}
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center pb-8">
+                           <div className="relative">
+                              <MapPin className="w-10 h-10 text-[#005596] drop-shadow-lg animate-bounce" fill="white" />
+                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-black/20 rounded-full blur-[1px]" />
+                           </div>
+                        </div>
+                      </>
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center text-slate-400 font-medium bg-slate-50">
                         <Loader2 className="w-6 h-6 animate-spin mr-2" />
@@ -524,14 +542,14 @@ function RegistrationForm() {
                     
                     <button 
                       onClick={getCurrentLocation}
-                      className="absolute bottom-4 right-4 bg-white text-[#005596] px-4 py-2 rounded-xl font-bold shadow-lg flex items-center gap-2 hover:bg-slate-50 transition-all z-10"
+                      className="absolute bottom-4 right-4 bg-white text-[#005596] p-3 rounded-full shadow-lg hover:bg-slate-50 transition-all z-10"
+                      title="Get Current Location"
                     >
-                      <LocateFixed className="w-4 h-4" />
-                      Current Location
+                      <LocateFixed className="w-5 h-5" />
                     </button>
                   </div>
-                  <p className="mt-2 text-xs text-slate-400 font-medium">
-                    Click anywhere on the map or drag the marker to pin your exact business location.
+                  <p className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
+                    Drag the map to position your shop under the pin
                   </p>
                 </div>
 
