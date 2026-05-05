@@ -524,7 +524,13 @@ function RegistrationForm() {
                 <div>
                   <label className="block text-sm font-bold text-[#005596] mb-3">Business Location (Move map to select)</label>
                   <div className="relative aspect-video rounded-3xl bg-slate-200 overflow-hidden border border-slate-200 shadow-inner">
-                    {isLoaded ? (
+                    {!process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-red-50 text-red-500">
+                        <Info className="w-8 h-8 mb-2" />
+                        <p className="font-bold">Google Maps API Key Missing</p>
+                        <p className="text-xs opacity-70 mt-1">Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your environment variables.</p>
+                      </div>
+                    ) : isLoaded ? (
                       <>
                         <GoogleMap
                           mapContainerStyle={{ width: '100%', height: '100%' }}
@@ -533,9 +539,11 @@ function RegistrationForm() {
                           onLoad={onLoad}
                           onIdle={onMapIdle}
                           options={{
-                            disableDefaultUI: true,
-                            zoomControl: false,
-                            gestureHandling: 'greedy'
+                            disableDefaultUI: false,
+                            zoomControl: true,
+                            gestureHandling: 'greedy',
+                            clickableIcons: false,
+                            scrollwheel: true
                           }}
                         />
                         {/* Fixed Center Pin Overlay */}
