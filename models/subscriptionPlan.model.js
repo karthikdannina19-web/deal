@@ -177,7 +177,7 @@ subscriptionPlanSchema.virtual('costPerCredit').get(function () {
 // ==========================================
 // Pre-validate: Auto-generate slug
 // ==========================================
-subscriptionPlanSchema.pre('validate', function (next) {
+subscriptionPlanSchema.pre('validate', async function () {
   if (!this.slug && this.name) {
     this.slug = this.name
       .toLowerCase()
@@ -198,8 +198,6 @@ subscriptionPlanSchema.pre('validate', function (next) {
     };
     this.durationDays = cycleMap[this.billingCycle] || 30;
   }
-
-  next();
 });
 
 // ==========================================

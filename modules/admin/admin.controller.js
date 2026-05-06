@@ -2,6 +2,9 @@ import { AdminService } from './admin.service.js';
 import User from '../../models/user.model.js';
 import { generateToken } from '../../utils/jwt.js';
 import { dbConnect } from '../../config/database.js';
+import { createPlan, getPlans } from '../../services/subscription.service.js';
+import { listAds, moderateAd } from '../../services/ad.service.js';
+import { verifyToken } from '../../utils/jwt.js';
 
 export class AdminController {
   /**
@@ -108,12 +111,14 @@ export class AdminController {
     try {
       await dbConnect();
       const body = await req.json();
-      const { createPlan } = await import('../../services/subscription.service.js');
+      console.log('[AdminController.createSubscriptionPlan] Body:', body);
+      
       const plan = await createPlan(body);
       return Response.json({ success: true, message: 'Plan created successfully', data: plan }, { status: 201 });
     } catch (error) {
+      console.error('[AdminController.createSubscriptionPlan Error]', error);
       const status = error.statusCode || 500;
-      return Response.json({ success: false, message: error.message }, { status });
+      return Response.json({ success: false, message: error.message || 'Internal server error' }, { status });
     }
   }
 
@@ -124,10 +129,10 @@ export class AdminController {
   static async getSubscriptionPlans(req) {
     try {
       await dbConnect();
-      const { getPlans } = await import('../../services/subscription.service.js');
       const plans = await getPlans();
       return Response.json({ success: true, data: plans }, { status: 200 });
     } catch (error) {
+      console.error('[AdminController.getSubscriptionPlans Error]', error);
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
@@ -139,8 +144,6 @@ export class AdminController {
   static async getPendingAds(req) {
     try {
       await dbConnect();
-      const { listAds } = await import('../../services/ad.service.js');
-      
       const { searchParams } = new URL(req.url);
       const page = searchParams.get('page') || 1;
       const limit = searchParams.get('limit') || 20;
@@ -149,6 +152,7 @@ export class AdminController {
       const result = await listAds({ status: 'pending' }, page, limit);
       return Response.json({ success: true, ...result }, { status: 200 });
     } catch (error) {
+      console.error('[AdminController.getPendingAds Error]', error);
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
@@ -164,23 +168,18 @@ export class AdminController {
       const body = await req.json();
       const { action, notes } = body; // 'approve' or 'reject'
 
-      // We need adminId. The token should ideally be parsed.
-      // For now, we can extract from authorization header if needed, 
-      // or we just pass a default admin id if auth middleware isn't perfectly injecting it here.
-      // Let's assume auth middleware provides it if we use it, or we decode the token.
       const authHeader = req.headers.get('authorization');
       let adminId = null;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.split(' ')[1];
         try {
-          const decoded = (await import('../../utils/jwt.js')).verifyToken(token);
+          const decoded = verifyToken(token);
           adminId = decoded.id;
         } catch (e) {
           // ignore
         }
       }
 
-      const { moderateAd } = await import('../../services/ad.service.js');
       const ad = await moderateAd(id, action, adminId, notes);
       
       return Response.json({ 
