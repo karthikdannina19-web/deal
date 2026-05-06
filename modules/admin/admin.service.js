@@ -1,6 +1,9 @@
 import Vendor from '../../models/vendor.model.js';
 import User from '../../models/user.model.js';
 import Category from '../../models/category.model.js';
+import Ad from '../../models/ad.model.js';
+import Payment from '../../models/payment.model.js';
+import UserSubscription from '../../models/userSubscription.model.js';
 import { dbConnect } from '../../config/database.js';
 
 export class AdminService {
@@ -80,5 +83,98 @@ export class AdminService {
     return await Vendor.findById(vendorId)
       .populate('userId', 'fullName email phone')
       .populate('categoryId', 'name');
+  }
+
+  /**
+   * Get Admin Dashboard Statistics
+   */
+  static async getDashboardStats() {
+    await dbConnect();
+    
+    const [
+      totalUsers,
+      totalVendors,
+      totalAds,
+      pendingAds,
+      totalRevenueData,
+      activeSubscriptions
+    ] = await Promise.all([
+      User.countDocuments({ role: 'user' }),
+      Vendor.countDocuments({ status: 'active' }),
+      Ad.countDocuments({ status: 'approved' }),
+      Ad.countDocuments({ status: 'pending' }),
+      Payment.aggregate([
+        { $match: { status: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } }
+      ]),
+      UserSubscription.countDocuments({ status: 'active' })
+    ]);
+
+    const totalRevenue = totalRevenueData.length > 0 ? totalRevenueData[0].total / 100 : 0; // Convert paise to INR
+
+    return {
+      totalUsers,
+      totalVendors,
+      totalAds,
+      pendingAds,
+      totalRevenue,
+      activeSubscriptions
+    };
+  }
+
+  /**
+   * List all users with filters
+   * @param {Object} filters { search, page, limit }
+   */
+  static async listUsers(filters = {}) {
+    await dbConnect();
+    const { search, page = 1, limit = 20 } = filters;
+    
+    const query = { role: 'user' };
+    
+    if (search) {
+      query.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const total = await User.countDocuments(query);
+    const users = await User.find(query)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return {
+      users,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit)
+    };
+  }
+
+  /**
+   * List all payments with pagination
+   * @param {Object} filters { page, limit }
+   */
+  static async listPayments(filters = {}) {
+    await dbConnect();
+    const { page = 1, limit = 20 } = filters;
+    
+    const total = await Payment.countDocuments();
+    const payments = await Payment.find()
+      .populate('vendorId', 'storeName fullName')
+      .populate('planId', 'name')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    return {
+      payments,
+      total,
+      page: parseInt(page),
+      totalPages: Math.ceil(total / limit)
+    };
   }
 }

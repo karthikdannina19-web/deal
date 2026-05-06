@@ -192,4 +192,56 @@ export class AdminController {
       return Response.json({ success: false, message: error.message }, { status });
     }
   }
+
+  /**
+   * Get Admin Dashboard Stats
+   * GET /api/admin/dashboard/stats
+   */
+  static async getDashboardStats(req) {
+    try {
+      const stats = await AdminService.getDashboardStats();
+      return Response.json({ success: true, data: stats }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * Get All Users
+   * GET /api/admin/users
+   */
+  static async getUsers(req) {
+    try {
+      const { searchParams } = new URL(req.url);
+      const filters = {
+        search: searchParams.get('search'),
+        page: searchParams.get('page'),
+        limit: searchParams.get('limit')
+      };
+      
+      const result = await AdminService.listUsers(filters);
+      return Response.json({ success: true, ...result }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * Get All Payments
+   * GET /api/admin/payments
+   */
+  static async getPayments(req) {
+    try {
+      const { searchParams } = new URL(req.url);
+      const filters = {
+        page: searchParams.get('page'),
+        limit: searchParams.get('limit')
+      };
+      
+      const result = await AdminService.listPayments(filters);
+      return Response.json({ success: true, ...result }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
 }
