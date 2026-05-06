@@ -99,4 +99,99 @@ export class AdminController {
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
+
+  /**
+   * Create Subscription Plan (Admin)
+   * POST /api/admin/subscription-plans
+   */
+  static async createSubscriptionPlan(req) {
+    try {
+      await dbConnect();
+      const body = await req.json();
+      const { createPlan } = await import('../../services/subscription.service.js');
+      const plan = await createPlan(body);
+      return Response.json({ success: true, message: 'Plan created successfully', data: plan }, { status: 201 });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
+
+  /**
+   * Get Subscription Plans (Admin)
+   * GET /api/admin/subscription-plans
+   */
+  static async getSubscriptionPlans(req) {
+    try {
+      await dbConnect();
+      const { getPlans } = await import('../../services/subscription.service.js');
+      const plans = await getPlans();
+      return Response.json({ success: true, data: plans }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * Get Pending Ads
+   * GET /api/admin/ads
+   */
+  static async getPendingAds(req) {
+    try {
+      await dbConnect();
+      const { listAds } = await import('../../services/ad.service.js');
+      
+      const { searchParams } = new URL(req.url);
+      const page = searchParams.get('page') || 1;
+      const limit = searchParams.get('limit') || 20;
+
+      // Filter for pending ads
+      const result = await listAds({ status: 'pending' }, page, limit);
+      return Response.json({ success: true, ...result }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * Approve/Reject Ad
+   * PATCH /api/admin/ads/[id]/approve
+   */
+  static async approveAd(req, { params }) {
+    try {
+      await dbConnect();
+      const { id } = await params;
+      const body = await req.json();
+      const { action, notes } = body; // 'approve' or 'reject'
+
+      // We need adminId. The token should ideally be parsed.
+      // For now, we can extract from authorization header if needed, 
+      // or we just pass a default admin id if auth middleware isn't perfectly injecting it here.
+      // Let's assume auth middleware provides it if we use it, or we decode the token.
+      import { verifyToken } from '../../utils/jwt.js';
+      const authHeader = req.headers.get('authorization');
+      let adminId = null;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.split(' ')[1];
+        try {
+          const decoded = (await import('../../utils/jwt.js')).verifyToken(token);
+          adminId = decoded.id;
+        } catch (e) {
+          // ignore
+        }
+      }
+
+      const { moderateAd } = await import('../../services/ad.service.js');
+      const ad = await moderateAd(id, action, adminId, notes);
+      
+      return Response.json({ 
+        success: true, 
+        message: `Ad ${action}d successfully`,
+        data: ad 
+      }, { status: 200 });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
 }

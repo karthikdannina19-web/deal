@@ -39,6 +39,7 @@ export async function createAd(data, userId) {
     subCategory,
     images,
     videoUrl,
+    url,
     price,
     priceType,
     location,
@@ -136,6 +137,7 @@ export async function createAd(data, userId) {
     subCategory,
     images: images || [],
     videoUrl,
+    url,
     price,
     priceType: priceType || 'fixed',
     location,
@@ -195,7 +197,7 @@ export async function updateAd(adId, userId, data) {
   // Fields allowed to update
   const allowedFields = [
     'title', 'description', 'category', 'subCategory',
-    'images', 'videoUrl', 'price', 'priceType',
+    'images', 'videoUrl', 'url', 'price', 'priceType',
     'location', 'tags', 'contactInfo',
   ];
 

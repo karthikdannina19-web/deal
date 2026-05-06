@@ -496,4 +496,122 @@ export class VendorController {
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
+
+  /**
+   * GET /api/vendor/subscription-plans
+   * Fetch active subscription plans for vendors
+   */
+  static async getSubscriptionPlans(req) {
+    try {
+      await dbConnect();
+      const { getPlans } = await import('../../services/subscription.service.js');
+      const plans = await getPlans();
+      return Response.json({ success: true, data: plans }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * POST /api/vendor/ads
+   * Vendor creates a new ad (deducts 1 credit)
+   * Form-Data: title, description, url(optional), media (image precisely 450x525)
+   */
+  static async createAd(req) {
+    try {
+      await dbConnect();
+
+      // 1. Authenticate Vendor
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const roleError = authorize(user, ['vendor']);
+      if (roleError) return roleError;
+
+      // 2. Parse Form Data
+      const formData = await req.formData();
+      const title = formData.get('title');
+      const description = formData.get('description');
+      const url = formData.get('url'); // optional
+      const media = formData.get('media'); // file
+
+      if (!title || !description || !media) {
+        return Response.json({ success: false, message: 'Title, description, and media are required' }, { status: 400 });
+      }
+
+      // 3. Validate Image dimensions (450x525)
+      const buffer = Buffer.from(await media.arrayBuffer());
+      const sizeOf = (await import('image-size')).default;
+      const dimensions = sizeOf(buffer);
+      
+      if (dimensions.width !== 450 || dimensions.height !== 525) {
+        return Response.json({ 
+          success: false, 
+          message: `Image dimensions must be exactly 450w x 525h. Uploaded image is ${dimensions.width}w x ${dimensions.height}h.`
+        }, { status: 400 });
+      }
+
+      // 4. Upload Image to S3
+      const uploadResult = await S3Service.upload(buffer, 'ads', media.name, media.type);
+      const images = [{
+        url: uploadResult.url,
+        key: uploadResult.key,
+        alt: title,
+        isPrimary: true
+      }];
+
+      // 5. Create Ad using service (This deducts the credit)
+      const { createAd } = await import('../../services/ad.service.js');
+      const adData = {
+        title,
+        description,
+        url: url || '',
+        images,
+        category: 'General', // Default category or could be extracted from vendor profile
+      };
+      
+      const result = await createAd(adData, user.id);
+
+      return Response.json({
+        success: true,
+        message: 'Ad created successfully and is pending admin approval.',
+        data: result.ad,
+        remainingCredits: result.remainingCredits
+      }, { status: 201 });
+
+    } catch (error) {
+      console.error('[VendorController.createAd Error]', error);
+      const statusCode = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status: statusCode });
+    }
+  }
+
+  /**
+   * GET /api/vendor/ads/credits
+   * Fetch remaining ad credits for vendor
+   */
+  static async getAdCredits(req) {
+    try {
+      await dbConnect();
+
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const User = (await import('../../models/user.model.js')).default;
+      const dbUser = await User.findById(user.id);
+
+      if (!dbUser) {
+        return Response.json({ success: false, message: 'User not found' }, { status: 404 });
+      }
+
+      return Response.json({ 
+        success: true, 
+        credits: dbUser.coinBalance 
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[VendorController.getAdCredits Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
 }

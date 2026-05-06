@@ -5,5 +5,5 @@ import { AdminController } from "@/modules/admin/admin.controller.js";
  * List ads for moderation
  */
 export async function GET(req) {
-  return await AdminController.getAds(req);
+  return await AdminController.getPendingAds(req);
 }
