@@ -146,7 +146,7 @@ vendorSchema.virtual('qrCodeUrl').get(function() {
 
 // Auto-generate slug from storeName
 vendorSchema.pre('save', async function() {
-  if (this.isModified('storeName') && this.storeName && !this.slug) {
+  if (this.storeName && !this.slug) {
     let baseSlug = this.storeName
       .toLowerCase()
       .trim()

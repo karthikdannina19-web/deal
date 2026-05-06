@@ -460,6 +460,11 @@ export class VendorController {
       const profile = await VendorService.getVendorProfile(user.vendorId);
       if (!profile) return Response.json({ success: false, message: 'Profile not found' }, { status: 404 });
 
+      // Ensure slug exists for existing (legacy) vendors
+      if (!profile.slug && profile.storeName) {
+        await profile.save();
+      }
+
       return Response.json({
         success: true,
         data: profile
