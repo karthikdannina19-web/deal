@@ -590,6 +590,39 @@ export class VendorController {
   }
 
   /**
+   * GET /api/vendor/qr-code
+   * Fetch unique QR code slug and public URL for the vendor
+   */
+  static async getQrCode(req) {
+    try {
+      await dbConnect();
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const profile = await VendorService.getVendorProfile(user.vendorId);
+      if (!profile) return Response.json({ success: false, message: 'Vendor profile not found' }, { status: 404 });
+
+      // If slug doesn't exist (legacy vendors), trigger a save to generate it via model hook
+      if (!profile.slug && profile.storeName) {
+        await profile.save();
+      }
+
+      return Response.json({
+        success: true,
+        data: {
+          slug: profile.slug,
+          qrCodeUrl: profile.qrCodeUrl,
+          storeName: profile.storeName
+        }
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[VendorController.getQrCode Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+
+  /**
    * GET /api/vendor/ads/credits
    * Fetch remaining ad credits for vendor
    */

@@ -115,6 +115,15 @@ const vendorSchema = new mongoose.Schema(
       default: '',
     },
 
+    // Unique identifier for QR codes and sharing
+    slug: {
+      type: String,
+      unique: true,
+      sparse: true,
+      lowercase: true,
+      trim: true,
+    },
+
     // Wallet
     coinBalance: {
       type: Number,
@@ -124,8 +133,37 @@ const vendorSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
+
+// Virtual for the public QR URL
+vendorSchema.virtual('qrCodeUrl').get(function() {
+  if (!this.slug) return null;
+  return `https://rhock.vercel.app/v/${this.slug}`;
+});
+
+// Auto-generate slug from storeName
+vendorSchema.pre('save', async function() {
+  if (this.isModified('storeName') && this.storeName && !this.slug) {
+    let baseSlug = this.storeName
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    
+    // Ensure uniqueness
+    let slug = baseSlug;
+    let count = 1;
+    while (await mongoose.models.Vendor.findOne({ slug, _id: { $ne: this._id } })) {
+      slug = `${baseSlug}-${count}`;
+      count++;
+    }
+    this.slug = slug;
+  }
+});
 
 // Indexes
 vendorSchema.index({ email: 1 });
