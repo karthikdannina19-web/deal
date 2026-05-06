@@ -86,17 +86,17 @@ export default function PaymentsPage() {
                       <div className="flex items-center gap-2">
                         <UserIcon size={14} className="text-zinc-400" />
                         <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                          {payment.user?.firstName} {payment.user?.lastName || 'Vendor'}
+                          {payment.vendorId?.storeName || payment.vendorId?.fullName || 'Unknown Vendor'}
                         </span>
                       </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-zinc-900 dark:text-zinc-100">
-                      ₹{payment.amount.toLocaleString()}
+                      ₹{(payment.amount / 100).toLocaleString()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border
                         ${payment.status === 'paid' ? 'bg-green-50 text-green-700 border-green-200' : 
-                          payment.status === 'initiated' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
+                          payment.status === 'created' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' : 
                           'bg-red-50 text-red-700 border-red-200'
                         }`}
                       >
