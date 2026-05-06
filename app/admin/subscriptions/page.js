@@ -1,19 +1,83 @@
+"use client";
+
+import React, { useEffect, useState } from 'react';
 import { dbConnect } from "@/config/database";
 import SubscriptionPlan from "@/models/subscriptionPlan.model";
-import { Plus, MoreHorizontal, Check, X, IndianRupee, Layers, Star } from "lucide-react";
+import { Plus, MoreHorizontal, Check, X, IndianRupee, Layers, Star, Loader2, X as CloseIcon } from "lucide-react";
+import { toast } from "react-hot-toast";
 
-async function getPlans() {
-  await dbConnect();
-  // Fetch active and inactive plans
-  const plans = await SubscriptionPlan.find()
-    .sort({ sortOrder: 1, price: 1 })
-    .lean();
-  
-  return JSON.parse(JSON.stringify(plans)); // Serialize for client
-}
+// Client-side fetching instead of server-side for easier interactivity
 
-export default async function SubscriptionsPage() {
-  const plans = await getPlans();
+export default function SubscriptionsPage() {
+  const [plans, setPlans] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    creditsIncluded: '',
+    billingCycle: 'monthly',
+    badge: '',
+    features: [{ label: '1 post = 1 credit', included: true }, { label: 'Post your ad with ease', included: true }]
+  });
+
+  const fetchPlans = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/admin/subscription-plans');
+      const data = await res.json();
+      if (data.success) {
+        setPlans(data.data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/subscription-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          price: Number(formData.price),
+          creditsIncluded: Number(formData.creditsIncluded)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsModalOpen(false);
+        setFormData({
+          name: '',
+          description: '',
+          price: '',
+          creditsIncluded: '',
+          billingCycle: 'monthly',
+          badge: '',
+          features: [{ label: '1 post = 1 credit', included: true }, { label: 'Post your ad with ease', included: true }]
+        });
+        fetchPlans();
+      } else {
+        alert(data.message || 'Failed to create plan');
+      }
+    } catch (err) {
+      alert('Error creating plan');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -23,14 +87,22 @@ export default async function SubscriptionsPage() {
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">Manage vendor subscription tiers and pricing.</p>
         </div>
         
-        <button className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-sm font-medium hover:bg-zinc-800 dark:hover:bg-white transition-colors shadow-sm">
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-sm font-medium hover:bg-zinc-800 dark:hover:bg-white transition-colors shadow-sm"
+        >
           <Plus size={16} />
           Create Plan
         </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
-        {plans.length === 0 ? (
+        {isLoading ? (
+          <div className="col-span-full py-20 flex flex-col items-center justify-center text-zinc-500">
+            <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-500" />
+            <p>Loading subscription tiers...</p>
+          </div>
+        ) : plans.length === 0 ? (
           <div className="col-span-full py-12 text-center text-zinc-500 bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
             No subscription plans found. Create one to get started.
           </div>
@@ -122,6 +194,119 @@ export default async function SubscriptionsPage() {
           ))
         )}
       </div>
+
+      {/* Create Plan Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Create New Plan</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
+                <CloseIcon size={20} className="text-zinc-500" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Plan Name</label>
+                <input 
+                  required
+                  type="text" 
+                  value={formData.name}
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  placeholder="e.g. Near Business Pro"
+                  className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Description</label>
+                <textarea 
+                  required
+                  value={formData.description}
+                  onChange={e => setFormData({...formData, description: e.target.value})}
+                  placeholder="What's included in this plan?"
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Price (INR)</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={formData.price}
+                    onChange={e => setFormData({...formData, price: e.target.value})}
+                    placeholder="4999"
+                    className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Ad Credits</label>
+                  <input 
+                    required
+                    type="number" 
+                    value={formData.creditsIncluded}
+                    onChange={e => setFormData({...formData, creditsIncluded: e.target.value})}
+                    placeholder="20"
+                    className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Billing Cycle</label>
+                  <select 
+                    value={formData.billingCycle}
+                    onChange={e => setFormData({...formData, billingCycle: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="half_yearly">Half Yearly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="lifetime">Lifetime</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Badge (Optional)</label>
+                  <select 
+                    value={formData.badge}
+                    onChange={e => setFormData({...formData, badge: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                  >
+                    <option value="">None</option>
+                    <option value="popular">Popular</option>
+                    <option value="best_value">Best Value</option>
+                    <option value="starter">Starter</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold rounded-2xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check size={20} />}
+                  Create Plan
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

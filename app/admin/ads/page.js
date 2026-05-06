@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAdminStore } from "@/store/useAdminStore";
 import { adsService } from "@/services/admin/ads.service";
-import { Search, Filter, MoreHorizontal, Megaphone, Eye, MousePointerClick, Calendar, CheckCircle2, XCircle, Clock, Loader2 } from "lucide-react";
+import { Search, Filter, MoreHorizontal, Megaphone, Eye, MousePointerClick, Calendar, CheckCircle2, XCircle, Clock, Loader2, Plus, X as CloseIcon, Upload, Check } from "lucide-react";
 
 export default function AdsPage() {
   const { ads, setAds, isLoading, setLoading, setError, updateAdStatus } = useAdminStore();
@@ -11,6 +11,18 @@ export default function AdsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [processingId, setProcessingId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    url: '',
+    category: 'General',
+    vendorId: '' // In a real app, this would be a searchable dropdown
+  });
 
   const fetchAds = async () => {
     try {
@@ -39,6 +51,50 @@ export default function AdsPage() {
     } finally {
       setProcessingId(null);
     }
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => setImagePreview(reader.result);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCreateAd = async (e) => {
+    e.preventDefault();
+    if (!imageFile) return alert("Please upload an ad image (450x525)");
+
+    setIsSubmitting(true);
+    try {
+      const data = new FormData();
+      data.append('title', formData.title);
+      data.append('description', formData.description);
+      data.append('url', formData.url);
+      data.append('media', imageFile);
+      // We'll use the vendor API's logic for simplicity, or we can use an admin-specific one.
+      // But admin needs to specify which vendor. For now, we'll assume the admin is creating for a test vendor or we need a vendorId field.
+      
+      const res = await fetch('/api/vendor/ads', { // Reusing vendor API for consistency in logic
+        method: 'POST',
+        body: data
+      });
+      
+      const result = await res.json();
+      if (result.success) {
+        setIsModalOpen(false);
+        setFormData({ title: '', description: '', url: '', category: 'General', vendorId: '' });
+        setImageFile(null);
+        setImagePreview(null);
+        fetchAds();
+      } else {
+        alert(result.message || 'Failed to create ad');
+      }
+    } catch (err) {
+      alert('Error creating ad');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -60,9 +116,12 @@ export default function AdsPage() {
               className="w-full pl-9 pr-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm focus:ring-2 ring-blue-500 outline-none"
             />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl text-sm font-medium hover:bg-zinc-50 transition-colors">
-            <Filter size={16} />
-            Filter
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-sm font-medium hover:bg-zinc-800 transition-colors shadow-sm"
+          >
+            <Plus size={16} />
+            Create Ad
           </button>
         </div>
       </div>
@@ -218,6 +277,94 @@ export default function AdsPage() {
           </div>
         </div>
       </div>
+      </div>
+
+      {/* Create Ad Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Create New Advertisement</h3>
+              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
+                <CloseIcon size={20} className="text-zinc-500" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateAd} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Ad Image (Must be 450x525)</label>
+                <div 
+                  onClick={() => document.getElementById('ad-image-upload').click()}
+                  className="aspect-[450/525] w-full max-w-[200px] mx-auto bg-zinc-50 dark:bg-zinc-800 border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 transition-all overflow-hidden relative group"
+                >
+                  {imagePreview ? (
+                    <img src={imagePreview} className="w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 text-zinc-400 group-hover:text-blue-500 mb-2" />
+                      <span className="text-xs text-zinc-500">Upload Image</span>
+                    </>
+                  )}
+                  <input id="ad-image-upload" type="file" hidden accept="image/*" onChange={handleImageChange} />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Ad Title</label>
+                <input 
+                  required
+                  type="text" 
+                  value={formData.title}
+                  onChange={e => setFormData({...formData, title: e.target.value})}
+                  placeholder="e.g. 50% Off Summer Sale"
+                  className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Description</label>
+                <textarea 
+                  required
+                  value={formData.description}
+                  onChange={e => setFormData({...formData, description: e.target.value})}
+                  placeholder="Tell customers about this offer..."
+                  rows={2}
+                  className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1.5">Target URL (Optional)</label>
+                <input 
+                  type="url" 
+                  value={formData.url}
+                  onChange={e => setFormData({...formData, url: e.target.value})}
+                  placeholder="https://example.com"
+                  className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl outline-none focus:ring-2 ring-blue-500 transition-all"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold rounded-2xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check size={20} />}
+                  Create Ad
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

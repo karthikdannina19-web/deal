@@ -614,4 +614,106 @@ export class VendorController {
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
+
+  /**
+   * POST /api/vendor/subscription-plans/purchase
+   * Initialize a subscription purchase (creates Razorpay order)
+   * @body { planId }
+   */
+  static async purchaseSubscription(req) {
+    try {
+      await dbConnect();
+
+      // 1. Authenticate Vendor
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      // 2. Parse Body
+      const body = await req.json();
+      const { planId } = body;
+
+      if (!planId) {
+        return Response.json({ success: false, message: 'Plan ID is required' }, { status: 400 });
+      }
+
+      // 3. Find Plan
+      const { getPlan } = await import('../../services/subscription.service.js');
+      const plan = await getPlan(planId);
+
+      // 4. Create Razorpay Order
+      const { razorpayService } = await import('../../services/razorpay.service.js');
+      const amountInPaise = plan.price * 100;
+      const order = await razorpayService.createOrder(amountInPaise, 'INR');
+
+      // 5. Initialize Subscription (pending state)
+      const { purchaseSubscription } = await import('../../services/subscription.service.js');
+      const result = await purchaseSubscription(user.id, planId, 'razorpay', {
+        razorpayOrderId: order.id,
+        amount: plan.price
+      });
+
+      return Response.json({
+        success: true,
+        message: 'Subscription initiated',
+        orderId: order.id, // Razorpay Order ID
+        subscriptionId: result.subscription._id,
+        amount: plan.price,
+        currency: 'INR',
+        key: process.env.RAZORPAY_KEY_ID // Send key for frontend checkout
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[VendorController.purchaseSubscription Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: error.statusCode || 500 });
+    }
+  }
+
+  /**
+   * POST /api/vendor/subscription-plans/verify
+   * Verify Razorpay payment and activate subscription
+   * @body { subscriptionId, razorpay_payment_id, razorpay_order_id, razorpay_signature }
+   */
+  static async verifyPayment(req) {
+    try {
+      await dbConnect();
+
+      // 1. Authenticate Vendor
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      // 2. Parse Body
+      const body = await req.json();
+      const { subscriptionId, razorpay_payment_id, razorpay_order_id, razorpay_signature } = body;
+
+      if (!subscriptionId || !razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+        return Response.json({ success: false, message: 'Missing payment verification fields' }, { status: 400 });
+      }
+
+      // 3. Verify Signature
+      const { razorpayService } = await import('../../services/razorpay.service.js');
+      const isValid = razorpayService.verifySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+
+      if (!isValid) {
+        return Response.json({ success: false, message: 'Invalid payment signature' }, { status: 400 });
+      }
+
+      // 4. Activate Subscription
+      const { verifyPayment } = await import('../../services/subscription.service.js');
+      const subscription = await verifyPayment(subscriptionId, {
+        razorpay_order_id,
+        razorpay_payment_id,
+        razorpay_signature
+      });
+
+      return Response.json({
+        success: true,
+        message: 'Payment verified and subscription activated successfully',
+        data: subscription
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[VendorController.verifyPayment Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: error.statusCode || 500 });
+    }
+  }
 }

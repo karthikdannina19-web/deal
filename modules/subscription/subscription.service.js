@@ -1,4 +1,4 @@
-import Plan from '../../models/plan.model.js';
+import SubscriptionPlan from '../../models/subscriptionPlan.model.js';
 import Subscription from '../../models/subscription.model.js';
 
 /**
@@ -10,8 +10,8 @@ export class SubscriptionService {
    * Sorted by price ASC
    */
   static async getSubscriptionPlans() {
-    return await Plan.find({ isActive: true })
-      .sort({ price: 1 })
+    return await SubscriptionPlan.find({ isActive: true, isPublic: true })
+      .sort({ sortOrder: 1, price: 1 })
       .select('-__v'); // Exclude version key
   }
 
