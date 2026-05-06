@@ -51,6 +51,8 @@ export default function AdsPage() {
     } finally {
       setProcessingId(null);
     }
+  };
+
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -276,7 +278,6 @@ export default function AdsPage() {
             </button>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Create Ad Modal */}

@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { dbConnect } from "@/config/database";
-import SubscriptionPlan from "@/models/subscriptionPlan.model";
 import { Plus, MoreHorizontal, Check, X, IndianRupee, Layers, Star, Loader2, X as CloseIcon } from "lucide-react";
-import { toast } from "react-hot-toast";
 
 // Client-side fetching instead of server-side for easier interactivity
 
