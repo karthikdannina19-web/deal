@@ -5,6 +5,11 @@ import { dbConnect } from '../../config/database.js';
 import { S3Service } from '../../services/s3.service.js';
 import { FileValidator } from '../../utils/fileValidator.js';
 import { generateToken } from '../../utils/jwt.js';
+import { getPlans, getPlan, purchaseSubscription, verifyPayment } from '../../services/subscription.service.js';
+import { createAd } from '../../services/ad.service.js';
+import { razorpayService } from '../../services/razorpay.service.js';
+import User from '../../models/user.model.js';
+import sizeOf from 'image-size';
 
 /**
  * Vendor Controller
@@ -504,10 +509,10 @@ export class VendorController {
   static async getSubscriptionPlans(req) {
     try {
       await dbConnect();
-      const { getPlans } = await import('../../services/subscription.service.js');
       const plans = await getPlans();
       return Response.json({ success: true, data: plans }, { status: 200 });
     } catch (error) {
+      console.error('[VendorController.getSubscriptionPlans Error]', error);
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
@@ -541,7 +546,6 @@ export class VendorController {
 
       // 3. Validate Image dimensions (450x525)
       const buffer = Buffer.from(await media.arrayBuffer());
-      const sizeOf = (await import('image-size')).default;
       const dimensions = sizeOf(buffer);
       
       if (dimensions.width !== 450 || dimensions.height !== 525) {
@@ -561,7 +565,6 @@ export class VendorController {
       }];
 
       // 5. Create Ad using service (This deducts the credit)
-      const { createAd } = await import('../../services/ad.service.js');
       const adData = {
         title,
         description,
@@ -597,7 +600,6 @@ export class VendorController {
       const { user, error: authError } = await authenticate(req);
       if (authError) return authError;
 
-      const User = (await import('../../models/user.model.js')).default;
       const dbUser = await User.findById(user.id);
 
       if (!dbUser) {
@@ -637,16 +639,13 @@ export class VendorController {
       }
 
       // 3. Find Plan
-      const { getPlan } = await import('../../services/subscription.service.js');
       const plan = await getPlan(planId);
 
       // 4. Create Razorpay Order
-      const { razorpayService } = await import('../../services/razorpay.service.js');
       const amountInPaise = plan.price * 100;
       const order = await razorpayService.createOrder(amountInPaise, 'INR');
 
       // 5. Initialize Subscription (pending state)
-      const { purchaseSubscription } = await import('../../services/subscription.service.js');
       const result = await purchaseSubscription(user.id, planId, 'razorpay', {
         razorpayOrderId: order.id,
         amount: plan.price
@@ -690,7 +689,6 @@ export class VendorController {
       }
 
       // 3. Verify Signature
-      const { razorpayService } = await import('../../services/razorpay.service.js');
       const isValid = razorpayService.verifySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
 
       if (!isValid) {
@@ -698,7 +696,6 @@ export class VendorController {
       }
 
       // 4. Activate Subscription
-      const { verifyPayment } = await import('../../services/subscription.service.js');
       const subscription = await verifyPayment(subscriptionId, {
         razorpay_order_id,
         razorpay_payment_id,
