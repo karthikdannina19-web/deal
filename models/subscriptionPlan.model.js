@@ -175,9 +175,9 @@ subscriptionPlanSchema.virtual('costPerCredit').get(function () {
 });
 
 // ==========================================
-// Pre-save: Auto-generate slug
+// Pre-validate: Auto-generate slug
 // ==========================================
-subscriptionPlanSchema.pre('save', function (next) {
+subscriptionPlanSchema.pre('validate', function (next) {
   if (!this.slug && this.name) {
     this.slug = this.name
       .toLowerCase()
