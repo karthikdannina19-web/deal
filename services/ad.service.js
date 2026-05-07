@@ -227,7 +227,7 @@ export async function updateAd(adId, userId, data) {
 
   await ad.save();
 
-  await ad.populate('vendor', 'step1 step2.businessName');
+  await ad.populate('vendor', 'fullName storeName email');
 
   return ad;
 }
@@ -335,7 +335,7 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
   // Execute query
   const [ads, total] = await Promise.all([
     Ad.find(filters)
-      .populate('vendor', 'step1 step2.businessName')
+      .populate('vendor', 'fullName storeName email')
       .sort(sortOption)
       .skip(skip)
       .limit(limit)
@@ -367,7 +367,7 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
  */
 export async function getAd(adId, trackView = false, viewerId = null) {
   const ad = await Ad.findById(adId)
-    .populate('vendor', 'step1 step2.businessName step2.businessAddress')
+    .populate('vendor', 'fullName storeName email')
     .populate('user', 'email phone');
 
   if (!ad) {

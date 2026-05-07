@@ -15,8 +15,7 @@ import {
 } from '../../services/ad.service.js';
 import { razorpayService } from '../../services/razorpay.service.js';
 import User from '../../models/user.model.js';
-import sizeOfImport from 'image-size';
-const sizeOf = typeof sizeOfImport === 'function' ? sizeOfImport : sizeOfImport.default;
+// import sizeOf from 'image-size'; // Temporarily disabled due to production RangeErrors
 
 /**
  * Vendor Controller
@@ -559,7 +558,7 @@ export class VendorController {
   /**
    * POST /api/vendor/ads
    * Vendor creates a new ad (deducts 1 credit)
-   * Form-Data: title, description, url(optional), media (image precisely 450x525)
+   * Form-Data: title, description, url(optional), media (image)
    */
   static async createAd(req) {
     try {
@@ -583,28 +582,22 @@ export class VendorController {
         return Response.json({ success: false, message: 'Title, description, and media are required' }, { status: 400 });
       }
 
-      // 3. Validate Image dimensions (450x525)
+      // 3. Process Image
       const buffer = Buffer.from(await media.arrayBuffer());
       
-      if (buffer.length < 10) {
-        return Response.json({ success: false, message: 'Uploaded file is too small or corrupt' }, { status: 400 });
+      if (buffer.length < 100) {
+        return Response.json({ success: false, message: 'Uploaded file is too small or invalid' }, { status: 400 });
       }
 
-      let dimensions;
-      let validationFailed = false;
+      // Skip dimension check temporarily to resolve production RangeErrors
+      /*
       try {
-        dimensions = sizeOf(buffer);
-      } catch (err) {
-        console.error('[sizeOf Error]', err);
-        validationFailed = true; // Skip dimension check if parsing fails
-      }
-      
-      if (!validationFailed && (dimensions.width !== 450 || dimensions.height !== 525)) {
-        return Response.json({ 
-          success: false, 
-          message: `Image dimensions must be exactly 450w x 525h. Uploaded image is ${dimensions.width}w x ${dimensions.height}h.`
-        }, { status: 400 });
-      }
+        const dims = sizeOf(buffer);
+        if (dims.width !== 450 || dims.height !== 525) {
+           return Response.json({ success: false, message: `Image must be 450x525. Found: ${dims.width}x${dims.height}` }, { status: 400 });
+        }
+      } catch (e) { console.error('sizeOf failed', e); }
+      */
       
       // 4. Upload Image to S3
       const uploadResult = await S3Service.upload(buffer, 'ads', media.name, media.type);
