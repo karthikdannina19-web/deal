@@ -464,15 +464,25 @@ export async function moderateAd(adId, action, adminId, notes = '') {
     };
   }
 
-  if (!['approve', 'reject'].includes(action)) {
+  const validActions = ['approve', 'reject', 'suspend', 'activate', 'expire'];
+  if (!validActions.includes(action)) {
     throw {
       statusCode: 400,
-      message: 'Action must be "approve" or "reject"',
+      message: `Invalid action. Must be one of: ${validActions.join(', ')}`,
       errorType: 'VALIDATION_ERROR',
     };
   }
 
-  ad.status = action === 'approve' ? 'approved' : 'rejected';
+  // Map actions to statuses
+  const statusMap = {
+    approve: 'approved',
+    reject: 'rejected',
+    suspend: 'suspended',
+    activate: 'approved',
+    expire: 'expired'
+  };
+
+  ad.status = statusMap[action];
   ad.reviewNotes = notes || ad.reviewNotes;
   ad.reviewedBy = adminId;
   ad.reviewedAt = new Date();

@@ -250,27 +250,77 @@ export default function AdsPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {ad.status === 'pending' && (
-                          <div className="flex items-center justify-end gap-2 mb-2">
-                            <button 
-                              onClick={() => handleReview(ad._id, 'approve')}
-                              disabled={!!processingId}
-                              className="px-2 py-1 bg-green-500 text-white rounded text-xs hover:bg-green-600 transition-colors disabled:opacity-50"
-                            >
-                              Approve
+                        <div className="flex items-center justify-end gap-2">
+                          {/* Quick Actions for Pending */}
+                          {ad.status === 'pending' ? (
+                            <>
+                              <button 
+                                onClick={() => handleReview(ad._id, 'approve')}
+                                disabled={!!processingId}
+                                className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 shadow-sm"
+                              >
+                                Approve
+                              </button>
+                              <button 
+                                onClick={() => handleReview(ad._id, 'reject')}
+                                disabled={!!processingId}
+                                className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 shadow-sm"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          ) : (
+                            /* Status Management for non-pending */
+                            <div className="flex gap-2">
+                               {ad.status === 'suspended' || ad.status === 'rejected' || ad.status === 'expired' ? (
+                                 <button 
+                                   onClick={() => handleReview(ad._id, 'activate')}
+                                   disabled={!!processingId}
+                                   className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors disabled:opacity-50"
+                                 >
+                                   Activate
+                                 </button>
+                               ) : ad.status === 'approved' ? (
+                                 <button 
+                                   onClick={() => handleReview(ad._id, 'suspend')}
+                                   disabled={!!processingId}
+                                   className="px-2 py-1 bg-amber-500 text-white rounded text-xs hover:bg-amber-600 transition-colors disabled:opacity-50"
+                                 >
+                                   Suspend
+                                 </button>
+                               ) : null}
+                            </div>
+                          )}
+
+                          <div className="relative group">
+                            <button className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                              <MoreHorizontal size={18} />
                             </button>
-                            <button 
-                              onClick={() => handleReview(ad._id, 'reject')}
-                              disabled={!!processingId}
-                              className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition-colors disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
+                            
+                            {/* Action Dropdown (Hover-based for simplicity) */}
+                            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-10 hidden group-hover:block animate-in fade-in zoom-in-95 duration-150">
+                              <button 
+                                onClick={() => handleReview(ad._id, 'expire')}
+                                className="w-full text-left px-4 py-2 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
+                              >
+                                Force Expire
+                              </button>
+                              <button 
+                                onClick={() => handleReview(ad._id, 'suspend')}
+                                className="w-full text-left px-4 py-2 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
+                              >
+                                Suspend Ad
+                              </button>
+                              <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
+                              <button 
+                                onClick={() => {/* TODO: Implement Delete */}}
+                                className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10"
+                              >
+                                Delete Ad
+                              </button>
+                            </div>
                           </div>
-                        )}
-                        <button className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors inline-block">
-                          <MoreHorizontal size={18} />
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   );
