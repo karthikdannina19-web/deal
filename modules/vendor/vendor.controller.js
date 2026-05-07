@@ -583,24 +583,43 @@ export class VendorController {
       }
 
       // 3. Process Image
-      const buffer = Buffer.from(await media.arrayBuffer());
+      let buffer;
+      try {
+        if (media && typeof media.arrayBuffer === 'function') {
+          buffer = Buffer.from(await media.arrayBuffer());
+        } else if (media && typeof media === 'string') {
+          // Handle case where media might be a string (base64 or URL) mistakenly
+          buffer = Buffer.from(media, 'base64');
+        } else {
+          return Response.json({ 
+            success: false, 
+            message: 'Invalid media field: expected a file/blob' 
+          }, { status: 400 });
+        }
+      } catch (err) {
+        console.error('[VendorController.createAd] Buffer conversion failed:', err);
+        return Response.json({ 
+          success: false, 
+          message: 'Failed to process image data: ' + err.message 
+        }, { status: 400 });
+      }
       
-      if (buffer.length < 100) {
+      if (!buffer || buffer.length < 100) {
         return Response.json({ success: false, message: 'Uploaded file is too small or invalid' }, { status: 400 });
       }
 
-      // Skip dimension check temporarily to resolve production RangeErrors
-      /*
-      try {
-        const dims = sizeOf(buffer);
-        if (dims.width !== 450 || dims.height !== 525) {
-           return Response.json({ success: false, message: `Image must be 450x525. Found: ${dims.width}x${dims.height}` }, { status: 400 });
-        }
-      } catch (e) { console.error('sizeOf failed', e); }
-      */
-      
       // 4. Upload Image to S3
-      const uploadResult = await S3Service.upload(buffer, 'ads', media.name, media.type);
+      let uploadResult;
+      try {
+        uploadResult = await S3Service.upload(buffer, 'ads', media.name || 'ad-image', media.type || 'image/jpeg');
+      } catch (err) {
+        console.error('[VendorController.createAd] S3 Upload failed:', err);
+        return Response.json({ 
+          success: false, 
+          message: 'Cloud storage upload failed. Please try again.' 
+        }, { status: 500 });
+      }
+
       const images = [{
         url: uploadResult.url,
         key: uploadResult.key,
@@ -614,7 +633,7 @@ export class VendorController {
         description,
         url: url || '',
         images,
-        category: 'General', // Default category or could be extracted from vendor profile
+        category: 'General', 
       };
       
       const result = await createAdService(adData, user.id);
@@ -637,12 +656,12 @@ export class VendorController {
       }, { status: 201 });
 
     } catch (error) {
-      console.error('[VendorController.createAd Error]', error);
+      console.error('[VendorController.createAd Fatal Error]', error);
       const statusCode = error.statusCode || 500;
       return Response.json({ 
         success: false, 
         message: error.message || 'Internal server error',
-        debug: process.env.NODE_ENV === 'development' ? error.stack : undefined 
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined 
       }, { status: statusCode });
     }
   }

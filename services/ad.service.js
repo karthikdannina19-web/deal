@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Ad from '../models/ad.model.js';
 import User from '../models/user.model.js';
 import Vendor from '../models/vendor.model.js';
