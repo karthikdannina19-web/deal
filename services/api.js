@@ -33,7 +33,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 403) {
       // Unauthorized - Clear session and redirect to login
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_token');

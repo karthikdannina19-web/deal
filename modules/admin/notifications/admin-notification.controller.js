@@ -50,7 +50,8 @@ export class AdminNotificationController {
         type,
         imageUrl,
         action,
-        targetType: target
+        targetType: target,
+        sentBy: user.id
       });
 
       return Response.json({
@@ -65,6 +66,35 @@ export class AdminNotificationController {
         success: false, 
         message: 'Failed to send notification broadcast',
         error: error.message 
+      }, { status: 500 });
+    }
+  }
+
+  /**
+   * GET /api/admin/notifications/broadcasts
+   * Fetches the history of broadcasts
+   */
+  static async listBroadcasts(req) {
+    try {
+      await dbConnect();
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const roleError = authorize(user, ['admin']);
+      if (roleError) return roleError;
+
+      const broadcasts = await AdminNotificationService.listBroadcasts();
+
+      return Response.json({
+        success: true,
+        broadcasts
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[AdminNotificationController.listBroadcasts Error]', error);
+      return Response.json({ 
+        success: false, 
+        message: 'Failed to fetch broadcast history' 
       }, { status: 500 });
     }
   }

@@ -16,7 +16,9 @@ import {
   ChevronRight, 
   PieChart, 
   Layers,
-  Wallet
+  Wallet,
+  Bell,
+  Tag
 } from 'lucide-react';
 import { useAdminStore } from '../../../store/useAdminStore';
 import { cn } from '../../../utils/cn';
@@ -29,7 +31,9 @@ const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Vendors", href: "/admin/vendors", icon: Store },
   { label: "Ads", href: "/admin/ads", icon: Megaphone },
+  { label: "Ad Sections", href: "/admin/sections", icon: Tag },
   { label: "Users", href: "/admin/users", icon: Users },
+  { label: "Notifications", href: "/admin/notifications", icon: Bell },
   { label: "Payments", href: "/admin/payments", icon: CreditCard },
   { label: "Economy", href: "/admin/coins", icon: Wallet },
   { label: "Subscriptions", href: "/admin/subscriptions", icon: PieChart },

@@ -18,23 +18,28 @@ export async function authenticate(req) {
     try {
       decoded = verifyToken(token);
     } catch (e) {
-      return { error: apiError(403, 'Invalid token', 'AUTHENTICATION_ERROR') };
+      console.error('[AuthMiddleware] Token verification failed:', e.message);
+      return { error: apiError(401, 'Invalid or expired token', 'AUTHENTICATION_ERROR') };
     }
 
     if (!decoded) {
-      return { error: apiError(403, 'Invalid token', 'AUTHENTICATION_ERROR') };
+      return { error: apiError(401, 'Invalid token', 'AUTHENTICATION_ERROR') };
     }
+
+    // Support both 'id' (from AdminController) and 'userId' (from others)
+    const userId = decoded.userId || decoded.id;
 
     // Return the user data if valid
     return { 
       user: {
-        id: decoded.userId,
-        vendorId: decoded.vendorId, // Attach vendorId if available
+        id: userId,
+        vendorId: decoded.vendorId,
         email: decoded.email,
         role: decoded.role,
       } 
     };
   } catch (error) {
+    console.error('[AuthMiddleware] General error:', error);
     return { error: apiError(401, 'Authentication failed', 'AUTHENTICATION_ERROR') };
   }
 }

@@ -3,7 +3,7 @@ import User from '../../models/user.model.js';
 import { generateToken } from '../../utils/jwt.js';
 import { dbConnect } from '../../config/database.js';
 import { createPlan, getPlans } from '../../services/subscription.service.js';
-import { listAds, moderateAd } from '../../services/ad.service.js';
+import { listAds, moderateAd, assignSectionToAd } from '../../services/ad.service.js';
 import { verifyToken } from '../../utils/jwt.js';
 
 export class AdminController {
@@ -171,6 +171,33 @@ export class AdminController {
   }
 
   /**
+   * Assign Section to Ad
+   * PATCH /api/admin/ads/[id]/section
+   */
+  static async updateAdSection(req, { params }) {
+    try {
+      await dbConnect();
+      const { id } = await params;
+      const { sectionId } = await req.json();
+
+      if (!id) {
+        return Response.json({ success: false, message: 'Ad ID is required' }, { status: 400 });
+      }
+
+      const ad = await assignSectionToAd(id, sectionId);
+      
+      return Response.json({ 
+        success: true, 
+        message: 'Section assigned successfully',
+        data: ad 
+      }, { status: 200 });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
+
+  /**
    * Approve/Reject Ad
    * PATCH /api/admin/ads/[id]/approve
    */
@@ -187,6 +214,7 @@ export class AdminController {
       const body = await req.json();
       const action = body.action || body.status; // Support both 'action' and 'status' from frontend
       const notes = body.notes || 'Admin moderation';
+      const sectionId = body.sectionId || null;
 
       const authHeader = req.headers.get('authorization');
       let adminId = null;
@@ -200,7 +228,7 @@ export class AdminController {
         }
       }
 
-      const ad = await moderateAd(id, action, adminId, notes);
+      const ad = await moderateAd(id, action, adminId, notes, sectionId);
       
       return Response.json({ 
         success: true, 

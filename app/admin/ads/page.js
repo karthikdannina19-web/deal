@@ -16,14 +16,19 @@ export default function AdsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
-
   const [formData, setFormData] = useState({
     title: '',
     description: '',
     url: '',
     category: 'General',
-    vendorId: '' // In a real app, this would be a searchable dropdown
+    vendorId: '' 
   });
+
+  const [isModerationModalOpen, setIsModerationModalOpen] = useState(false);
+  const [selectedAd, setSelectedAd] = useState(null);
+  const [sections, setSections] = useState([]);
+  const [selectedSection, setSelectedSection] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
 
   const fetchAds = async () => {
     try {
@@ -43,15 +48,34 @@ export default function AdsPage() {
     }
   };
 
+  const fetchSections = async () => {
+    try {
+      const res = await fetch('/api/admin/sections');
+      const result = await res.json();
+      if (result.success) setSections(result.data);
+    } catch (err) {
+      console.error('Failed to fetch sections', err);
+    }
+  };
+
   useEffect(() => {
     fetchAds();
+    fetchSections();
   }, [page, searchTerm, statusFilter]);
 
-  const handleReview = async (id, status) => {
+  const handleOpenModeration = (ad) => {
+    setSelectedAd(ad);
+    setSelectedSection(ad.section || "");
+    setReviewNotes("");
+    setIsModerationModalOpen(true);
+  };
+
+  const handleReview = async (id, status, sectionId = null, notes = "Admin moderation") => {
     setProcessingId(id);
     try {
-      await adsService.reviewAd(id, status, "Admin moderation");
-      updateAdStatus(id, status === 'approve' ? 'approved' : 'rejected');
+      await adsService.reviewAd(id, status, notes, sectionId);
+      updateAdStatus(id, status === 'approve' || status === 'activate' ? 'approved' : status === 'reject' ? 'rejected' : status);
+      setIsModerationModalOpen(false);
     } catch (err) {
       alert(err || 'Failed to update ad status');
     } finally {
@@ -255,18 +279,11 @@ export default function AdsPage() {
                           {ad.status === 'pending' ? (
                             <>
                               <button 
-                                onClick={() => handleReview(ad._id, 'approve')}
+                                onClick={() => handleOpenModeration(ad)}
                                 disabled={!!processingId}
-                                className="px-3 py-1 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 transition-colors disabled:opacity-50 shadow-sm"
+                                className="px-3 py-1 bg-admin-primary text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-sm"
                               >
-                                Approve
-                              </button>
-                              <button 
-                                onClick={() => handleReview(ad._id, 'reject')}
-                                disabled={!!processingId}
-                                className="px-3 py-1 bg-red-500 text-white rounded-lg text-xs font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 shadow-sm"
-                              >
-                                Reject
+                                Review & Approve
                               </button>
                             </>
                           ) : (
@@ -435,6 +452,81 @@ export default function AdsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Moderation Modal */}
+      {isModerationModalOpen && selectedAd && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+              <div>
+                <h3 className="text-2xl font-black text-zinc-900 dark:text-zinc-50 tracking-tight">Moderate Advertisement</h3>
+                <p className="text-sm text-zinc-500 font-medium">Review content and assign to a curated section.</p>
+              </div>
+              <button onClick={() => setIsModerationModalOpen(false)} className="p-3 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-2xl transition-colors">
+                <CloseIcon size={20} className="text-zinc-500" />
+              </button>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="flex gap-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700">
+                <img 
+                  src={selectedAd.images?.[0]?.url} 
+                  className="w-20 h-20 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700" 
+                />
+                <div>
+                  <p className="font-black text-zinc-900 dark:text-zinc-50">{selectedAd.title}</p>
+                  <p className="text-xs text-zinc-500 line-clamp-2 mt-1">{selectedAd.description}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Assign to Section</label>
+                <select 
+                  value={selectedSection}
+                  onChange={e => setSelectedSection(e.target.value)}
+                  className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold"
+                >
+                  <option value="">No Section (Standard Listing)</option>
+                  {sections.map(section => (
+                    <option key={section._id} value={section._id}>{section.name}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                  Ads in sections appear at the top of the app and in curated discovery lists.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Moderation Notes (Internal)</label>
+                <textarea 
+                  value={reviewNotes}
+                  onChange={e => setReviewNotes(e.target.value)}
+                  placeholder="e.g. Content looks good, high quality images."
+                  rows={2}
+                  className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold resize-none"
+                />
+              </div>
+
+              <div className="pt-4 flex gap-4">
+                <button 
+                  onClick={() => handleReview(selectedAd._id, 'reject', null, reviewNotes)}
+                  disabled={!!processingId}
+                  className="flex-1 py-4 bg-red-50 text-red-600 font-black rounded-[24px] hover:bg-red-100 transition-colors disabled:opacity-50"
+                >
+                  Reject Ad
+                </button>
+                <button 
+                  onClick={() => handleReview(selectedAd._id, 'approve', selectedSection, reviewNotes)}
+                  disabled={!!processingId}
+                  className="flex-1 py-4 bg-admin-primary text-white font-black rounded-[24px] hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {processingId === selectedAd._id ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 size={20} />}
+                  Approve Ad
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

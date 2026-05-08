@@ -203,6 +203,13 @@ const adSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+
+    // Curated Section assignment
+    section: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      index: true,
+    },
   },
   {
     timestamps: true,

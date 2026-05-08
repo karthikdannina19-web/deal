@@ -316,6 +316,11 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
     filters.subCategory = query.subCategory;
   }
 
+  // Section filter
+  if (query.section) {
+    filters.section = query.section;
+  }
+
   // Location filter
   if (query.city) {
     filters['location.city'] = { $regex: query.city, $options: 'i' };
@@ -452,7 +457,7 @@ export async function trackAdView(adId, viewerId) {
  * @param {string} notes - Review notes (optional)
  * @returns {Promise<object>} Updated ad
  */
-export async function moderateAd(adId, action, adminId, notes = '') {
+export async function moderateAd(adId, action, adminId, notes = '', sectionId = null) {
   const ad = await Ad.findById(adId);
 
   if (!ad) {
@@ -485,6 +490,11 @@ export async function moderateAd(adId, action, adminId, notes = '') {
   ad.reviewNotes = notes || ad.reviewNotes;
   ad.reviewedBy = adminId;
   ad.reviewedAt = new Date();
+
+  // Assign section if provided (typically during approval)
+  if (sectionId) {
+    ad.section = sectionId;
+  }
 
   await ad.save();
 
@@ -552,6 +562,31 @@ export async function expireOldAds() {
   );
 
   return result.modifiedCount;
+}
+
+/**
+ * Admin: Assign a section to an ad
+ * @param {string} adId - Ad document ID
+ * @param {string} sectionId - Section document ID (or null to unassign)
+ * @returns {Promise<object>} Updated ad
+ */
+export async function assignSectionToAd(adId, sectionId) {
+  const ad = await Ad.findById(adId);
+
+  if (!ad) {
+    throw {
+      statusCode: 404,
+      message: 'Ad not found',
+      errorType: 'NOT_FOUND_ERROR',
+    };
+  }
+
+  ad.section = sectionId || null;
+  await ad.save();
+
+  await ad.populate('vendor', 'fullName storeName email');
+
+  return ad;
 }
 
 export { CREDIT_COSTS };
