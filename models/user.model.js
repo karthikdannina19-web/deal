@@ -151,6 +151,15 @@ const userSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
     },
+    
+    // Push Notifications
+    fcmTokens: [
+      {
+        token: { type: String, required: true },
+        platform: { type: String, enum: ['android', 'ios', 'web'] },
+        lastUsedAt: { type: Date, default: Date.now }
+      }
+    ],
   },
   {
     timestamps: true,
