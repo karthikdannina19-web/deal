@@ -17,10 +17,38 @@ const bannerSchema = new mongoose.Schema(
       url: { type: String, required: true },
       key: { type: String, required: true }, // S3 key
     },
+    title: {
+      type: String,
+      trim: true,
+      maxlength: 150,
+    },
     location: {
       type: String,
       trim: true,
       placeholder: 'e.g. Hyderabad, City Center',
+    },
+    locationLabel: {
+      type: String,
+      trim: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    district: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    mandal: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    locationCoordinates: {
+      lat: Number,
+      lng: Number,
     },
     viewUrl: {
       type: String,
@@ -46,7 +74,12 @@ const bannerSchema = new mongoose.Schema(
     clicks: {
       type: Number,
       default: 0,
-    }
+    },
+    isTopBanner: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   {
     timestamps: true,

@@ -5,5 +5,13 @@ import { AdminController } from '@/modules/admin/admin.controller.js';
  * Admin authentication (Email/Password)
  */
 export async function POST(req) {
-  return await AdminController.login(req);
+  try {
+    return await AdminController.login(req);
+  } catch (error) {
+    console.error('[API] POST /api/admin/login Error:', error);
+    return Response.json({ 
+      success: false, 
+      message: error.message || 'Authentication failed' 
+    }, { status: 500 });
+  }
 }

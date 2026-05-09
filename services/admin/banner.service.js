@@ -8,8 +8,12 @@ export const BannerService = {
   /**
    * List banners (optional filter by section)
    */
-  listBanners: async (sectionId = null) => {
-    const query = sectionId ? { section: sectionId } : {};
+  listBanners: async (filters = {}) => {
+    const query = {};
+    if (filters.sectionId) query.section = filters.sectionId;
+    if (filters.state) query.state = filters.state;
+    if (filters.district) query.district = filters.district;
+    if (filters.mandal) query.mandal = filters.mandal;
     return await Banner.find(query)
       .populate('section', 'name')
       .sort({ section: 1, order: 1 });

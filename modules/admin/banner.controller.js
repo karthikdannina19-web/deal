@@ -9,8 +9,13 @@ export class BannerController {
     try {
       await dbConnect();
       const { searchParams } = new URL(req.url);
-      const sectionId = searchParams.get('sectionId');
-      const banners = await BannerService.listBanners(sectionId);
+      const filters = {
+        sectionId: searchParams.get('section') || searchParams.get('sectionId'),
+        state: searchParams.get('state'),
+        district: searchParams.get('district'),
+        mandal: searchParams.get('mandal'),
+      };
+      const banners = await BannerService.listBanners(filters);
       return Response.json({ success: true, data: banners }, { status: 200 });
     } catch (error) {
       return Response.json({ success: false, message: error.message }, { status: 500 });
@@ -26,6 +31,12 @@ export class BannerController {
       const formData = await req.formData();
       const section = formData.get('section');
       const location = formData.get('location');
+      const locationLabel = formData.get('locationLabel');
+      const state = formData.get('state');
+      const district = formData.get('district');
+      const mandal = formData.get('mandal');
+      const title = formData.get('title');
+      const isTopBanner = formData.get('isTopBanner') === 'true';
       const viewUrl = formData.get('viewUrl');
       const whatsappLink = formData.get('whatsappLink');
       const storeLink = formData.get('storeLink');
@@ -46,7 +57,13 @@ export class BannerController {
 
       const banner = await BannerService.createBanner({
         section,
+        title,
         location,
+        locationLabel,
+        state,
+        district,
+        mandal,
+        isTopBanner,
         viewUrl,
         whatsappLink,
         storeLink,

@@ -160,6 +160,12 @@ const userSchema = new mongoose.Schema(
         lastUsedAt: { type: Date, default: Date.now }
       }
     ],
+    savedAds: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Ad',
+      },
+    ],
   },
   {
     timestamps: true,
