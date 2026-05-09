@@ -4,6 +4,7 @@ import Category from '@/models/category.model.js';
 import Coupon from '@/models/coupon.model.js';
 import Section from '@/models/section.model.js';
 import User from '@/models/user.model.js';
+import '@/models/vendor.model.js';
 
 function num(v, fallback = 999999) {
   return Number.isFinite(v) ? v : fallback;
