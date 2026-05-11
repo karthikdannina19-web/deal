@@ -25,6 +25,7 @@ export const useAdminStore = create((set) => ({
   coinTransactions: [],
   categories: [],
   dashboardStats: null,
+  analyticsData: [],
 
   // ==========================================
   // UI Actions
@@ -64,6 +65,7 @@ export const useAdminStore = create((set) => ({
   setCoinTransactions: (transactions) => set({ coinTransactions: transactions }),
   setCategories: (categories) => set({ categories }),
   setDashboardStats: (stats) => set({ dashboardStats: stats }),
+  setAnalyticsData: (analyticsData) => set({ analyticsData }),
 
   // ==========================================
   // Optimistic/Local Updates
