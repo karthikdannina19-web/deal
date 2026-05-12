@@ -4,6 +4,7 @@ import Category from '../../models/category.model.js';
 import Agent from '../../models/agent.model.js';
 import Otp from '../../models/otp.model.js';
 import Store from '../../models/store.model.js';
+import Review from '../../models/review.model.js';
 import { generateOtp } from '../../utils/generateOtp.js';
 import { hashData, compareHash } from '../../utils/hash.js';
 import { generateToken } from '../../utils/jwt.js';
@@ -51,6 +52,12 @@ export class VendorService {
     }
 
     const mobileNumber = user.phone || '0000000000'; // Fallback if phone is missing
+
+    // Check if another vendor already uses this mobile number
+    const duplicateVendor = await Vendor.findOne({ mobileNumber, userId: { $ne: userId } });
+    if (duplicateVendor && duplicateVendor.status !== 'draft') {
+      throw new Error('This mobile number is already associated with another vendor profile.');
+    }
 
     vendor = new Vendor({
       userId,
@@ -161,7 +168,13 @@ export class VendorService {
       state, district, mandal, location, businessHours, images 
     } = data;
 
-    // 1. Find or create the category by name
+    // 1. Check if phone number is already taken by another active/pending vendor
+    const existingVendor = await Vendor.findOne({ mobileNumber: phone, userId: { $ne: userId } });
+    if (existingVendor && existingVendor.status !== 'draft') {
+      throw new Error('This phone number is already registered with another vendor account.');
+    }
+
+    // 2. Find or create the category by name
     let categoryObj = await Category.findOne({ name: { $regex: new RegExp(`^${category}$`, 'i') } });
     if (!categoryObj) {
       // For this flow, we'll create the category if it doesn't exist, or we could throw an error
@@ -206,8 +219,14 @@ export class VendorService {
     const { ownerName, mobileNumber, email } = data;
 
     await dbConnect();
+    
+    // 1. Check if vendor already exists and has completed registration (not draft)
+    const existingVendor = await Vendor.findOne({ mobileNumber });
+    if (existingVendor && existingVendor.status !== 'draft') {
+      throw new Error('An account with this mobile number already exists. Please log in.');
+    }
 
-    // 1. Find or create User with this mobile number
+    // 2. Find or create User with this mobile number
     let user = await User.findOne({ phone: mobileNumber });
     
     if (!user) {
@@ -663,6 +682,12 @@ export class VendorService {
       throw new Error('Vendor profile not found');
     }
 
+    // Check if a store already exists with this phone number
+    const existingStore = await Store.findOne({ phone: storeData.phone });
+    if (existingStore) {
+      throw new Error('A store with this phone number already exists.');
+    }
+
     if (vendor.status !== 'active') {
       const error = new Error('Vendor not active');
       error.statusCode = 403;
@@ -700,7 +725,130 @@ export class VendorService {
     });
 
     await store.save();
-
     return store;
+  }
+
+  /**
+   * Delete Vendor Account (Soft Delete)
+   * @param {string} userId 
+   * @param {string} vendorId 
+   * @param {string} reason 
+   */
+  static async deleteVendorAccount(userId, vendorId, reason = '') {
+    await dbConnect();
+
+    // 1. Update Vendor Status
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) throw new Error('Vendor profile not found');
+
+    vendor.status = 'deleted';
+    vendor.deletedAt = new Date();
+    vendor.deletionReason = reason;
+    await vendor.save();
+
+    // 2. Update User Status
+    const user = await User.findById(userId);
+    if (user) {
+      user.status = 'deleted';
+      user.deletedAt = new Date();
+      // Clear sensitive info or tokens if needed
+      user.fcmTokens = []; 
+      await user.save();
+    }
+
+    console.log(`[Vendor Deletion] Account deleted for vendor ${vendorId} (User: ${userId})`);
+    return { success: true };
+  }
+
+  /**
+   * Get Vendor Reviews with Aggregation
+   * @param {string} vendorId
+   * @param {number} page
+   * @param {number} limit
+   */
+  static async getVendorReviews(vendorId, page = 1, limit = 10) {
+    await dbConnect();
+
+    // 1. Get Summary Stats (Aggregation)
+    const summaryData = await Review.aggregate([
+      { $match: { vendorId: new mongoose.Types.ObjectId(vendorId), isActive: true } },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 },
+          rating1: { $sum: { $cond: [{ $eq: ['$rating', 1] }, 1, 0] } },
+          rating2: { $sum: { $cond: [{ $eq: ['$rating', 2] }, 1, 0] } },
+          rating3: { $sum: { $cond: [{ $eq: ['$rating', 3] }, 1, 0] } },
+          rating4: { $sum: { $cond: [{ $eq: ['$rating', 4] }, 1, 0] } },
+          rating5: { $sum: { $cond: [{ $eq: ['$rating', 5] }, 1, 0] } },
+        }
+      }
+    ]);
+
+    const summary = summaryData.length > 0 ? {
+      averageRating: Number(summaryData[0].averageRating.toFixed(1)),
+      totalReviews: summaryData[0].totalReviews,
+      ratingBreakdown: {
+        '5': summaryData[0].rating5,
+        '4': summaryData[0].rating4,
+        '3': summaryData[0].rating3,
+        '2': summaryData[0].rating2,
+        '1': summaryData[0].rating1,
+      }
+    } : {
+      averageRating: 0,
+      totalReviews: 0,
+      ratingBreakdown: { '5': 0, '4': 0, '3': 0, '2': 0, '1': 0 }
+    };
+
+    // 2. Fetch Paginated Reviews
+    const total = summary.totalReviews;
+    const reviews = await Review.find({ vendorId, isActive: true })
+      .populate('userId', 'firstName lastName profileImage')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+
+    // Format for app
+    const formattedReviews = reviews.map(r => {
+      const msPerMinute = 60 * 1000;
+      const msPerHour = msPerMinute * 60;
+      const msPerDay = msPerHour * 24;
+      const msPerMonth = msPerDay * 30;
+      const msPerYear = msPerDay * 365;
+
+      const elapsed = new Date() - new Date(r.createdAt);
+      let relativeTime = '';
+
+      if (elapsed < msPerMinute) relativeTime = Math.round(elapsed/1000) + ' seconds ago';
+      else if (elapsed < msPerHour) relativeTime = Math.round(elapsed/msPerMinute) + ' minutes ago';
+      else if (elapsed < msPerDay) relativeTime = Math.round(elapsed/msPerHour) + ' hours ago';
+      else if (elapsed < msPerMonth) relativeTime = Math.round(elapsed/msPerDay) + ' days ago';
+      else if (elapsed < msPerYear) relativeTime = Math.round(elapsed/msPerMonth) + ' months ago';
+      else relativeTime = Math.round(elapsed/msPerYear) + ' years ago';
+
+      return {
+        id: r._id.toString(),
+        customerName: r.userId ? `${r.userId.firstName || ''} ${r.userId.lastName || ''}`.trim() : 'Anonymous',
+        customerAvatar: r.userId?.profileImage || '',
+        rating: r.rating,
+        review: r.reviewText,
+        createdAt: r.createdAt,
+        relativeTime
+      };
+    });
+
+    return {
+      summary,
+      reviews: formattedReviews,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        hasMore: (page * limit) < total
+      }
+    };
   }
 }

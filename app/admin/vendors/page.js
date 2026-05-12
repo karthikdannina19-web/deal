@@ -38,6 +38,7 @@ const TABS = [
   { id: 'pending', label: 'Pending Audit' },
   { id: 'active', label: 'Verified Active' },
   { id: 'rejected', label: 'Restricted' },
+  { id: 'deleted', label: 'Deleted' },
 ];
 
 /**
@@ -249,11 +250,13 @@ export default function VendorsPage() {
                           vendor.status === 'active' ? "bg-green-50/50 text-green-700 border-green-100 shadow-sm shadow-green-100/50" :
                           vendor.status === 'pending_approval' ? "bg-orange-50/50 text-orange-700 border-orange-100 shadow-sm shadow-orange-100/50" :
                           vendor.status === 'rejected' ? "bg-red-50/50 text-red-700 border-red-100 shadow-sm shadow-red-100/50" :
+                          vendor.status === 'deleted' ? "bg-zinc-100 text-zinc-600 border-zinc-200" :
                           "bg-zinc-50 text-zinc-500 border-zinc-200"
                         )}>
                           <div className={cn("w-2 h-2 rounded-full", 
                             vendor.status === 'active' ? "bg-green-500 animate-pulse" : 
-                            vendor.status === 'pending_approval' ? "bg-orange-500" : "bg-red-500"
+                            vendor.status === 'pending_approval' ? "bg-orange-500" : 
+                            vendor.status === 'deleted' ? "bg-zinc-400" : "bg-red-500"
                           )} />
                           {vendor.status.replace('_', ' ')}
                         </span>
@@ -382,6 +385,7 @@ export default function VendorsPage() {
                       "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-xl border-2",
                       selectedVendor.status === 'active' ? "bg-green-500/20 text-green-400 border-green-500/30" :
                       selectedVendor.status === 'pending_approval' ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
+                      selectedVendor.status === 'deleted' ? "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" :
                       "bg-red-500/20 text-red-400 border-red-500/30"
                    )}>
                       {selectedVendor.status} Protocol

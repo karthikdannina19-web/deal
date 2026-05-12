@@ -95,6 +95,21 @@ export async function POST(req) {
     payload.couponCode = payload.couponCode.toUpperCase().replace(/[^A-Z0-9]/g, '');
   }
 
-  const created = await Coupon.create(payload);
-  return Response.json({ success: true, data: created }, { status: 201 });
+  // Robustness check for imageUrl to prevent CastError
+  if (typeof payload.imageUrl !== 'string') {
+    console.error('[API Coupons] Invalid imageUrl type:', typeof payload.imageUrl, payload.imageUrl);
+    payload.imageUrl = ''; 
+  }
+
+  try {
+    const created = await Coupon.create(payload);
+    return Response.json({ success: true, data: created }, { status: 201 });
+  } catch (err) {
+    console.error('[API Coupons] Create Error:', err);
+    return Response.json({ 
+      success: false, 
+      message: err.message || 'Failed to create coupon',
+      errors: err.errors
+    }, { status: 500 });
+  }
 }

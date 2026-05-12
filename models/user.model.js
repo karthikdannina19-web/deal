@@ -166,6 +166,9 @@ const userSchema = new mongoose.Schema(
         ref: 'Ad',
       },
     ],
+    deletedAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

@@ -113,13 +113,20 @@ const vendorSchema = new mongoose.Schema(
     status: {
       type: String,
       required: true,
-      enum: ['draft', 'pending_approval', 'active', 'suspended', 'rejected'],
+      enum: ['draft', 'pending_approval', 'active', 'suspended', 'rejected', 'deleted'],
       default: 'draft',
     },
     rejectionReason: {
       type: String,
       trim: true,
       default: '',
+    },
+    deletedAt: {
+      type: Date,
+    },
+    deletionReason: {
+      type: String,
+      trim: true,
     },
 
     // Unique identifier for QR codes and sharing

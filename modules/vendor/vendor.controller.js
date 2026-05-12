@@ -999,4 +999,85 @@ export class VendorController {
       return Response.json({ success: false, message: error.message }, { status: error.statusCode || 500 });
     }
   }
+
+  /**
+   * POST /api/vendor/logout
+   * Handles vendor logout
+   */
+  static async logout(req) {
+    try {
+      // In JWT Bearer auth, logout is primarily client-side (removing the token).
+      // We return success to indicate the server acknowledges the logout request.
+      return Response.json({
+        success: true,
+        message: 'Logged out successfully'
+      }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * POST /api/vendor/delete-account
+   * Handles vendor account deletion
+   * @body { reason? }
+   */
+  static async deleteAccount(req) {
+    try {
+      await dbConnect();
+      
+      // 1. Authenticate Vendor
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      // 2. Parse reason (optional)
+      let body = {};
+      try {
+        body = await req.json();
+      } catch (e) {
+        // ignore if body is empty
+      }
+      const { reason } = body;
+
+      // 3. Delete Account (Soft Delete)
+      await VendorService.deleteVendorAccount(user.id, user.vendorId, reason);
+
+      return Response.json({
+        success: true,
+        message: 'Your account has been deleted successfully.'
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[VendorController.deleteAccount Error]', error);
+      return Response.json({ 
+        success: false, 
+        message: error.message || 'Failed to delete account' 
+      }, { status: 500 });
+    }
+  /**
+   * GET /api/vendor/reviews
+   * Fetch reviews for the authenticated vendor
+   */
+  static async getReviews(req) {
+    try {
+      await dbConnect();
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const { searchParams } = new URL(req.url);
+      const page = parseInt(searchParams.get('page')) || 1;
+      const limit = parseInt(searchParams.get('limit')) || 10;
+
+      const result = await VendorService.getVendorReviews(user.vendorId, page, limit);
+
+      return Response.json({
+        success: true,
+        data: result
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[VendorController.getReviews Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
 }
