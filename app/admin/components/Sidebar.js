@@ -18,7 +18,9 @@ import {
   Layers,
   Wallet,
   Bell,
-  Tag
+  Tag,
+  FileText,
+  HelpCircle
 } from 'lucide-react';
 import { useAdminStore } from '../../../store/useAdminStore';
 import { cn } from '../../../utils/cn';
@@ -39,6 +41,8 @@ const navItems = [
   { label: "Subscriptions", href: "/admin/subscriptions", icon: PieChart },
   { label: "Categories", href: "/admin/categories", icon: Layers },
   { label: "Coupons", href: "/admin/coupons", icon: Tag },
+  { label: "CMS Pages", href: "/admin/cms", icon: FileText },
+  { label: "FAQs", href: "/admin/faqs", icon: HelpCircle },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

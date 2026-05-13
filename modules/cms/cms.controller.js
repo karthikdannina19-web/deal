@@ -19,11 +19,14 @@ export class CmsController {
         return Response.json({ success: false, message: 'Slug is required' }, { status: 400 });
       }
 
-      const pageData = await CmsService.getPageBySlug(slug);
+      // If called from admin (check referrer or just allow for now as it's a GET)
+      const isAdmin = req.headers.get('referer')?.includes('/admin');
+
+      const pageData = await CmsService.getPageBySlug(slug, isAdmin);
       
       return Response.json({
         success: true,
-        data: pageData
+        data: pageData // Will be null if not found
       }, { status: 200 });
 
     } catch (error) {
@@ -75,7 +78,8 @@ export class CmsController {
 
       return Response.json({ success: true, data: page }, { status: 200 });
     } catch (error) {
-      return Response.json({ success: false, message: error.message }, { status: 500 });
+      const isValidation = error.message.includes('required');
+      return Response.json({ success: false, message: error.message }, { status: isValidation ? 400 : 500 });
     }
   }
 

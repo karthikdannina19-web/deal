@@ -9,7 +9,8 @@ import {
   getPlans, 
   getPlan, 
   purchaseSubscription as purchaseSubscriptionService, 
-  verifyPayment as verifyPaymentService 
+  verifyPayment as verifyPaymentService,
+  getActiveSubscription
 } from '../../services/subscription.service.js';
 import { 
   createAd as createAdService, 
@@ -476,6 +477,8 @@ export class VendorController {
       }
 
       // Format response to ensure stability and requested top-level fields
+      const activeSubscription = await getActiveSubscription(user.id);
+      
       const formattedProfile = {
         ...profile.toObject(),
         vendorId: profile._id,
@@ -486,7 +489,19 @@ export class VendorController {
         mandal: profile.location?.mandal || '',
         thumbnailUrl: profile.media?.thumbnailUrl || '',
         bannerUrl: profile.media?.bannerUrl || '',
-        category: profile.categoryId?.name || ''
+        category: profile.categoryId?.name || '',
+        subscription: activeSubscription ? {
+          planName: activeSubscription.planSnapshot?.name || 'Unknown Plan',
+          planSlug: activeSubscription.planSnapshot?.slug || '',
+          status: activeSubscription.status,
+          startDate: activeSubscription.startDate,
+          endDate: activeSubscription.endDate,
+          daysRemaining: activeSubscription.daysRemaining,
+          creditsAllocated: activeSubscription.creditsAllocated,
+          creditsRemaining: activeSubscription.creditsRemaining,
+          creditsUsed: activeSubscription.creditsUsed,
+          autoRenew: activeSubscription.autoRenew
+        } : null
       };
 
       return Response.json({
@@ -1054,6 +1069,7 @@ export class VendorController {
         message: error.message || 'Failed to delete account' 
       }, { status: 500 });
     }
+  }
   /**
    * GET /api/vendor/reviews
    * Fetch reviews for the authenticated vendor

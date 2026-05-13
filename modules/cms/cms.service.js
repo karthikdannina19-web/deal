@@ -10,13 +10,17 @@ export class CmsService {
   /**
    * Get a specific CMS page by slug
    * @param {string} slug 
+   * @param {boolean} includeInactive
    */
-  static async getPageBySlug(slug) {
+  static async getPageBySlug(slug, includeInactive = false) {
     await dbConnect();
-    const page = await CmsPage.findOne({ slug, isActive: true }).select('slug title content contentType updatedAt').lean();
+    const query = { slug };
+    if (!includeInactive) query.isActive = true;
+
+    const page = await CmsPage.findOne(query).select('slug title content contentType updatedAt').lean();
     
     if (!page) {
-      throw new Error('Page not found or is inactive');
+      return null;
     }
 
     return {
