@@ -432,4 +432,31 @@ export class UserController {
       return Response.json({ success: false, message: 'Failed to save location' }, { status: 500 });
     }
   }
+
+  /**
+   * POST /api/user/delete-account
+   * Handles standard user account deletion
+   */
+  static async deleteAccount(req) {
+    try {
+      await dbConnect();
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      // Both users and vendors can delete their accounts here if they use the user app
+      await UserService.deleteUserAccount(user.id);
+
+      return Response.json({
+        success: true,
+        message: 'Your account has been deleted successfully.'
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[UserController.deleteAccount Error]', error);
+      return Response.json({ 
+        success: false, 
+        message: error.message || 'Failed to delete account' 
+      }, { status: 500 });
+    }
+  }
 }

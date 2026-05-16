@@ -309,7 +309,11 @@ export class AdminController {
       const data = await AdminService.getAnalytics();
       return Response.json({ success: true, data }, { status: 200 });
     } catch (error) {
-      return Response.json({ success: false, message: error.message }, { status: 500 });
+      console.error('[AdminController.getAnalytics Error]', error);
+      return Response.json({ 
+        success: false, 
+        message: error.message || 'Failed to generate analytics data' 
+      }, { status: 500 });
     }
   }
 }

@@ -25,6 +25,7 @@ export const dashboardService = {
       const response = await api.get('/api/admin/dashboard/analytics');
       return response.data;
     } catch (error) {
+      console.error('[DashboardService.getAnalytics] Error:', error.response?.data || error.message);
       throw error.response?.data?.message || 'Failed to fetch analytics data';
     }
   }

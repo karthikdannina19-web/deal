@@ -163,4 +163,30 @@ export class UserService {
       session.endSession();
     }
   }
+
+  /**
+   * Delete User Account (Soft Delete)
+   * Suffixes identifiers to allow re-registration
+   * @param {string} userId 
+   */
+  static async deleteUserAccount(userId) {
+    const timestamp = Date.now();
+
+    const user = await User.findById(userId);
+    if (!user) throw new Error('User account not found');
+
+    if (user.status !== 'deleted') {
+      if (user.email) user.email = `${user.email}_del_${timestamp}`;
+      if (user.phone) user.phone = `${user.phone}_del_${timestamp}`;
+      if (user.referralCode) user.referralCode = `${user.referralCode}_del_${timestamp}`;
+
+      user.status = 'deleted';
+      user.deletedAt = new Date();
+      user.fcmTokens = []; 
+      await user.save();
+    }
+
+    console.log(`[User Deletion] Account deleted for user ${userId} - Identifiers suffixed`);
+    return { success: true };
+  }
 }

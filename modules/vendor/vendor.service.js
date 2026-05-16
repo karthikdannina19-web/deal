@@ -220,14 +220,14 @@ export class VendorService {
 
     await dbConnect();
     
-    // 1. Check if vendor already exists and has completed registration (not draft)
-    const existingVendor = await Vendor.findOne({ mobileNumber });
+    // 1. Check if vendor already exists and has completed registration (not deleted or draft)
+    const existingVendor = await Vendor.findOne({ mobileNumber, status: { $ne: 'deleted' } });
     if (existingVendor && existingVendor.status !== 'draft') {
       throw new Error('An account with this mobile number already exists. Please log in.');
     }
 
-    // 2. Find or create User with this mobile number
-    let user = await User.findOne({ phone: mobileNumber });
+    // 2. Find or create User with this mobile number (ignore deleted)
+    let user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
     
     if (!user) {
       // Create new user for this vendor
@@ -530,7 +530,7 @@ export class VendorService {
    */
   static async checkVendorExists(mobileNumber) {
     await dbConnect();
-    const vendor = await Vendor.findOne({ mobileNumber }).select('_id status registrationStep');
+    const vendor = await Vendor.findOne({ mobileNumber, status: { $ne: 'deleted' } }).select('_id status registrationStep');
     
     if (!vendor) {
       return { 
@@ -736,27 +736,37 @@ export class VendorService {
    */
   static async deleteVendorAccount(userId, vendorId, reason = '') {
     await dbConnect();
+    const timestamp = Date.now();
 
-    // 1. Update Vendor Status
+    // 1. Update Vendor Status & Suffix Identifiers
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) throw new Error('Vendor profile not found');
 
-    vendor.status = 'deleted';
-    vendor.deletedAt = new Date();
-    vendor.deletionReason = reason;
-    await vendor.save();
+    if (vendor.status !== 'deleted') {
+      if (vendor.email) vendor.email = `${vendor.email}_del_${timestamp}`;
+      if (vendor.mobileNumber) vendor.mobileNumber = `${vendor.mobileNumber}_del_${timestamp}`;
+      if (vendor.slug) vendor.slug = `${vendor.slug}_del_${timestamp}`;
+      
+      vendor.status = 'deleted';
+      vendor.deletedAt = new Date();
+      vendor.deletionReason = reason;
+      await vendor.save();
+    }
 
-    // 2. Update User Status
+    // 2. Update User Status & Suffix Identifiers
     const user = await User.findById(userId);
-    if (user) {
+    if (user && user.status !== 'deleted') {
+      if (user.email) user.email = `${user.email}_del_${timestamp}`;
+      if (user.phone) user.phone = `${user.phone}_del_${timestamp}`;
+      if (user.referralCode) user.referralCode = `${user.referralCode}_del_${timestamp}`;
+
       user.status = 'deleted';
       user.deletedAt = new Date();
-      // Clear sensitive info or tokens if needed
       user.fcmTokens = []; 
       await user.save();
     }
 
-    console.log(`[Vendor Deletion] Account deleted for vendor ${vendorId} (User: ${userId})`);
+    console.log(`[Vendor Deletion] Account deleted for vendor ${vendorId} (User: ${userId}) - Identifiers suffixed`);
     return { success: true };
   }
 

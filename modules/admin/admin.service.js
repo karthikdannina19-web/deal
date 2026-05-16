@@ -149,69 +149,89 @@ export class AdminService {
 
   /**
    * Get Analytics trends for charts (Last 7 days)
+   * Optimized with parallel queries and robust date handling
    */
   static async getAnalytics() {
-    await dbConnect();
-    
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    // 1. Revenue Trends
-    const revenueTrends = await UserSubscription.aggregate([
-      { 
-        $match: { 
-          paymentStatus: 'completed',
-          createdAt: { $gte: sevenDaysAgo }
-        } 
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          revenue: { $sum: "$finalAmount" }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
-
-    // 2. User Growth Trends
-    const userTrends = await User.aggregate([
-      { 
-        $match: { 
-          role: 'user',
-          createdAt: { $gte: sevenDaysAgo }
-        } 
-      },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          users: { $sum: 1 }
-        }
-      },
-      { $sort: { _id: 1 } }
-    ]);
-
-    // Format for frontend (merge by date)
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const results = [];
-    
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dateStr = d.toISOString().split('T')[0];
-      const dayName = days[d.getDay()];
+    try {
+      await dbConnect();
       
-      const revEntry = revenueTrends.find(r => r._id === dateStr);
-      const userEntry = userTrends.find(u => u._id === dateStr);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      sevenDaysAgo.setHours(0, 0, 0, 0); // Start of the day 7 days ago
+
+      // Run aggregations in parallel to minimize latency
+      const [revenueTrends, userTrends] = await Promise.all([
+        // 1. Revenue Trends
+        UserSubscription.aggregate([
+          { 
+            $match: { 
+              paymentStatus: 'completed',
+              createdAt: { $gte: sevenDaysAgo }
+            } 
+          },
+          {
+            $group: {
+              _id: { 
+                $dateToString: { 
+                  format: "%Y-%m-%d", 
+                  date: { $ifNull: ["$createdAt", new Date()] } 
+                } 
+              },
+              revenue: { $sum: "$finalAmount" }
+            }
+          },
+          { $sort: { _id: 1 } }
+        ]),
+
+        // 2. User Growth Trends
+        User.aggregate([
+          { 
+            $match: { 
+              role: 'user',
+              createdAt: { $gte: sevenDaysAgo }
+            } 
+          },
+          {
+            $group: {
+              _id: { 
+                $dateToString: { 
+                  format: "%Y-%m-%d", 
+                  date: { $ifNull: ["$createdAt", new Date()] } 
+                } 
+              },
+              users: { $sum: 1 }
+            }
+          },
+          { $sort: { _id: 1 } }
+        ])
+      ]);
+
+      // Format for frontend (merge by date)
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const results = [];
       
-      results.push({
-        name: dayName,
-        date: dateStr,
-        revenue: revEntry ? revEntry.revenue : 0,
-        users: userEntry ? userEntry.users : 0
-      });
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        const dayName = days[d.getDay()];
+        
+        const revEntry = revenueTrends.find(r => r._id === dateStr);
+        const userEntry = userTrends.find(u => u._id === dateStr);
+        
+        results.push({
+          name: dayName,
+          date: dateStr,
+          revenue: revEntry ? revEntry.revenue : 0,
+          users: userEntry ? userEntry.users : 0
+        });
+      }
+
+      return results;
+    } catch (error) {
+      console.error('[AdminService.getAnalytics Error]', error);
+      throw error;
     }
-
-    return results;
   }
 
   /**

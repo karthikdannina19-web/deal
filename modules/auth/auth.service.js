@@ -39,7 +39,7 @@ export class AuthService {
     }
 
     // 2. Determine Role (from User model if exists)
-    const user = await User.findOne({ phone: mobileNumber });
+    const user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
     let role = user ? user.role : 'user'; // Default to 'user' for app flow
 
     // 3. Generate and Hash OTP
@@ -68,7 +68,7 @@ export class AuthService {
    */
   static async checkUser(mobileNumber) {
     await dbConnect();
-    const user = await User.findOne({ phone: mobileNumber });
+    const user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
     return { exists: !!user };
   }
 
@@ -82,7 +82,7 @@ export class AuthService {
     await dbConnect();
 
     // 1. Check if user already exists
-    const existingUser = await User.findOne({ phone: mobileNumber });
+    const existingUser = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
     if (existingUser) {
       throw new Error('User already exists with this mobile number');
     }
@@ -169,8 +169,8 @@ export class AuthService {
       throw new Error('Invalid or expired OTP');
     }
 
-    // 4. Find User by phone
-    let user = await User.findOne({ phone: mobileNumber });
+    // 4. Find User by phone (ignore deleted accounts)
+    let user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
     let isNewUser = false;
 
     if (user) {
