@@ -184,4 +184,32 @@ export class NotificationController {
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }
   }
+
+  /**
+   * DELETE /api/notifications/device-token
+   */
+  static async removeDeviceToken(req) {
+    try {
+      await dbConnect();
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const body = await req.json();
+      const { token } = body;
+
+      if (!token) {
+        return Response.json({ success: false, message: 'Device token is required' }, { status: 400 });
+      }
+
+      await NotificationService.removeDeviceToken(user.id, token);
+
+      return Response.json({
+        success: true,
+        message: 'Device token removed successfully'
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[NotificationController.removeDeviceToken Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
 }

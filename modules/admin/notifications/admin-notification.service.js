@@ -1,6 +1,7 @@
 import User from '../../../models/user.model.js';
 import Notification from '../../../models/notification.model.js';
 import Broadcast from '../../../models/broadcast.model.js';
+import { PushNotificationService } from '@/services/push-notification.service.js';
 
 /**
  * Admin Notification Service
@@ -25,7 +26,7 @@ export class AdminNotificationService {
       userQuery = { status: { $ne: 'deleted' } };
     }
 
-    const users = await User.find(userQuery).select('_id').lean();
+    const users = await User.find(userQuery).select('_id fcmTokens').lean();
     
     if (users.length === 0) {
       return { totalNotified: 0, targetType };
@@ -45,7 +46,17 @@ export class AdminNotificationService {
     // 3. Execute Bulk Insert
     const result = await Notification.insertMany(notificationsToInsert, { ordered: false });
 
-    // 4. Record Broadcast History
+    // 4. Trigger push notifications for users who have active FCM tokens
+    const deviceTokens = PushNotificationService.extractValidTokensFromUsers(users);
+    const pushDelivery = await PushNotificationService.sendToTokens(deviceTokens, {
+      title,
+      body,
+      type: type || 'welcome',
+      imageUrl: imageUrl || null,
+      action: action || { type: 'none' },
+    });
+
+    // 5. Record Broadcast History
     await Broadcast.create({
       title,
       body,
@@ -59,7 +70,13 @@ export class AdminNotificationService {
 
     return {
       totalNotified: result.length,
-      targetType
+      targetType,
+      push: {
+        tokensTargeted: pushDelivery.tokensTargeted,
+        successCount: pushDelivery.successCount,
+        failureCount: pushDelivery.failureCount,
+        invalidTokensCleaned: pushDelivery.invalidTokens.length,
+      },
     };
   }
 

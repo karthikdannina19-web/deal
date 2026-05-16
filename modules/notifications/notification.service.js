@@ -1,12 +1,23 @@
 import Notification from '../../models/notification.model.js';
 import User from '../../models/user.model.js';
-import mongoose from 'mongoose';
 
 /**
  * Notification Service
  * Handles business logic for notifications and device tokens
  */
 export class NotificationService {
+  static normalizeToken(token = '') {
+    return typeof token === 'string' ? token.trim() : '';
+  }
+
+  static isValidDeviceToken(token) {
+    if (!token) return false;
+    if (token.length <= 15) return false;
+    if (token.startsWith('test_fcm_token_')) return false;
+    if (token.toLowerCase().includes('dummy')) return false;
+    return true;
+  }
+
   /**
    * List notifications for a user with pagination
    * @param {string} userId 
@@ -111,12 +122,17 @@ export class NotificationService {
     const user = await User.findById(userId);
     if (!user) throw new Error('User not found');
 
+    const normalizedToken = this.normalizeToken(token);
+    if (!this.isValidDeviceToken(normalizedToken)) {
+      throw new Error('Invalid device token');
+    }
+
     // Remove token if it exists elsewhere in the user's tokens to avoid duplicates
-    user.fcmTokens = user.fcmTokens.filter(t => t.token !== token);
+    user.fcmTokens = user.fcmTokens.filter(t => t.token !== normalizedToken);
 
     // Add new token
     user.fcmTokens.push({
-      token,
+      token: normalizedToken,
       platform,
       lastUsedAt: new Date()
     });
@@ -128,5 +144,20 @@ export class NotificationService {
 
     await user.save();
     return true;
+  }
+
+  /**
+   * Remove an existing FCM device token for a user
+   */
+  static async removeDeviceToken(userId, token) {
+    const normalizedToken = this.normalizeToken(token);
+    if (!normalizedToken) return false;
+
+    const result = await User.updateOne(
+      { _id: userId },
+      { $pull: { fcmTokens: { token: normalizedToken } } }
+    );
+
+    return result.modifiedCount > 0;
   }
 }
