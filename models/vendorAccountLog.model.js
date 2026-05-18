@@ -31,6 +31,15 @@ const vendorAccountLogSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    reason: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
     ipAddress: {
       type: String,
       default: '',

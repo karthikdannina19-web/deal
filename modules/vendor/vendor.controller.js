@@ -342,7 +342,8 @@ export class VendorController {
         success: true,
         exists: result.exists,
         vendorId: result.vendorId || null,
-        status: displayStatus || null
+        status: displayStatus || null,
+        message: result.message || null,
       }, { status: 200 });
 
     } catch (error) {
@@ -386,7 +387,7 @@ export class VendorController {
       return Response.json({ 
         success: false, 
         message: error.message || 'Failed to send OTP' 
-      }, { status: 400 });
+      }, { status: error.statusCode || 400 });
     }
   }
 
@@ -407,8 +408,8 @@ export class VendorController {
       return Response.json(result, { status: 200 });
 
     } catch (error) {
-      // If service throws with statusCode 403, return 403 with message
-      if (error.statusCode === 403 && error.message === 'Account deleted') {
+      // Keep deleted-account handling consistent across leftover OTP edge cases.
+      if (error.statusCode === 403) {
         return Response.json({ success: false, message: 'Account deleted' }, { status: 403 });
       }
       return Response.json({ success: false, message: error.message }, { status: 401 });
@@ -1100,6 +1101,9 @@ export class VendorController {
       const { user, error: authError } = await authenticate(req);
       if (authError) return authError;
 
+      const roleError = authorize(user, ['vendor']);
+      if (roleError) return roleError;
+
       // 2. Parse request body
       let body = {};
       try {
@@ -1150,7 +1154,7 @@ export class VendorController {
       return Response.json({ 
         success: false, 
         message: error.message || 'Failed to delete account' 
-      }, { status: 500 });
+      }, { status: error.statusCode || 500 });
     }
   }
   /**

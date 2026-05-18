@@ -18,7 +18,10 @@ export class AdminService {
     await dbConnect();
     const { status, search, page = 1, limit = 10 } = filters;
     
-    const query = {};
+    const query = {
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' },
+    };
     
     // Status Filter
     if (status && status !== 'all' && status !== 'undefined') {
@@ -402,6 +405,14 @@ export class AdminService {
     const vendors = await Promise.all(rawVendors.map(async (v) => {
       const walletTxCount = await WalletTransaction.countDocuments({ user: v.userId?._id || v.userId });
       const vendorTxCount = await VendorTransaction.countDocuments({ vendor: v._id });
+      const approvedRedemptions = await VendorTransaction.aggregate([
+        { $match: { vendor: v._id, type: 'credit' } },
+        { $group: { _id: null, totalCredits: { $sum: '$amount' }, totalRedemptions: { $sum: 1 } } }
+      ]);
+      const latestDeletionLog = await VendorAccountLog.findOne({
+        vendor_id: v._id,
+        action_type: 'DELETED',
+      }).sort({ timestamp: -1 }).lean();
       const totalTransactions = walletTxCount + vendorTxCount;
       
       const cleanedUser = v.userId ? {
@@ -416,7 +427,12 @@ export class AdminService {
         mobileNumber: cleanDel(v.mobileNumber),
         slug: cleanDel(v.slug),
         userId: cleanedUser,
-        totalTransactions
+        totalTransactions,
+        totalRedemptions: approvedRedemptions[0]?.totalRedemptions || 0,
+        totalRedeemedCoins: approvedRedemptions[0]?.totalCredits || 0,
+        walletBalanceBeforeDelete: v.coinBalance || 0,
+        deletedReason: v.deletionReason || v.deleted_reason || latestDeletionLog?.reason || '',
+        deletedAt: v.deletedAt || latestDeletionLog?.timestamp || null,
       };
     }));
     
@@ -520,8 +536,12 @@ export class AdminService {
       action_by: 'admin',
       old_status: oldStatus,
       new_status: 'ACTIVE',
+      reason: 'Vendor account restored by admin.',
       ipAddress,
-      deviceInfo
+      deviceInfo,
+      metadata: {
+        restoredAt: new Date().toISOString(),
+      }
     });
     
     console.log(`[Admin Restoration] Vendor account ${vendorId} successfully restored!`);

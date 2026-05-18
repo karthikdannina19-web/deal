@@ -2,11 +2,27 @@ import { AdminService } from './admin.service.js';
 import User from '@/models/user.model.js';
 import { generateToken } from '@/utils/jwt.js';
 import { dbConnect } from '@/config/database.js';
+import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import { createPlan, getPlans } from '@/services/subscription.service.js';
 import { listAds, moderateAd, assignSectionToAd } from '@/services/ad.service.js';
 import { verifyToken } from '@/utils/jwt.js';
 
 export class AdminController {
+  static async requireAdmin(req) {
+    await dbConnect();
+    const { user, error: authError } = await authenticate(req);
+    if (authError) {
+      return { error: authError };
+    }
+
+    const roleError = authorize(user, ['admin']);
+    if (roleError) {
+      return { error: roleError };
+    }
+
+    return { user };
+  }
+
   /**
    * Admin Login
    * POST /api/admin/login
@@ -63,6 +79,9 @@ export class AdminController {
    */
   static async getVendors(req) {
     try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
       const { searchParams } = new URL(req.url);
       const filters = {
         status: searchParams.get('status'),
@@ -84,6 +103,9 @@ export class AdminController {
    */
   static async updateVendorStatus(req, { params }) {
     try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
       const { id } = await params;
       const body = await req.json();
       const { status, reason } = body; // 'active' or 'rejected'
@@ -323,6 +345,9 @@ export class AdminController {
    */
   static async getDeletedVendors(req) {
     try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
       const { searchParams } = new URL(req.url);
       const filters = {
         search: searchParams.get('search'),
@@ -343,7 +368,9 @@ export class AdminController {
    */
   static async restoreVendor(req) {
     try {
-      await dbConnect();
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
       const body = await req.json();
       const { vendorId } = body;
 

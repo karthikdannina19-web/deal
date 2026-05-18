@@ -7,6 +7,9 @@ import Store from '../../models/store.model.js';
 import Review from '../../models/review.model.js';
 import RedemptionRequest from '../../models/redemptionRequest.model.js';
 import VendorAccountLog from '../../models/vendorAccountLog.model.js';
+import Payment from '../../models/payment.model.js';
+import CoinTransaction from '../../models/coinTransaction.model.js';
+import UserSubscription from '../../models/userSubscription.model.js';
 import { generateOtp } from '../../utils/generateOtp.js';
 import { hashData, compareHash } from '../../utils/hash.js';
 import { generateToken } from '../../utils/jwt.js';
@@ -17,6 +20,64 @@ import { dbConnect } from '../../config/database.js';
  * Handles database operations for Vendor management
  */
 export class VendorService {
+  static buildArchivedIdentifierRegex(value) {
+    const escaped = String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`^${escaped}(\\+del_|_del_)`);
+  }
+
+  static async findArchivedVendor({ mobileNumber, email }) {
+    const orConditions = [];
+
+    if (mobileNumber) {
+      orConditions.push({ mobileNumber: this.buildArchivedIdentifierRegex(mobileNumber) });
+    }
+
+    if (email) {
+      const [localPart] = String(email).split('@');
+      if (localPart) {
+        orConditions.push({ email: new RegExp(`^${localPart.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\+del_`, 'i') });
+      }
+      orConditions.push({ email: this.buildArchivedIdentifierRegex(email) });
+    }
+
+    if (orConditions.length === 0) {
+      return null;
+    }
+
+    return Vendor.findOne({
+      is_deleted: true,
+      $or: orConditions,
+    }).sort({ deletedAt: -1 });
+  }
+
+  static async createVendorAccountLog({
+    vendorId,
+    actionType,
+    actionBy = 'vendor',
+    oldStatus = '',
+    newStatus = '',
+    reason = '',
+    ipAddress = '',
+    deviceInfo = '',
+    metadata = {},
+  }) {
+    if (!vendorId) {
+      return;
+    }
+
+    await VendorAccountLog.create({
+      vendor_id: vendorId,
+      action_type: actionType,
+      action_by: actionBy,
+      old_status: oldStatus,
+      new_status: newStatus,
+      reason,
+      ipAddress,
+      deviceInfo,
+      metadata,
+    });
+  }
+
   /**
    * Find a vendor by their associated User ID
    * @param {string} userId
@@ -223,9 +284,30 @@ export class VendorService {
     await dbConnect();
     
     // 1. Check if vendor already exists and has completed registration (not deleted or draft)
-    const existingVendor = await Vendor.findOne({ mobileNumber, status: { $ne: 'deleted' } });
+    const existingVendor = await Vendor.findOne({
+      mobileNumber,
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' },
+      status: { $ne: 'deleted' },
+    });
     if (existingVendor && existingVendor.status !== 'draft') {
       throw new Error('An account with this mobile number already exists. Please log in.');
+    }
+
+    const archivedVendor = await this.findArchivedVendor({ mobileNumber, email });
+    if (archivedVendor) {
+      await this.createVendorAccountLog({
+        vendorId: archivedVendor._id,
+        actionType: 'RECREATION_ATTEMPT',
+        actionBy: 'vendor',
+        oldStatus: archivedVendor.account_status || 'DELETED',
+        newStatus: 'DELETED',
+        reason: 'Vendor initiated a fresh registration after deleting a prior account.',
+        metadata: {
+          mobileNumber,
+          email,
+        },
+      });
     }
 
     // 2. Find or create User with this mobile number (ignore deleted)
@@ -542,6 +624,19 @@ export class VendorService {
     }).select('_id status registrationStep');
 
     if (!vendor) {
+      const archivedVendor = await this.findArchivedVendor({ mobileNumber });
+      if (archivedVendor) {
+        await this.createVendorAccountLog({
+          vendorId: archivedVendor._id,
+          actionType: 'LOGIN_BLOCKED',
+          actionBy: 'vendor',
+          oldStatus: archivedVendor.account_status || 'DELETED',
+          newStatus: 'DELETED',
+          reason: 'Deleted vendor attempted to access the login flow.',
+          metadata: { mobileNumber, source: 'checkVendorExists' },
+        });
+      }
+
       return {
         exists: false,
         message: 'Vendor not found - please register'
@@ -574,6 +669,23 @@ export class VendorService {
       deletedAt: null
     });
     if (!vendor) {
+      const archivedVendor = await this.findArchivedVendor({ mobileNumber });
+      if (archivedVendor) {
+        await this.createVendorAccountLog({
+          vendorId: archivedVendor._id,
+          actionType: 'LOGIN_BLOCKED',
+          actionBy: 'vendor',
+          oldStatus: archivedVendor.account_status || 'DELETED',
+          newStatus: 'DELETED',
+          reason: 'Deleted vendor requested login OTP.',
+          metadata: { mobileNumber, source: 'sendVendorOtp' },
+        });
+
+        const error = new Error('Account deleted. Please create a new account.');
+        error.statusCode = 403;
+        throw error;
+      }
+
       throw new Error('Account not found. Please register.');
     }
 
@@ -614,6 +726,24 @@ export class VendorService {
    */
   static async verifyVendorOtp(mobileNumber, otpCode) {
     await dbConnect();
+
+    const archivedVendor = await this.findArchivedVendor({ mobileNumber });
+    if (archivedVendor) {
+      await Otp.deleteOne({ target: mobileNumber, type: 'phone' });
+      await this.createVendorAccountLog({
+        vendorId: archivedVendor._id,
+        actionType: 'LOGIN_BLOCKED',
+        actionBy: 'vendor',
+        oldStatus: archivedVendor.account_status || 'DELETED',
+        newStatus: 'DELETED',
+        reason: 'Deleted vendor attempted OTP verification.',
+        metadata: { mobileNumber, source: 'verifyVendorOtp' },
+      });
+
+      const error = new Error('Account deleted');
+      error.statusCode = 403;
+      throw error;
+    }
 
     // 1. Find OTP record
     const otpRecord = await Otp.findOne({ target: mobileNumber, type: 'phone' });
@@ -659,6 +789,23 @@ export class VendorService {
     const user = await User.findById(vendor.userId);
     if (!user) {
       throw new Error('Associated user account not found.');
+    }
+
+    if (user.status === 'deleted') {
+      await Otp.deleteOne({ _id: otpRecord._id });
+      await this.createVendorAccountLog({
+        vendorId: vendor._id,
+        actionType: 'LOGIN_BLOCKED',
+        actionBy: 'vendor',
+        oldStatus: vendor.account_status || 'DELETED',
+        newStatus: 'DELETED',
+        reason: 'Deleted vendor user record attempted OTP verification.',
+        metadata: { mobileNumber, source: 'verifyVendorOtp_user_deleted' },
+      });
+
+      const error = new Error('Account deleted');
+      error.statusCode = 403;
+      throw error;
     }
 
     // 7. Generate JWT Token
@@ -765,10 +912,34 @@ export class VendorService {
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) throw new Error('Vendor profile not found');
 
-    // 2. Pre-deletion Checks (Pending redemption requests block deletion)
+    // 2. Pre-deletion Checks (Pending financial workflows block deletion)
     const pendingRequest = await RedemptionRequest.findOne({ vendor: vendorId, status: 'PENDING' });
     if (pendingRequest) {
       throw new Error('You cannot delete account while pending redemption requests exist.');
+    }
+
+    const pendingCoinTransaction = await CoinTransaction.findOne({
+      vendorId,
+      status: { $in: ['initiated', 'otp_sent'] },
+    });
+    if (pendingCoinTransaction) {
+      throw new Error('You cannot delete account while pending coin transactions exist.');
+    }
+
+    const pendingPayment = await Payment.findOne({
+      vendorId,
+      status: 'created',
+    });
+    if (pendingPayment) {
+      throw new Error('You cannot delete account while pending payouts or payment orders exist.');
+    }
+
+    const pendingSubscription = await UserSubscription.findOne({
+      vendor: vendorId,
+      paymentStatus: 'pending',
+    });
+    if (pendingSubscription) {
+      throw new Error('You cannot delete account while pending subscription payments exist.');
     }
 
     const oldStatus = vendor.account_status || 'ACTIVE';
@@ -832,14 +1003,18 @@ export class VendorService {
 
     // 5. Create Audit Log Record
     console.log('DEBUG: VendorAccountLog.create starting');
-    await VendorAccountLog.create({
-      vendor_id: vendorId,
-      action_type: 'DELETED',
-      action_by: deletedBy,
-      old_status: oldStatus,
-      new_status: 'DELETED',
-      ipAddress: ipAddress,
-      deviceInfo: deviceInfo
+    await this.createVendorAccountLog({
+      vendorId,
+      actionType: 'DELETED',
+      actionBy: deletedBy,
+      oldStatus,
+      newStatus: 'DELETED',
+      reason,
+      ipAddress,
+      deviceInfo,
+      metadata: {
+        archivedAt: new Date().toISOString(),
+      },
     });
     console.log('DEBUG: VendorAccountLog.create finished');
 

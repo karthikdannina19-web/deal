@@ -275,9 +275,21 @@ export default function VendorsPage() {
                                  "w-3 h-1.5 rounded-full transition-all duration-500",
                                  step <= vendor.registrationStep ? "bg-admin-primary" : "bg-zinc-200"
                                )} />
-                            ))}
+                           ))}
                           </div>
                         </div>
+                        {(vendor.is_deleted || vendor.status === 'deleted') && (
+                          <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                              Deleted {vendor.deletedAt ? new Date(vendor.deletedAt).toLocaleDateString() : 'Archived'}
+                            </p>
+                            {vendor.deletedReason && (
+                              <p className="max-w-xs text-xs font-semibold text-zinc-500">
+                                {vendor.deletedReason}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="px-10 py-8">
@@ -482,7 +494,7 @@ export default function VendorsPage() {
                           </label>
                           <div className="bg-zinc-50 rounded-[32px] p-8 border-2 border-dashed border-zinc-200">
                              <p className="text-sm font-bold text-zinc-700 leading-relaxed italic mb-8">
-                                "{selectedVendor.fullAddress || 'Full geographical address pending validation'}"
+                                &ldquo;{selectedVendor.fullAddress || 'Full geographical address pending validation'}&rdquo;
                              </p>
                              <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -563,26 +575,40 @@ export default function VendorsPage() {
                                </button>
                             </div>
                           ) : (selectedVendor.is_deleted || selectedVendor.status === 'deleted') ? (
-                             <button 
-                               disabled={!!processingId}
-                               onClick={async () => {
-                                 setProcessingId(selectedVendor._id);
-                                 try {
-                                   await vendorService.restoreVendor(selectedVendor._id);
-                                   alert('Vendor profile restored successfully.');
-                                   setSelectedVendor(null);
-                                   fetchVendors();
-                                 } catch (error) {
-                                   alert(error || 'Failed to restore vendor account.');
-                                 } finally {
-                                    setProcessingId(null);
-                                 }
-                               }}
-                               className="w-full py-6 bg-green-500 text-white rounded-[32px] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-green-600 transition-all flex items-center justify-center gap-3 group/btn"
-                             >
-                               {processingId ? <Loader2 className="animate-spin" size={20} /> : <ShieldCheck size={20} className="group-hover/btn:scale-110 transition-transform" />}
-                               Restore Vendor Account
-                             </button>
+                             <>
+                               <div className="rounded-[32px] border border-zinc-200 bg-zinc-50 p-6 text-left">
+                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Deletion Audit</p>
+                                 <p className="mt-3 text-sm font-bold text-zinc-800">
+                                   {selectedVendor.deletedReason || 'No deletion reason captured.'}
+                                 </p>
+                                 <p className="mt-2 text-xs font-semibold text-zinc-500">
+                                   Deleted on {selectedVendor.deletedAt ? new Date(selectedVendor.deletedAt).toLocaleString() : 'Unknown date'}
+                                 </p>
+                                 <p className="mt-2 text-xs font-semibold text-zinc-500">
+                                   Wallet before delete: {(selectedVendor.walletBalanceBeforeDelete || 0).toLocaleString()} coins
+                                 </p>
+                               </div>
+                               <button 
+                                 disabled={!!processingId}
+                                 onClick={async () => {
+                                   setProcessingId(selectedVendor._id);
+                                   try {
+                                     await vendorService.restoreVendor(selectedVendor._id);
+                                     alert('Vendor profile restored successfully.');
+                                     setSelectedVendor(null);
+                                     fetchVendors();
+                                   } catch (error) {
+                                     alert(error || 'Failed to restore vendor account.');
+                                   } finally {
+                                      setProcessingId(null);
+                                   }
+                                 }}
+                                 className="w-full py-6 bg-green-500 text-white rounded-[32px] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-green-600 transition-all flex items-center justify-center gap-3 group/btn"
+                               >
+                                 {processingId ? <Loader2 className="animate-spin" size={20} /> : <ShieldCheck size={20} className="group-hover/btn:scale-110 transition-transform" />}
+                                 Restore Vendor Account
+                               </button>
+                             </>
                           ) : (
                              <div className="flex items-center gap-4 p-6 bg-zinc-50 rounded-3xl border border-zinc-100">
                                 <div className={cn("w-3 h-3 rounded-full animate-pulse", 
