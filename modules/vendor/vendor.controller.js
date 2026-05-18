@@ -407,6 +407,10 @@ export class VendorController {
       return Response.json(result, { status: 200 });
 
     } catch (error) {
+      // If service throws with statusCode 403, return 403 with message
+      if (error.statusCode === 403 && error.message === 'Account deleted') {
+        return Response.json({ success: false, message: 'Account deleted' }, { status: 403 });
+      }
       return Response.json({ success: false, message: error.message }, { status: 401 });
     }
   }

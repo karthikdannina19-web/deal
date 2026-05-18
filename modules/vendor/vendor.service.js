@@ -532,17 +532,24 @@ export class VendorService {
    */
   static async checkVendorExists(mobileNumber) {
     await dbConnect();
-    const vendor = await Vendor.findOne({ mobileNumber, status: { $ne: 'deleted' } }).select('_id status registrationStep');
-    
+    // Exclude deleted vendors by all possible flags
+    const vendor = await Vendor.findOne({
+      mobileNumber,
+      status: { $ne: 'deleted' },
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' },
+      deletedAt: null
+    }).select('_id status registrationStep');
+
     if (!vendor) {
-      return { 
-        exists: false, 
-        message: 'Vendor not found - please register' 
+      return {
+        exists: false,
+        message: 'Vendor not found - please register'
       };
     }
-    
-    return { 
-      exists: true, 
+
+    return {
+      exists: true,
       vendorId: vendor._id.toString(),
       status: vendor.status,
       registrationStep: vendor.registrationStep,
@@ -559,7 +566,13 @@ export class VendorService {
     await dbConnect();
 
     // 1. Check if vendor exists (ignore deleted accounts)
-    const vendor = await Vendor.findOne({ mobileNumber, status: { $ne: 'deleted' } });
+    const vendor = await Vendor.findOne({
+      mobileNumber,
+      status: { $ne: 'deleted' },
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' },
+      deletedAt: null
+    });
     if (!vendor) {
       throw new Error('Account not found. Please register.');
     }
@@ -567,7 +580,7 @@ export class VendorService {
     // 2. Status Check - Optional: We could block suspended/rejected here, 
     // but the user wants them to reach the OTP page.
     // We will allow all statuses for now, and handle status-based access in the frontend.
-    
+
     // 3. Generate OTP (hardcoded '1234' for testing)
     const plainOtp = '1234';
     const hashedOtp = await hashData(plainOtp);
@@ -575,8 +588,8 @@ export class VendorService {
     // 3. Save OTP record with 5-minute expiry
     await Otp.findOneAndUpdate(
       { target: mobileNumber, type: 'phone' },
-      { 
-        code: hashedOtp, 
+      {
+        code: hashedOtp,
         expiresAt: new Date(Date.now() + 5 * 60 * 1000),
         isVerified: false,
         attempts: 0
@@ -587,8 +600,8 @@ export class VendorService {
     // 4. Log for development
     console.log(`[SIMULATION] Vendor OTP for ${mobileNumber}: ${plainOtp}`);
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       message: 'OTP sent successfully to your mobile number',
       mobileNumber: mobileNumber
     };
@@ -628,13 +641,18 @@ export class VendorService {
     }
 
     // 5. Find Vendor (ignore deleted accounts)
-    const vendor = await Vendor.findOne({ mobileNumber, status: { $ne: 'deleted' } });
+    const vendor = await Vendor.findOne({
+      mobileNumber,
+      status: { $ne: 'deleted' },
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' },
+      deletedAt: null
+    });
     if (!vendor) {
-      throw new Error('Vendor profile not found. Please register first.');
-    }
-
-    if (vendor.is_deleted === true || vendor.account_status === 'DELETED') {
-      throw new Error('Account deleted. Please create a new account.');
+      // Return 403 for deleted vendor
+      const error = new Error('Account deleted');
+      error.statusCode = 403;
+      throw error;
     }
 
     // 6. Find associated User
