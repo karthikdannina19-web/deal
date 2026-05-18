@@ -1090,8 +1090,8 @@ export class VendorController {
 
   /**
    * POST /api/vendor/delete-account
-   * Handles vendor account deletion with secure password confirmation
-   * @body { password, delete_reason }
+   * Handles vendor account deletion without password or OTP confirmation
+   * @body { delete_reason }
    */
   static async deleteAccount(req) {
     try {
@@ -1118,7 +1118,7 @@ export class VendorController {
       const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
       const deviceInfo = req.headers.get('user-agent') || 'Unknown Device';
 
-      // 4. Execute secure soft delete account flow
+      // 4. Execute soft delete account flow
       await VendorService.deleteVendorAccount(
         user.id, 
         user.vendorId, 
