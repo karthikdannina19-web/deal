@@ -1109,32 +1109,16 @@ export class VendorController {
       try {
         body = await req.json();
       } catch (e) {
-        return Response.json({ success: false, message: 'Invalid or missing request body.' }, { status: 400 });
+        body = {};
       }
 
-      const { password, delete_reason } = body;
+      const { delete_reason } = body;
 
-      if (!password) {
-        return Response.json({ success: false, message: 'Password confirmation is required.' }, { status: 400 });
-      }
-
-      // 3. Confirm Password against User record
-      const User = (await import('@/models/user.model.js')).default;
-      const userRecord = await User.findById(user.id).select('+password');
-      if (!userRecord) {
-        return Response.json({ success: false, message: 'User account not found.' }, { status: 404 });
-      }
-
-      const isMatch = await userRecord.comparePassword(password);
-      if (!isMatch) {
-        return Response.json({ success: false, message: 'Incorrect password. Deletion denied.' }, { status: 401 });
-      }
-
-      // 4. Capture telemetry details
+      // 3. Capture telemetry details
       const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
       const deviceInfo = req.headers.get('user-agent') || 'Unknown Device';
 
-      // 5. Execute secure soft delete account flow
+      // 4. Execute secure soft delete account flow
       await VendorService.deleteVendorAccount(
         user.id, 
         user.vendorId, 
