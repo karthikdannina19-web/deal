@@ -42,16 +42,17 @@ export class AuthController {
     } catch (error) {
       console.error('[AuthController.sendOtp Error]', error);
       
-      const errorMessage = error?.message || '';
+      const errorMessage = error?.message || 'Internal server error';
       const isRateLimit = errorMessage.includes('Rate limit');
+      const isUserFriendly = errorMessage.includes('Account not found') || errorMessage.includes('Please register');
       
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: isRateLimit ? errorMessage : 'Internal server error' 
+          message: isUserFriendly || isRateLimit ? errorMessage : 'Internal server error' 
         }),
         { 
-          status: isRateLimit ? 429 : 500, // Return 500 for actual server crashes to help debugging
+          status: isRateLimit ? 429 : (isUserFriendly ? 400 : 500),
           headers: { 'Content-Type': 'application/json' } 
         }
       );
