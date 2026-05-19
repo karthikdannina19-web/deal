@@ -1,5 +1,6 @@
 import Notification from '../../models/notification.model.js';
 import User from '../../models/user.model.js';
+import { PushNotificationService } from '../../services/push-notification.service.js';
 
 /**
  * Notification Service
@@ -159,5 +160,52 @@ export class NotificationService {
     );
 
     return result.modifiedCount > 0;
+  }
+
+  /**
+   * Create an in-app notification record and optionally send an FCM push.
+   *
+   * @param {string} userId        - The target user's MongoDB ID
+   * @param {object} opts
+   * @param {string} opts.type     - Notification type (must match model enum)
+   * @param {string} opts.title    - Notification title
+   * @param {string} opts.body     - Notification body text
+   * @param {string} [opts.imageUrl]
+   * @param {object} [opts.action] - { type: 'route'|'external'|'none', target, params }
+   * @param {object} [opts.metadata] - Extra payload for the push data field
+   * @returns {Promise<object>} Created Notification document
+   */
+  static async sendVendorNotification(userId, { type, title, body, imageUrl = null, action = { type: 'none' }, metadata = {} } = {}) {
+    // 1. Persist to database (always)
+    const notification = await Notification.create({
+      userId,
+      type,
+      title,
+      body,
+      imageUrl,
+      action,
+      isUnread: true,
+    });
+
+    // 2. Try FCM push (non-blocking — failure must not break the caller)
+    try {
+      const user = await User.findById(userId).select('fcmTokens').lean();
+      const tokens = PushNotificationService.extractValidTokensFromUsers(user ? [user] : []);
+      if (tokens.length > 0) {
+        await PushNotificationService.sendToTokens(tokens, {
+          title,
+          body,
+          type,
+          notificationId: notification._id.toString(),
+          imageUrl: imageUrl || '',
+          action,
+          metadata,
+        });
+      }
+    } catch (pushErr) {
+      console.error('[NotificationService.sendVendorNotification] FCM push failed (non-fatal):', pushErr.message);
+    }
+
+    return notification;
   }
 }

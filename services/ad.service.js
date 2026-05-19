@@ -3,6 +3,7 @@ import Ad from '../models/ad.model.js';
 import User from '../models/user.model.js';
 import Vendor from '../models/vendor.model.js';
 import UserSubscription from '../models/userSubscription.model.js';
+import { NotificationService } from '../modules/notifications/notification.service.js';
 
 /**
  * Ad Management Service
@@ -585,6 +586,45 @@ export async function moderateAd(adId, action, adminId, notes = '', sectionId = 
   }
 
   await ad.save();
+
+  // ── Send in-app + FCM notification to the vendor (non-blocking) ──
+  try {
+    const isResubmission = ad.reviewNotes && ad.reviewNotes.includes('Edited by vendor');
+
+    if (action === 'approve' || action === 'activate') {
+      const notifType = isResubmission ? 'ad_resubmit_approved' : 'ad_approved';
+      const title = isResubmission ? '✅ Edited Ad Approved!' : '✅ Ad Approved!';
+      const body = isResubmission
+        ? `Your edited ad "${ad.title}" has been reviewed and approved. It is now live!`
+        : `Your ad "${ad.title}" has been approved and is now live on the platform.`;
+
+      await NotificationService.sendVendorNotification(ad.user.toString(), {
+        type: notifType,
+        title,
+        body,
+        action: { type: 'route', target: 'VendorAdDetail', params: { adId: ad._id.toString() } },
+        metadata: { adId: ad._id.toString(), adTitle: ad.title },
+      });
+
+    } else if (action === 'reject') {
+      const notifType = isResubmission ? 'ad_resubmit_rejected' : 'ad_rejected';
+      const title = isResubmission ? '❌ Edited Ad Rejected' : '❌ Ad Rejected';
+      const reasonText = notes ? ` Reason: ${notes}` : ' Please review and resubmit.';
+      const body = isResubmission
+        ? `Your edited ad "${ad.title}" was not approved.${reasonText}`
+        : `Your ad "${ad.title}" was rejected.${reasonText}`;
+
+      await NotificationService.sendVendorNotification(ad.user.toString(), {
+        type: notifType,
+        title,
+        body,
+        action: { type: 'route', target: 'VendorAdDetail', params: { adId: ad._id.toString() } },
+        metadata: { adId: ad._id.toString(), adTitle: ad.title, reason: notes || '' },
+      });
+    }
+  } catch (notifErr) {
+    console.error('[moderateAd] Notification dispatch failed (non-fatal):', notifErr.message);
+  }
 
   return ad;
 }

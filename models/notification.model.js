@@ -18,7 +18,10 @@ const notificationSchema = new mongoose.Schema(
         'flash_deal', 'coins_earned', 'store_update', 'offer_expiring', 
         'welcome', 'cashback', 'referral_bonus', 'deal_reminder', 
         'profile_updated', 'daily_checkin', 'nearby_store', 'order_reward', 
-        'survey', 'security', 'food_offer'
+        'survey', 'security', 'food_offer',
+        // Vendor-specific notifications
+        'ad_approved', 'ad_rejected', 'ad_resubmit_approved', 'ad_resubmit_rejected',
+        'subscription_activated'
       ],
       default: 'welcome',
     },

@@ -2,6 +2,7 @@ import SubscriptionPlan from '../models/subscriptionPlan.model.js';
 import UserSubscription from '../models/userSubscription.model.js';
 import User from '../models/user.model.js';
 import Vendor from '../models/vendor.model.js';
+import { NotificationService } from '../modules/notifications/notification.service.js';
 
 /**
  * Subscription Service
@@ -421,6 +422,25 @@ export async function verifyPayment(subscriptionId, paymentDetails) {
     await User.findByIdAndUpdate(subscription.user, {
       $inc: { coinBalance: subscription.creditsAllocated },
     });
+  }
+
+  // ── Send in-app + FCM notification to the vendor (non-blocking) ──
+  try {
+    const planName = subscription.planSnapshot?.name || 'your plan';
+    const credits = subscription.creditsAllocated || 0;
+    await NotificationService.sendVendorNotification(subscription.user.toString(), {
+      type: 'subscription_activated',
+      title: '🎉 Subscription Activated!',
+      body: `Your ${planName} subscription is now active. You have received ${credits} ad credits. Start posting your ads!`,
+      action: { type: 'route', target: 'VendorSubscription', params: {} },
+      metadata: {
+        planName,
+        credits: credits.toString(),
+        subscriptionId: subscription._id.toString(),
+      },
+    });
+  } catch (notifErr) {
+    console.error('[verifyPayment] Notification dispatch failed (non-fatal):', notifErr.message);
   }
 
   return subscription;
