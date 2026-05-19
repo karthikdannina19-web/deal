@@ -67,6 +67,8 @@ export async function createAd(data, userId) {
     durationDays,
     tags,
     contactInfo,
+    showViews = true,
+    showClicks = true,
   } = data;
 
   // Validate required fields
@@ -240,6 +242,8 @@ export async function createAd(data, userId) {
     status: 'pending', // Requires admin approval
     isFeatured: creditType === 'featured' || creditType === 'premium',
     priority: creditType === 'premium' ? 5 : creditType === 'featured' ? 3 : 0,
+    showViews: showViews !== false,   // default true
+    showClicks: showClicks !== false, // default true
   };
 
   const ad = new Ad(adDataToSave);
@@ -296,34 +300,40 @@ export async function updateAd(adId, userId, data) {
     };
   }
 
-  // Fields allowed to update
-  const allowedFields = [
+  // Fields allowed to update (content fields — trigger re-approval)
+  const contentFields = [
     'title', 'description', 'category', 'subCategory',
     'images', 'videoUrl', 'url', 'price', 'priceType',
     'location', 'tags', 'contactInfo',
   ];
 
-  for (const field of allowedFields) {
+  // Display-preference fields — do NOT trigger re-approval
+  const preferenceFields = ['showViews', 'showClicks'];
+
+  let contentChanged = false;
+  for (const field of contentFields) {
+    if (data[field] !== undefined) {
+      ad[field] = data[field];
+      contentChanged = true;
+    }
+  }
+  for (const field of preferenceFields) {
     if (data[field] !== undefined) {
       ad[field] = data[field];
     }
   }
 
-  // Always reset to pending after edit to require admin re-approval
-  const previousStatus = ad.status;
-  ad.status = 'pending';
-  ad.reviewNotes = 'Edited by vendor, pending re-approval';
+  // Only reset to pending if actual ad content changed (not just display preferences)
+  if (contentChanged) {
+    const previousStatus = ad.status;
+    ad.status = 'pending';
+    ad.reviewNotes = 'Edited by vendor, pending re-approval';
 
-  if (previousStatus === 'approved') {
-    // Vendor is editing a live approved ad.
-    // No credit should be charged or refunded on next review cycle.
-    ad.editedFromApproved = true;
-  } else if (previousStatus === 'rejected') {
-    // Vendor is re-editing a rejected ad whose credit was already refunded.
-    // Reset editedFromApproved so the next rejection can refund if applicable.
-    ad.editedFromApproved = false;
-    // creditRefunded stays true — the credit was already returned on the first rejection.
-    // No new credit is deducted for this resubmission.
+    if (previousStatus === 'approved') {
+      ad.editedFromApproved = true;
+    } else if (previousStatus === 'rejected') {
+      ad.editedFromApproved = false;
+    }
   }
 
   await ad.save();

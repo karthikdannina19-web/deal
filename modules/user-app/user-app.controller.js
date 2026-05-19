@@ -57,7 +57,23 @@ export class UserAppController {
     const { id } = await params;
     const item = await UserAppService.incrementAdView(id);
     if (!item) return Response.json({ success: false, message: 'Ad not found' }, { status: 404 });
-    return Response.json({ success: true, viewCount: item.views || 0 }, { status: 200 });
+    // Return null if vendor disabled view counter visibility
+    return Response.json({
+      success: true,
+      viewCount: item.showViews !== false ? (item.views || 0) : null
+    }, { status: 200 });
+  }
+
+  static async adClick(req, { params }) {
+    await dbConnect();
+    const { id } = await params;
+    const item = await UserAppService.incrementAdClick(id);
+    if (!item) return Response.json({ success: false, message: 'Ad not found' }, { status: 404 });
+    // Return null if vendor disabled click counter visibility
+    return Response.json({
+      success: true,
+      clickCount: item.showClicks !== false ? (item.clicks || 0) : null
+    }, { status: 200 });
   }
 
   static async categories() {

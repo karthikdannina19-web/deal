@@ -59,7 +59,10 @@ function mapAd(ad) {
     image: { url: ad.primaryImage || ad.images?.[0]?.url || '' },
     locationLabel: [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
     distanceKm: num(ad.distanceKm, null),
-    viewCount: ad.views || 0,
+    // viewCount: null means vendor disabled view counter — hide the widget in the UI
+    viewCount: ad.showViews !== false ? (ad.views || 0) : null,
+    // clickCount: null means vendor disabled click counter — hide the widget in the UI
+    clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
     shareLink: ad.url || '',
     isActive: ad.status === 'approved',
   };
@@ -136,6 +139,10 @@ export class UserAppService {
 
   static async incrementAdView(id) {
     return Ad.findOneAndUpdate({ _id: id, status: 'approved' }, { $inc: { views: 1 } }, { returnDocument: 'after' });
+  }
+
+  static async incrementAdClick(id) {
+    return Ad.findOneAndUpdate({ _id: id, status: 'approved' }, { $inc: { clicks: 1 } }, { returnDocument: 'after' });
   }
 
   static async listCategories() {

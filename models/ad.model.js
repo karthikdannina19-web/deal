@@ -205,6 +205,19 @@ const adSchema = new mongoose.Schema(
       whatsappNumber: String,
     },
 
+    // ==========================================
+    // Vendor Analytics Visibility Controls
+    // ==========================================
+    // Vendor can choose whether public users see view/click counts on this ad
+    showViews: {
+      type: Boolean,
+      default: true,   // visible by default
+    },
+    showClicks: {
+      type: Boolean,
+      default: true,   // visible by default
+    },
+
     // SEO
     slug: {
       type: String,
