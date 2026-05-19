@@ -414,7 +414,7 @@ export async function verifyPayment(subscriptionId, paymentDetails) {
   }
 
   // Override any previous active subscriptions before activating this one
-  await overrideOldSubscriptions(subscription.user);
+  await overrideOldSubscriptions(subscription.user, subscription._id);
 
   subscription.razorpayOrderId = razorpay_order_id;
   subscription.razorpayPaymentId = razorpay_payment_id;
@@ -481,10 +481,17 @@ export async function autoExpireSubscriptions(userId) {
 /**
  * Override existing active subscriptions for a user when a new plan is activated.
  * @param {string} userId - User ID
+ * @param {string} excludeSubscriptionId - ID of the subscription to exclude from overriding
  */
-export async function overrideOldSubscriptions(userId) {
+export async function overrideOldSubscriptions(userId, excludeSubscriptionId = null) {
+  const query = { user: userId, status: { $in: ['active', 'trial'] } };
+  
+  if (excludeSubscriptionId) {
+    query._id = { $ne: excludeSubscriptionId };
+  }
+
   await UserSubscription.updateMany(
-    { user: userId, status: { $in: ['active', 'trial'] } },
+    query,
     { $set: { status: 'overridden', creditsRemaining: 0 } }
   );
 }

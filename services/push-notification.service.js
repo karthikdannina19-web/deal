@@ -104,7 +104,18 @@ async function cleanupInvalidTokens(tokens = []) {
 }
 
 async function sendSingleWithRetry(token, payload, attempt = 1) {
-  const messaging = getFirebaseMessaging();
+  let messaging;
+  try {
+    messaging = getFirebaseMessaging();
+  } catch (error) {
+    if (error.message.includes('credentials missing')) {
+      console.warn("[PushNotificationService] Firebase notifications disabled (credentials missing).");
+    } else {
+      console.warn("[PushNotificationService] Firebase init failed:", error.message);
+    }
+    return { token, success: false, error };
+  }
+
   try {
     await messaging.send(buildPayload(token, payload));
     return { token, success: true, error: null };
@@ -153,7 +164,11 @@ export class PushNotificationService {
     try {
       messaging = getFirebaseMessaging();
     } catch (error) {
-      console.error("[PushNotificationService] Firebase init failed:", error.message);
+      if (error.message.includes('credentials missing')) {
+        console.warn("[PushNotificationService] Firebase notifications disabled (credentials missing).");
+      } else {
+        console.warn("[PushNotificationService] Firebase init failed:", error.message);
+      }
       return {
         tokensTargeted: uniqueTokens.length,
         successCount: 0,
