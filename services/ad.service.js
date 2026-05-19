@@ -366,7 +366,7 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
 
   // User's own ads
   if (userId && !query.all) {
-    filters.user = userId;
+    filters.user = new mongoose.Types.ObjectId(userId);
   }
 
   // Text search
@@ -384,15 +384,51 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
   else if (query.sort === 'featured') sortOption = { isFeatured: -1, priority: -1, createdAt: -1 };
 
   // Execute query
-  const [ads, total] = await Promise.all([
-    Ad.find(filters)
-      .populate('vendor', 'fullName storeName email')
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-    Ad.countDocuments(filters),
-  ]);
+  let ads;
+  let total;
+
+  if (userId && !query.all) {
+    // Custom sort: approved (1) -> pending (2) -> rejected (3) -> others (4), then newest first
+    const pipeline = [
+      { $match: filters },
+      {
+        $addFields: {
+          statusWeight: {
+            $switch: {
+              branches: [
+                { case: { $eq: ["$status", "approved"] }, then: 1 },
+                { case: { $eq: ["$status", "pending"] }, then: 2 },
+                { case: { $eq: ["$status", "rejected"] }, then: 3 }
+              ],
+              default: 4
+            }
+          }
+        }
+      },
+      { $sort: { statusWeight: 1, createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit }
+    ];
+
+    [ads, total] = await Promise.all([
+      Ad.aggregate(pipeline),
+      Ad.countDocuments(filters)
+    ]);
+
+    // Populate vendor info for the aggregate results
+    await Ad.populate(ads, { path: 'vendor', select: 'fullName storeName email' });
+  } else {
+    // Standard query
+    [ads, total] = await Promise.all([
+      Ad.find(filters)
+        .populate('vendor', 'fullName storeName email')
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      Ad.countDocuments(filters),
+    ]);
+  }
 
   return {
     ads,
