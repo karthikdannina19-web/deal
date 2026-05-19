@@ -133,6 +133,11 @@ const adSchema = new mongoose.Schema(
       default: false,
     },
     creditRefundedAt: Date,
+    // True when vendor edits an already-approved ad (no credit refund on next rejection)
+    editedFromApproved: {
+      type: Boolean,
+      default: false,
+    },
 
     // ==========================================
     // Analytics / Tracking

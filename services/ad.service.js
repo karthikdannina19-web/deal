@@ -96,8 +96,8 @@ export async function createAd(data, userId) {
     };
   }
 
-  // Validate credit type
-  const creditsRequired = CREDIT_COSTS[creditType] || CREDIT_COSTS.standard;
+  // 1 credit = 1 ad — always flat, regardless of creditType
+  const creditsRequired = 1;
 
   console.log(`[AdService] Starting creation for user ${userId}. Required credits: ${creditsRequired}`);
 
@@ -269,8 +269,21 @@ export async function updateAd(adId, userId, data) {
   }
 
   // Always reset to pending after edit to require admin re-approval
+  const previousStatus = ad.status;
   ad.status = 'pending';
   ad.reviewNotes = 'Edited by vendor, pending re-approval';
+
+  if (previousStatus === 'approved') {
+    // Vendor is editing a live approved ad.
+    // No credit should be charged or refunded on next review cycle.
+    ad.editedFromApproved = true;
+  } else if (previousStatus === 'rejected') {
+    // Vendor is re-editing a rejected ad whose credit was already refunded.
+    // Reset editedFromApproved so the next rejection can refund if applicable.
+    ad.editedFromApproved = false;
+    // creditRefunded stays true — the credit was already returned on the first rejection.
+    // No new credit is deducted for this resubmission.
+  }
 
   await ad.save();
 
@@ -559,7 +572,11 @@ export async function moderateAd(adId, action, adminId, notes = '', sectionId = 
   ad.reviewedBy = adminId;
   ad.reviewedAt = new Date();
 
-  if (action === 'reject' && !ad.creditRefunded) {
+  if (action === 'reject' && !ad.creditRefunded && !ad.editedFromApproved) {
+    // Refund only when:
+    //  - Credit has not already been refunded, AND
+    //  - The ad being rejected is NOT an edit of a previously approved ad
+    //    (editing an approved ad doesn't cost a new credit, so nothing to refund)
     const [user, activeSubscription] = await Promise.all([
       User.findById(ad.user),
       getActiveAdSubscription(ad.user),
