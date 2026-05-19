@@ -357,8 +357,10 @@ export async function purchaseSubscription(userId, planId, paymentMethod = 'razo
 
   const subscription = await UserSubscription.create(subscriptionData);
 
-  // Add credits to user's wallet
-  if (subscription.creditsAllocated > 0) {
+  // Add credits to user's wallet ONLY for non-Razorpay payments (trial, credits, admin_grant).
+  // For Razorpay, payment is still pending here — credits are allocated in verifyPayment()
+  // after signature verification, to prevent double-crediting.
+  if (subscription.creditsAllocated > 0 && paymentMethod !== 'razorpay') {
     await User.findByIdAndUpdate(userId, {
       $inc: { coinBalance: subscription.creditsAllocated },
     });

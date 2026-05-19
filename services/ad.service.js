@@ -136,44 +136,86 @@ export async function createAd(data, userId) {
   }
 
   const activeSubscription = await getActiveAdSubscription(userId);
-  const trackedAvailableCredits = activeSubscription ? activeSubscription.creditsRemaining : user.coinBalance;
 
-  // Check if user has enough credits
-  if (trackedAvailableCredits < creditsRequired || user.coinBalance < creditsRequired) {
-    console.warn(`[AdService] Insufficient credits for user ${userId}. Has: ${trackedAvailableCredits}, Needs: ${creditsRequired}`);
+  // ── Single source of truth ──────────────────────────────────────────────
+  // When vendor has an active subscription  → creditsRemaining is authoritative
+  // When vendor has NO active subscription  → coinBalance is authoritative
+  // Never mix both checks; that causes desync "have 2 but insufficient" bugs.
+  const availableCredits = activeSubscription
+    ? activeSubscription.creditsRemaining
+    : user.coinBalance;
+
+  console.log(`[AdService] Credits check — available: ${availableCredits}, required: ${creditsRequired} (source: ${activeSubscription ? 'subscription' : 'coinBalance'})`);
+
+  if (availableCredits < creditsRequired) {
+    console.warn(`[AdService] Insufficient credits for user ${userId}. Has: ${availableCredits}, Needs: ${creditsRequired}`);
     throw {
       statusCode: 402,
-      message: `Insufficient credits. You need ${creditsRequired} credits but have ${trackedAvailableCredits}`,
+      message: `Insufficient credits. You need ${creditsRequired} credit but have ${availableCredits}`,
       errorType: 'INSUFFICIENT_CREDITS',
       details: {
         required: creditsRequired,
-        available: trackedAvailableCredits,
+        available: availableCredits,
       },
     };
   }
 
-  // Deduct credits (atomic operation to prevent double spending)
-  console.log(`[AdService] Deducting ${creditsRequired} credits from user ${userId}`);
-  const updatedUser = await User.findOneAndUpdate(
-    { _id: userId, coinBalance: { $gte: creditsRequired } },
-    { $inc: { coinBalance: -creditsRequired } },
-    { returnDocument: 'after' }
-  );
-
-  if (!updatedUser) {
-    console.error(`[AdService] Credit deduction failed for user ${userId} (Concurrency issue)`);
-    throw {
-      statusCode: 409,
-      message: 'Credits were spent by another request. Please try again.',
-      errorType: 'CONFLICT_ERROR',
-    };
-  }
+  // ── Atomic deduction from the authoritative source ──────────────────────
+  let finalCoinBalance = user.coinBalance;
 
   if (activeSubscription) {
-    activeSubscription.creditsRemaining -= creditsRequired;
-    activeSubscription.creditsUsed += creditsRequired;
-    await activeSubscription.save();
+    // Deduct atomically from subscription.creditsRemaining
+    const updatedSub = await UserSubscription.findOneAndUpdate(
+      { _id: activeSubscription._id, creditsRemaining: { $gte: creditsRequired } },
+      { $inc: { creditsRemaining: -creditsRequired, creditsUsed: creditsRequired } },
+      { returnDocument: 'after' }
+    );
+
+    if (!updatedSub) {
+      console.error(`[AdService] Subscription credit deduction race condition for user ${userId}`);
+      throw {
+        statusCode: 409,
+        message: 'Credits were spent by another request. Please try again.',
+        errorType: 'CONFLICT_ERROR',
+      };
+    }
+
+    // Sync coinBalance (best-effort, deduct only as much as we have — prevents going negative)
+    const deductFromCoin = Math.min(creditsRequired, Math.max(0, user.coinBalance));
+    if (deductFromCoin > 0) {
+      const refreshed = await User.findByIdAndUpdate(
+        userId,
+        { $inc: { coinBalance: -deductFromCoin } },
+        { returnDocument: 'after' }
+      );
+      finalCoinBalance = refreshed?.coinBalance ?? user.coinBalance;
+    }
+
+    // Re-read updated subscription for response
+    activeSubscription.creditsRemaining = updatedSub.creditsRemaining;
+    activeSubscription.creditsUsed = updatedSub.creditsUsed;
+
+  } else {
+    // Deduct atomically from coinBalance
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: userId, coinBalance: { $gte: creditsRequired } },
+      { $inc: { coinBalance: -creditsRequired } },
+      { returnDocument: 'after' }
+    );
+
+    if (!updatedUser) {
+      console.error(`[AdService] coinBalance deduction race condition for user ${userId}`);
+      throw {
+        statusCode: 409,
+        message: 'Credits were spent by another request. Please try again.',
+        errorType: 'CONFLICT_ERROR',
+      };
+    }
+
+    finalCoinBalance = updatedUser.coinBalance;
   }
+
+  console.log(`[AdService] Deducted ${creditsRequired} credit from user ${userId}`);
 
   // Create the ad
   console.log(`[AdService] Saving new ad document for vendor ${vendor._id}`);
@@ -204,22 +246,21 @@ export async function createAd(data, userId) {
   await ad.save();
   console.log(`[AdService] Ad saved successfully with ID: ${ad._id}`);
 
-  // Populate vendor info for response using static method (more robust)
+  // Populate vendor info for response
   try {
     console.log(`[AdService] Populating vendor info for ad ${ad._id}`);
     await Ad.populate(ad, { path: 'vendor', select: 'fullName storeName email' });
   } catch (popErr) {
     console.error(`[AdService] Population warning (non-fatal):`, popErr.message);
-    // Continue even if populate fails, as the ad is already saved
   }
 
   return {
     ad,
-    remainingCredits: updatedUser.coinBalance,
+    remainingCredits: activeSubscription ? activeSubscription.creditsRemaining : finalCoinBalance,
     creditsDeducted: creditsRequired,
     creditSummary: buildCreditSummary({
-      allocated: activeSubscription?.creditsAllocated || updatedUser.coinBalance,
-      remaining: activeSubscription?.creditsRemaining ?? updatedUser.coinBalance,
+      allocated: activeSubscription?.creditsAllocated ?? finalCoinBalance,
+      remaining: activeSubscription?.creditsRemaining ?? finalCoinBalance,
     }),
   };
 }
@@ -575,22 +616,29 @@ export async function moderateAd(adId, action, adminId, notes = '', sectionId = 
   if (action === 'reject' && !ad.creditRefunded && !ad.editedFromApproved) {
     // Refund only when:
     //  - Credit has not already been refunded, AND
-    //  - The ad being rejected is NOT an edit of a previously approved ad
-    //    (editing an approved ad doesn't cost a new credit, so nothing to refund)
+    //  - The ad is NOT an edit of a previously approved ad
+    const creditsToRefund = ad.creditsUsed || 1;
     const [user, activeSubscription] = await Promise.all([
       User.findById(ad.user),
       getActiveAdSubscription(ad.user),
     ]);
 
-    if (user) {
-      user.coinBalance += ad.creditsUsed || 0;
-      await user.save();
-    }
-
     if (activeSubscription) {
-      activeSubscription.creditsRemaining += ad.creditsUsed || 0;
-      activeSubscription.creditsUsed = Math.max(0, activeSubscription.creditsUsed - (ad.creditsUsed || 0));
-      await activeSubscription.save();
+      // Primary: refund atomically to subscription
+      await UserSubscription.findByIdAndUpdate(activeSubscription._id, {
+        $inc: { creditsRemaining: creditsToRefund, creditsUsed: -creditsToRefund },
+      });
+      // Sync coinBalance back up (best-effort, cap so it doesn't exceed creditsAllocated)
+      if (user) {
+        await User.findByIdAndUpdate(ad.user, {
+          $inc: { coinBalance: creditsToRefund },
+        });
+      }
+    } else if (user) {
+      // No subscription: refund directly to coinBalance
+      await User.findByIdAndUpdate(ad.user, {
+        $inc: { coinBalance: creditsToRefund },
+      });
     }
 
     ad.creditRefunded = true;
