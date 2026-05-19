@@ -355,6 +355,11 @@ export async function purchaseSubscription(userId, planId, paymentMethod = 'razo
     grantedBy: paymentMethod === 'admin_grant' ? paymentInfo.adminId : null,
   };
 
+  // If this is a direct activation (non-razorpay), override old plans before saving
+  if (paymentMethod !== 'razorpay') {
+    await overrideOldSubscriptions(userId);
+  }
+
   const subscription = await UserSubscription.create(subscriptionData);
 
   // Add credits to user's wallet ONLY for non-Razorpay payments (trial, credits, admin_grant).
@@ -408,6 +413,9 @@ export async function verifyPayment(subscriptionId, paymentDetails) {
     };
   }
 
+  // Override any previous active subscriptions before activating this one
+  await overrideOldSubscriptions(subscription.user);
+
   subscription.razorpayOrderId = razorpay_order_id;
   subscription.razorpayPaymentId = razorpay_payment_id;
   subscription.razorpaySignature = razorpay_signature;
@@ -453,11 +461,41 @@ export async function verifyPayment(subscriptionId, paymentDetails) {
 // ==========================================
 
 /**
+ * Auto-expire subscriptions that have passed their end date
+ * @param {string} userId - User ID
+ */
+export async function autoExpireSubscriptions(userId) {
+  const now = new Date();
+  await UserSubscription.updateMany(
+    {
+      user: userId,
+      status: { $in: ['active', 'trial'] },
+      endDate: { $lt: now }
+    },
+    {
+      $set: { status: 'expired', creditsRemaining: 0 }
+    }
+  );
+}
+
+/**
+ * Override existing active subscriptions for a user when a new plan is activated.
+ * @param {string} userId - User ID
+ */
+export async function overrideOldSubscriptions(userId) {
+  await UserSubscription.updateMany(
+    { user: userId, status: { $in: ['active', 'trial'] } },
+    { $set: { status: 'overridden', creditsRemaining: 0 } }
+  );
+}
+
+/**
  * Get user's currently active subscription
  * @param {string} userId - User ID
  * @returns {Promise<object|null>} Active subscription
  */
 export async function getActiveSubscription(userId) {
+  await autoExpireSubscriptions(userId);
   return await UserSubscription.findActive(userId);
 }
 
