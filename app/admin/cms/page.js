@@ -511,6 +511,11 @@ export default function CMSPage() {
                               <option value="email">Email (Mail)</option>
                               <option value="users">Users (Community)</option>
                               <option value="info">Info (About)</option>
+                              <option value="facebook">Facebook (Social)</option>
+                              <option value="instagram">Instagram (Social)</option>
+                              <option value="twitter">Twitter (Social)</option>
+                              <option value="linkedin">LinkedIn (Social)</option>
+                              <option value="youtube">YouTube (Social)</option>
                             </select>
                           </div>
                           <div className="space-y-1">

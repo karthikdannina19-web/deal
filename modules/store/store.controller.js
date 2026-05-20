@@ -21,7 +21,9 @@ export class StoreController {
       if (!storeId) {
         return Response.json({ 
           success: false, 
-          message: 'Store ID is required' 
+          message: 'Store ID is required',
+          data: null,
+          pagination: null
         }, { status: 400 });
       }
 
@@ -32,15 +34,21 @@ export class StoreController {
       if (!result) {
         return Response.json({ 
           success: false, 
-          message: 'Store not found or is currently inactive' 
+          message: 'Store not found or is currently inactive',
+          data: null,
+          pagination: null
         }, { status: 404 });
       }
 
-      // 5. Return JSON payload
+      // 5. Return JSON payload wrapped consistently
       return Response.json({
         success: true,
-        store: result.store,
-        deals: result.deals
+        message: 'Store details fetched successfully',
+        data: {
+          store: result.store,
+          deals: result.deals
+        },
+        pagination: null
       }, { status: 200 });
 
     } catch (error) {
@@ -50,14 +58,18 @@ export class StoreController {
       if (error.name === 'CastError') {
         return Response.json({ 
           success: false, 
-          message: 'Invalid Store ID provided' 
+          message: 'Invalid Store ID provided',
+          data: null,
+          pagination: null
         }, { status: 400 });
       }
 
       // Standard error response
       return Response.json({
         success: false,
-        message: 'Failed to retrieve store details'
+        message: 'Failed to retrieve store details',
+        data: null,
+        pagination: null
       }, { status: 500 });
     }
   }
