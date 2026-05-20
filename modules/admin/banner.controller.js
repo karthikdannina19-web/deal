@@ -87,7 +87,7 @@ export class BannerController {
       const formData = await req.formData();
       
       const updateData = {};
-      const fields = ['location', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive'];
+      const fields = ['section', 'location', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive'];
       fields.forEach(field => {
         if (formData.has(field)) {
           let value = formData.get(field);
