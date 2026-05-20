@@ -1,6 +1,9 @@
 import mongoose from 'mongoose';
 import Vendor from '../../models/vendor.model.js';
 import Ads from '../../models/ads.model.js';
+import Review from '../../models/review.model.js';
+import User from '../../models/user.model.js';
+import Ad from '../../models/ad.model.js';
 
 /**
  * Store Service
@@ -13,21 +16,81 @@ export class StoreService {
    */
   static async getStoreDetails(storeId) {
     // 1. Fetch Active Vendor
-    // We strictly filter for 'active' status and select only public fields
+    // We filter for 'active' status and select all public/social/location fields
     const vendor = await Vendor.findOne({ 
       _id: storeId, 
       status: 'active' 
     })
-    .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours')
+    .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours locationCoordinates website instagram linkedin youtube facebook')
     .lean();
 
     if (!vendor) {
       return null;
     }
 
-    // 2. Fetch Approved Deals for this store
-    // Sort by createdAt DESC for latest deals first
-    const deals = await Ads.find({ 
+    // 2. Fetch Active Reviews & Ratings Breakdown
+    const reviews = await Review.find({ vendorId: storeId, isActive: true })
+      .populate({
+        path: 'userId',
+        select: 'firstName lastName profileImage email phone'
+      })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let totalReviews = reviews.length;
+    let sumRatings = 0;
+    const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+    const customerReviews = reviews.map(rev => {
+      sumRatings += rev.rating;
+      const r = Math.min(5, Math.max(1, Math.round(rev.rating)));
+      ratingBreakdown[r] = (ratingBreakdown[r] || 0) + 1;
+
+      const u = rev.userId || {};
+      const userName = [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Anonymous User';
+      const userImage = u.profileImage || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+
+      return {
+        reviewId: rev._id,
+        userName,
+        userImage,
+        comment: rev.reviewText || '',
+        rating: rev.rating,
+        createdAt: rev.createdAt
+      };
+    });
+
+    const averageRating = totalReviews > 0 ? parseFloat((sumRatings / totalReviews).toFixed(1)) : 0.0;
+
+    // 3. Fetch Active Offers/Deals from both Ad (new) and Ads (legacy) collections
+    const adsList = await Ad.find({ 
+      vendor: storeId, 
+      status: 'approved' 
+    })
+    .sort({ createdAt: -1 })
+    .lean();
+
+    const offers = adsList.map(ad => {
+      const primaryImage = ad.images?.find((img) => img.isPrimary)?.url || ad.images?.[0]?.url || '';
+      const slugSuffix = ad.slug ? ad.slug : '';
+      const shareUrl = slugSuffix ? `https://rhock.vercel.app/ads/${slugSuffix}` : '';
+      const expiresAt = ad.expiresAt;
+      const isActive = ad.status === 'approved' && (!expiresAt || new Date() < expiresAt);
+
+      return {
+        offerId: ad._id,
+        title: ad.title,
+        description: ad.description,
+        image: primaryImage,
+        category: ad.category || 'General',
+        price: ad.price || 0,
+        shareUrl,
+        isActive
+      };
+    });
+
+    // 4. Form legacy deals payload for backward compatibility
+    const legacyDeals = await Ads.find({ 
       vendorId: storeId, 
       status: 'approved' 
     })
@@ -35,8 +98,8 @@ export class StoreService {
     .select('_id title description imageUrl views')
     .lean();
 
-    // 3. Format response structure according to User Discovery patterns
-    const store = {
+    // 5. Structure legacy store response
+    const legacyStore = {
       _id: vendor._id,
       storeName: vendor.storeName,
       about: vendor.storeAbout,
@@ -48,14 +111,44 @@ export class StoreService {
       },
       workingHours: vendor.workingHours || 'Not specified',
       media: vendor.media || { thumbnailUrl: '', bannerUrl: '' },
-      // Future-proofing for ratings/reviews
-      rating: 0, 
-      totalReviews: 0
+      rating: averageRating,
+      totalReviews: totalReviews
     };
 
+    // Return everything required by both modern and legacy routes
     return {
-      store,
-      deals
+      storeId: vendor._id,
+      businessName: vendor.storeName || '',
+      storeName: vendor.storeName || '',
+      bannerImage: vendor.media?.bannerUrl || '',
+      coverImage: vendor.media?.bannerUrl || '',
+      logoImage: vendor.media?.thumbnailUrl || '',
+      galleryImages: vendor.media?.images || [],
+      description: vendor.storeAbout || '',
+      about: vendor.storeAbout || '',
+      fullAddress: vendor.fullAddress || '',
+      latitude: vendor.locationCoordinates?.coordinates?.[1] || 0.0,
+      longitude: vendor.locationCoordinates?.coordinates?.[0] || 0.0,
+      phoneNumber: vendor.mobileNumber || '',
+      openingHours: vendor.workingHours || 'Not specified',
+      socialLinks: {
+        facebook: vendor.facebook || '',
+        instagram: vendor.instagram || '',
+        youtube: vendor.youtube || '',
+        website: vendor.website || '',
+        x: vendor.linkedin || '' // Using linkedin or empty as x fallback
+      },
+      storeRatingSummary: {
+        averageRating,
+        totalReviews,
+        ratingBreakdown
+      },
+      customerReviews,
+      offers,
+
+      // Legacy fallback objects
+      store: legacyStore,
+      deals: legacyDeals
     };
   }
 
