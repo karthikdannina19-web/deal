@@ -25,6 +25,7 @@ export const BannerService = {
   createBanner: async (data) => {
     const banner = new Banner(data);
     await banner.save();
+    await banner.populate('section', 'name');
     return banner;
   },
 
@@ -34,6 +35,7 @@ export const BannerService = {
   updateBanner: async (id, data) => {
     const banner = await Banner.findByIdAndUpdate(id, data, { returnDocument: 'after' });
     if (!banner) throw new Error('Banner not found');
+    await banner.populate('section', 'name');
     return banner;
   },
 

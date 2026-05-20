@@ -36,9 +36,8 @@ export async function GET(req) {
 
     if (!isNaN(lat) && !isNaN(lng)) {
       query.location = {
-        $near: {
-          $geometry: { type: 'Point', coordinates: [lng, lat] },
-          $maxDistance: 50000 // 50km
+        $geoWithin: {
+          $centerSphere: [[lng, lat], 50 / 6378.1] // 50km radius
         }
       };
     }

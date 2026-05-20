@@ -236,7 +236,7 @@ export class AdminController {
       const body = await req.json();
       const action = body.action || body.status; // Support both 'action' and 'status' from frontend
       const notes = body.notes || 'Admin moderation';
-      const sectionId = body.sectionId || null;
+      const sectionId = body.hasOwnProperty('sectionId') ? body.sectionId : undefined;
 
       const authHeader = req.headers.get('authorization');
       let adminId = null;

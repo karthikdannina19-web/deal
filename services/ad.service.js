@@ -666,7 +666,7 @@ export async function trackAdView(adId, viewerId) {
  * @param {string} notes - Review notes (optional)
  * @returns {Promise<object>} Updated ad
  */
-export async function moderateAd(adId, action, adminId, notes = '', sectionId = null) {
+export async function moderateAd(adId, action, adminId, notes = '', sectionId = undefined) {
   const ad = await Ad.findById(adId);
 
   if (!ad) {
@@ -708,8 +708,8 @@ export async function moderateAd(adId, action, adminId, notes = '', sectionId = 
   }
 
   // Assign section if provided (typically during approval)
-  if (sectionId) {
-    ad.section = sectionId;
+  if (action === 'approve' && sectionId !== undefined) {
+    ad.section = sectionId || null;
   }
 
   await ad.save();
