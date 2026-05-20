@@ -940,8 +940,19 @@ export class VendorController {
       if (authError) return authError;
 
       const { id } = await params;
-      await deleteAdService(id, user.id);
-      return Response.json({ success: true, message: 'Ad deleted successfully' }, { status: 200 });
+      const result = await deleteAdService(id, user.id);
+      return Response.json({
+        success: true,
+        message: 'Ad deleted successfully',
+        data: {
+          adId: result.ad._id,
+          status: result.ad.status,
+          creditRefunded: result.refund.refunded,
+          creditsRefunded: result.refund.creditsRefunded,
+        },
+        remainingCredits: result.refund.remainingCredits,
+        creditSummary: result.refund.creditSummary,
+      }, { status: 200 });
     } catch (error) {
       return Response.json({ success: false, message: error.message }, { status: error.statusCode || 500 });
     }

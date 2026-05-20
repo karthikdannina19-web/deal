@@ -82,11 +82,18 @@ export const DELETE = asyncHandler(async (req) => {
     }, { status: 401 });
   }
 
-  const ad = await deleteAd(adId, userId);
+  const result = await deleteAd(adId, userId);
 
   return Response.json({
     success: true,
     message: 'Ad deleted successfully',
-    data: { adId: ad._id, status: ad.status },
+    data: {
+      adId: result.ad._id,
+      status: result.ad.status,
+      creditRefunded: result.refund.refunded,
+      creditsRefunded: result.refund.creditsRefunded,
+    },
+    remainingCredits: result.refund.remainingCredits,
+    creditSummary: result.refund.creditSummary,
   });
 });

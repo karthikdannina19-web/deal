@@ -41,6 +41,68 @@ function buildCreditSummary({ allocated = 0, remaining = 0 }) {
   };
 }
 
+function applySession(query, session) {
+  return session ? query.session(session) : query;
+}
+
+async function refundCreditsForAd(ad, { session = null } = {}) {
+  if (!ad || ad.creditRefunded) {
+    return {
+      refunded: false,
+      creditsRefunded: 0,
+      remainingCredits: null,
+      creditSummary: null,
+    };
+  }
+
+  const creditsToRefund = Math.max(1, ad.creditsUsed || 1);
+  const [user, activeSubscription] = await Promise.all([
+    applySession(User.findById(ad.user), session),
+    applySession(getActiveAdSubscription(ad.user), session),
+  ]);
+
+  let remainingCredits = user?.coinBalance ?? 0;
+  let creditSummary = buildCreditSummary({
+    allocated: user?.coinBalance ?? 0,
+    remaining: user?.coinBalance ?? 0,
+  });
+
+  if (activeSubscription) {
+    activeSubscription.creditsRemaining += creditsToRefund;
+    activeSubscription.creditsUsed = Math.max(0, activeSubscription.creditsUsed - creditsToRefund);
+    await activeSubscription.save(session ? { session } : undefined);
+
+    remainingCredits = activeSubscription.creditsRemaining;
+    creditSummary = buildCreditSummary({
+      allocated: activeSubscription.creditsAllocated ?? remainingCredits,
+      remaining: remainingCredits,
+    });
+  }
+
+  if (user) {
+    user.coinBalance = Math.max(0, (user.coinBalance || 0) + creditsToRefund);
+    await user.save(session ? { session } : undefined);
+
+    if (!activeSubscription) {
+      remainingCredits = user.coinBalance;
+      creditSummary = buildCreditSummary({
+        allocated: user.coinBalance,
+        remaining: user.coinBalance,
+      });
+    }
+  }
+
+  ad.creditRefunded = true;
+  ad.creditRefundedAt = new Date();
+
+  return {
+    refunded: true,
+    creditsRefunded: creditsToRefund,
+    remainingCredits,
+    creditSummary,
+  };
+}
+
 // ==========================================
 // CREATE AD (with credit deduction)
 // ==========================================
@@ -351,28 +413,46 @@ export async function updateAd(adId, userId, data) {
  * @returns {Promise<object>} Deleted ad
  */
 export async function deleteAd(adId, userId) {
-  const ad = await Ad.findOne({ _id: adId, user: userId });
+  const session = await mongoose.startSession();
 
-  if (!ad) {
-    throw {
-      statusCode: 404,
-      message: 'Ad not found or you do not have permission',
-      errorType: 'NOT_FOUND_ERROR',
+  try {
+    session.startTransaction();
+
+    const ad = await Ad.findOne({ _id: adId, user: userId }).session(session);
+
+    if (!ad) {
+      throw {
+        statusCode: 404,
+        message: 'Ad not found or you do not have permission',
+        errorType: 'NOT_FOUND_ERROR',
+      };
+    }
+
+    if (ad.status === 'deleted') {
+      throw {
+        statusCode: 400,
+        message: 'Ad is already deleted',
+        errorType: 'VALIDATION_ERROR',
+      };
+    }
+
+    const refund = await refundCreditsForAd(ad, { session });
+
+    ad.status = 'deleted';
+    await ad.save({ session });
+
+    await session.commitTransaction();
+
+    return {
+      ad,
+      refund,
     };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-
-  if (ad.status === 'deleted') {
-    throw {
-      statusCode: 400,
-      message: 'Ad is already deleted',
-      errorType: 'VALIDATION_ERROR',
-    };
-  }
-
-  ad.status = 'deleted';
-  await ad.save();
-
-  return ad;
 }
 
 // ==========================================
@@ -624,32 +704,7 @@ export async function moderateAd(adId, action, adminId, notes = '', sectionId = 
     // Refund only when:
     //  - Credit has not already been refunded, AND
     //  - The ad is NOT an edit of a previously approved ad
-    const creditsToRefund = ad.creditsUsed || 1;
-    const [user, activeSubscription] = await Promise.all([
-      User.findById(ad.user),
-      getActiveAdSubscription(ad.user),
-    ]);
-
-    if (activeSubscription) {
-      // Primary: refund atomically to subscription
-      await UserSubscription.findByIdAndUpdate(activeSubscription._id, {
-        $inc: { creditsRemaining: creditsToRefund, creditsUsed: -creditsToRefund },
-      });
-      // Sync coinBalance back up (best-effort, cap so it doesn't exceed creditsAllocated)
-      if (user) {
-        await User.findByIdAndUpdate(ad.user, {
-          $inc: { coinBalance: creditsToRefund },
-        });
-      }
-    } else if (user) {
-      // No subscription: refund directly to coinBalance
-      await User.findByIdAndUpdate(ad.user, {
-        $inc: { coinBalance: creditsToRefund },
-      });
-    }
-
-    ad.creditRefunded = true;
-    ad.creditRefundedAt = new Date();
+    await refundCreditsForAd(ad);
   }
 
   // Assign section if provided (typically during approval)
