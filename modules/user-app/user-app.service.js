@@ -57,6 +57,13 @@ function mapAd(ad) {
     title: ad.title,
     category: ad.category || 'General',
     image: { url: ad.primaryImage || ad.images?.[0]?.url || '' },
+    storeId: ad.vendor?._id || null,
+    storeName: ad.vendor?.storeName || '',
+    storeSummary: {
+      businessName: ad.vendor?.storeName || '',
+      logoImage: ad.vendor?.media?.thumbnailUrl || '',
+      fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
+    },
     locationLabel: [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
     distanceKm: num(ad.distanceKm, null),
     // viewCount: null means vendor disabled view counter — hide the widget in the UI
@@ -103,7 +110,7 @@ export class UserAppService {
 
     const ads = await Ad.find(query)
       .populate('section', '_id name order')
-      .populate('vendor', 'location state district mandal locationCoordinates')
+      .populate('vendor', 'storeName location state district mandal locationCoordinates media fullAddress _id')
       .sort({ createdAt: -1 })
       .lean({ virtuals: true });
 

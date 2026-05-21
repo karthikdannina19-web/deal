@@ -45,7 +45,8 @@ export class SectionController {
           .lean(),
 
         Ad.find({ section: section._id, status: 'approved' })
-          .select('_id section title category images status')
+          .select('_id section title category images status vendor')
+          .populate('vendor', 'storeName location state district mandal locationCoordinates media fullAddress _id')
           .sort({ isFeatured: -1, priority: -1, createdAt: -1 })
           .skip(skip)
           .limit(limit)
@@ -54,12 +55,27 @@ export class SectionController {
         Ad.countDocuments({ section: section._id, status: 'approved' }),
       ]);
 
+      const mappedAds = ads.map(ad => ({
+        id: ad._id,
+        title: ad.title,
+        category: ad.category || 'General',
+        storeId: ad.vendor?._id || null,
+        storeName: ad.vendor?.storeName || '',
+        storeSummary: {
+          businessName: ad.vendor?.storeName || '',
+          logoImage: ad.vendor?.media?.thumbnailUrl || '',
+          fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
+        },
+        image: { url: ad.images?.[0]?.url || '' },
+        status: ad.status
+      }));
+
       return Response.json({
         success: true,
         data: {
           section,
           banners,
-          ads,
+          ads: mappedAds,
         },
         pagination: {
           total,

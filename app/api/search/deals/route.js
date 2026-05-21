@@ -47,6 +47,7 @@ export async function GET(req) {
 
     const [ads, total] = await Promise.all([
       Ad.find(query)
+        .populate('vendor', 'storeName location state district mandal locationCoordinates media fullAddress _id')
         .sort(sortOption)
         .skip(skip)
         .limit(limit)
@@ -68,6 +69,13 @@ export async function GET(req) {
         id: ad._id,
         title: ad.title,
         category: ad.category,
+        storeId: ad.vendor?._id || null,
+        storeName: ad.vendor?.storeName || '',
+        storeSummary: {
+          businessName: ad.vendor?.storeName || '',
+          logoImage: ad.vendor?.media?.thumbnailUrl || '',
+          fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
+        },
         imageUrl: ad.images && ad.images.length > 0 ? ad.images[0].url : '',
         locationLabel: ad.locationLabel || ad.address || [ad.mandal, ad.district].filter(Boolean).join(', '),
         distanceKm: distanceKm ? parseFloat(distanceKm.toFixed(1)) : null,
