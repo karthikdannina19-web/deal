@@ -14,6 +14,7 @@ import { generateOtp } from '../../utils/generateOtp.js';
 import { hashData, compareHash } from '../../utils/hash.js';
 import { generateToken } from '../../utils/jwt.js';
 import { dbConnect } from '../../config/database.js';
+import mongoose from 'mongoose';
 
 /**
  * Vendor Service

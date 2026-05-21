@@ -332,7 +332,7 @@ export class StoreController {
             totalReviews,
             ratingBreakdown
           },
-          storeReviews
+          storeReviews: []
         },
         pagination: null
       }, { status: 200 });
@@ -419,8 +419,18 @@ export class StoreController {
         userId = user.id;
       }
 
-      // 4. Create and Save Review
       const Review = (await import('@/models/review.model.js')).default;
+
+      const existingReview = await Review.findOne({ vendorId: storeId, userId });
+      if (existingReview) {
+        return Response.json({
+          success: false,
+          message: 'You have already submitted a review for this store',
+          data: null
+        }, { status: 400 });
+      }
+
+      // 4. Create and Save Review
       const newReview = new Review({
         vendorId: storeId,
         userId,
