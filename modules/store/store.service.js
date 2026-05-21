@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import Vendor from '../../models/vendor.model.js';
+import Store from '../../models/store.model.js';
 import Ads from '../../models/ads.model.js';
 import Review from '../../models/review.model.js';
 import Ad from '../../models/ad.model.js';
@@ -14,32 +15,42 @@ export class StoreService {
    * @param {string} storeId (Vendor _id)
    */
   static async getStoreDetails(storeId) {
-    // 1. Fetch Active Vendor
-    // We filter for 'active' status and select all public/social/location fields
-    const vendor = await Vendor.findOne({ 
-      _id: storeId, 
-      status: 'active' 
+    // 1. Attempt to fetch active Vendor by the provided storeId
+    // If that fails, fall back to a Store document with the same ID.
+    let vendor = await Vendor.findOne({
+      _id: storeId,
+      status: 'active'
     })
-    .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours locationCoordinates website instagram linkedin youtube facebook')
-    .lean();
+      .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours locationCoordinates website instagram linkedin youtube facebook')
+      .lean();
 
+    let storeDoc = null;
     if (!vendor) {
-      return null;
+      storeDoc = await Store.findOne({ _id: storeId, status: 'active' }).lean();
+      if (!storeDoc) {
+        return null;
+      }
+      vendor = await Vendor.findOne({ _id: storeDoc.vendorId, status: 'active' })
+        .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours locationCoordinates website instagram linkedin youtube facebook')
+        .lean();
     }
 
-    const resolvedAbout = this.buildStoreAbout(vendor);
-    const latitude = vendor.locationCoordinates?.coordinates?.[1];
-    const longitude = vendor.locationCoordinates?.coordinates?.[0];
+    const source = vendor || storeDoc;
+    const resolvedAbout = this.buildStoreAbout(source);
+    const latitude = source?.locationCoordinates?.coordinates?.[1] || source?.location?.coordinates?.[1] || null;
+    const longitude = source?.locationCoordinates?.coordinates?.[0] || source?.location?.coordinates?.[0] || null;
     const hasValidCoordinates = this.hasValidCoordinates(latitude, longitude);
-    const resolvedWorkingHours = vendor.workingHours?.trim() || 'Not specified';
-    const resolvedAddress = vendor.fullAddress?.trim() || [
-      vendor.location?.mandal,
-      vendor.location?.district,
-      vendor.location?.state
+    const resolvedWorkingHours = (source?.workingHours || source?.businessHours || '').trim() || 'Not specified';
+    const resolvedAddress = (source?.fullAddress || source?.address || '').trim() || [
+      source?.location?.mandal,
+      source?.location?.district,
+      source?.location?.state
     ].filter(Boolean).join(', ');
+    const sourceMedia = vendor?.media || { thumbnailUrl: '', bannerUrl: '', images: [] };
+    const sourceImages = vendor ? sourceMedia.images || [] : (storeDoc?.images || []);
 
     // 2. Fetch Active Reviews & Ratings Breakdown
-    const reviews = await Review.find({ vendorId: storeId, isActive: true })
+    const reviews = await Review.find({ vendorId: vendor?._id || storeDoc?.vendorId, isActive: true })
       .populate({
         path: 'userId',
         select: 'firstName lastName profileImage email phone'
@@ -110,17 +121,17 @@ export class StoreService {
 
     // 5. Structure legacy store response
     const legacyStore = {
-      _id: vendor._id,
-      storeName: vendor.storeName,
+      _id: source._id,
+      storeName: source.storeName || source.businessName || '',
       about: resolvedAbout,
       description: resolvedAbout,
-      contactNumber: vendor.mobileNumber,
+      contactNumber: vendor?.mobileNumber || storeDoc?.phone || '',
       location: {
         address: resolvedAddress,
         fullAddress: resolvedAddress,
-        state: vendor.location?.state || '',
-        district: vendor.location?.district || '',
-        mandal: vendor.location?.mandal || '',
+        state: source.location?.state || '',
+        district: source.location?.district || '',
+        mandal: source.location?.mandal || '',
         latitude: hasValidCoordinates ? latitude : null,
         longitude: hasValidCoordinates ? longitude : null,
         coordinates: hasValidCoordinates ? [longitude, latitude] : []
@@ -129,20 +140,20 @@ export class StoreService {
       longitude: hasValidCoordinates ? longitude : null,
       hasValidCoordinates,
       workingHours: resolvedWorkingHours,
-      media: vendor.media || { thumbnailUrl: '', bannerUrl: '' },
+      media: sourceMedia,
       rating: averageRating,
       totalReviews: totalReviews
     };
 
     // Return everything required by both modern and legacy routes
     return {
-      storeId: vendor._id,
-      businessName: vendor.storeName || '',
-      storeName: vendor.storeName || '',
-      bannerImage: vendor.media?.bannerUrl || '',
-      coverImage: vendor.media?.bannerUrl || '',
-      logoImage: vendor.media?.thumbnailUrl || '',
-      galleryImages: vendor.media?.images || [],
+      storeId: source._id,
+      businessName: source.storeName || source.businessName || '',
+      storeName: source.storeName || source.businessName || '',
+      bannerImage: sourceMedia.bannerUrl || sourceImages[0] || '',
+      coverImage: sourceMedia.bannerUrl || sourceImages[0] || '',
+      logoImage: sourceMedia.thumbnailUrl || sourceImages[0] || '',
+      galleryImages: vendor ? sourceMedia.images || [] : sourceImages,
       description: resolvedAbout,
       about: resolvedAbout,
       fullAddress: resolvedAddress,
@@ -151,32 +162,32 @@ export class StoreService {
       location: {
         address: resolvedAddress,
         fullAddress: resolvedAddress,
-        state: vendor.location?.state || '',
-        district: vendor.location?.district || '',
-        mandal: vendor.location?.mandal || '',
+        state: source.location?.state || '',
+        district: source.location?.district || '',
+        mandal: source.location?.mandal || '',
         latitude: hasValidCoordinates ? latitude : null,
         longitude: hasValidCoordinates ? longitude : null,
         coordinates: hasValidCoordinates ? [longitude, latitude] : []
       },
-      phoneNumber: vendor.mobileNumber || '',
+      phoneNumber: vendor?.mobileNumber || storeDoc?.phone || '',
       openingHours: resolvedWorkingHours,
       workingHours: resolvedWorkingHours,
       socialLinks: {
-        facebook: vendor.facebook || '',
-        instagram: vendor.instagram || '',
-        youtube: vendor.youtube || '',
-        website: vendor.website || '',
-        linkedin: vendor.linkedin || '',
-        x: vendor.linkedin || ''
+        facebook: vendor?.facebook || '',
+        instagram: vendor?.instagram || '',
+        youtube: vendor?.youtube || '',
+        website: vendor?.website || '',
+        linkedin: vendor?.linkedin || '',
+        x: vendor?.linkedin || ''
       },
       storeDetails: {
         about: resolvedAbout,
         address: resolvedAddress,
         fullAddress: resolvedAddress,
-        state: vendor.location?.state || '',
-        district: vendor.location?.district || '',
-        mandal: vendor.location?.mandal || '',
-        phoneNumber: vendor.mobileNumber || '',
+        state: source.location?.state || '',
+        district: source.location?.district || '',
+        mandal: source.location?.mandal || '',
+        phoneNumber: vendor?.mobileNumber || storeDoc?.phone || '',
         openingHours: resolvedWorkingHours,
         hasAbout: Boolean(resolvedAbout),
         hasValidCoordinates,
@@ -203,18 +214,19 @@ export class StoreService {
       && !(latitude === 0 && longitude === 0);
   }
 
-  static buildStoreAbout(vendor) {
-    const explicitAbout = vendor.storeAbout?.trim();
+  static buildStoreAbout(entity) {
+    const explicitAbout = entity.storeAbout?.trim() || entity.about?.trim();
     if (explicitAbout) {
       return explicitAbout;
     }
 
+    const name = entity.storeName || entity.businessName || '';
     const fallbackParts = [
-      vendor.storeName ? `${vendor.storeName} is available on Rhock.` : '',
-      vendor.location?.mandal || vendor.location?.district || vendor.location?.state
-        ? `Serving customers in ${[vendor.location?.mandal, vendor.location?.district, vendor.location?.state].filter(Boolean).join(', ')}.`
+      name ? `${name} is available on Rhock.` : '',
+      entity.location?.mandal || entity.location?.district || entity.location?.state
+        ? `Serving customers in ${[entity.location?.mandal, entity.location?.district, entity.location?.state].filter(Boolean).join(', ')}.`
         : '',
-      vendor.workingHours?.trim() ? `Open ${vendor.workingHours.trim()}.` : ''
+      (entity.workingHours || entity.businessHours || '').trim() ? `Open ${(entity.workingHours || entity.businessHours || '').trim()}.` : ''
     ].filter(Boolean);
 
     return fallbackParts.join(' ').trim();
