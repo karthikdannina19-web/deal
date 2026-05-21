@@ -143,7 +143,7 @@ export class StoreService {
         totalReviews,
         ratingBreakdown
       },
-      customerReviews: [],
+      customerReviews,
       offers,
 
       // Legacy fallback objects

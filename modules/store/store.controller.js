@@ -332,7 +332,7 @@ export class StoreController {
             totalReviews,
             ratingBreakdown
           },
-          storeReviews: []
+          storeReviews
         },
         pagination: null
       }, { status: 200 });
