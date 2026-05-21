@@ -6,7 +6,6 @@ import {
   Italic, 
   Underline, 
   Strikethrough, 
-  Type, 
   List, 
   ListOrdered, 
   AlignLeft, 
@@ -14,12 +13,16 @@ import {
   AlignRight, 
   AlignJustify, 
   Link as LinkIcon, 
-  Trash2, 
   Type as TypeIcon,
   Palette,
-  Eraser
+  Eraser,
+  Undo2,
+  Redo2,
+  IndentIncrease,
+  IndentDecrease,
+  Minus,
+  Unlink
 } from 'lucide-react';
-import { cn } from '@/utils/cn';
 
 /**
  * Microsoft Word-style Rich Text Editor
@@ -27,11 +30,6 @@ import { cn } from '@/utils/cn';
  */
 export default function RichTextEditor({ value, onChange, placeholder }) {
   const editorRef = useRef(null);
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   // Sync internal content with external value (only if different to avoid cursor jumps)
   useEffect(() => {
@@ -68,14 +66,18 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
     execCommand("formatBlock", e.target.value);
   };
 
-  if (!isMounted) return null;
-
   return (
     <div className="w-full border-2 border-zinc-100 rounded-[40px] overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-500 focus-within:border-admin-primary/20">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-1 p-4 bg-zinc-50/50 border-b border-zinc-100 select-none">
+        <ToolbarButton onClick={() => execCommand("undo")} icon={Undo2} title="Undo" />
+        <ToolbarButton onClick={() => execCommand("redo")} icon={Redo2} title="Redo" />
+
+        <div className="h-6 w-px bg-zinc-200 mx-2" />
+
         {/* Block Format */}
         <select 
+          defaultValue="P"
           onChange={handleFormat}
           className="px-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-[11px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-admin-primary/10 mr-2"
         >
@@ -83,7 +85,21 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
           <option value="H1">Header 1</option>
           <option value="H2">Header 2</option>
           <option value="H3">Header 3</option>
+          <option value="H4">Header 4</option>
+          <option value="PRE">Code Block</option>
           <option value="BLOCKQUOTE">Quote</option>
+        </select>
+
+        <select
+          defaultValue="7"
+          onChange={(e) => execCommand("fontSize", e.target.value)}
+          className="px-3 py-1.5 bg-white border border-zinc-200 rounded-lg text-[11px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-admin-primary/10"
+        >
+          <option value="3">Small</option>
+          <option value="4">Body</option>
+          <option value="5">Large</option>
+          <option value="6">XL</option>
+          <option value="7">XXL</option>
         </select>
 
         <div className="h-6 w-px bg-zinc-200 mx-2" />
@@ -115,6 +131,8 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
         {/* Lists */}
         <ToolbarButton onClick={() => execCommand("insertUnorderedList")} icon={List} title="Bullet List" />
         <ToolbarButton onClick={() => execCommand("insertOrderedList")} icon={ListOrdered} title="Numbered List" />
+        <ToolbarButton onClick={() => execCommand("outdent")} icon={IndentDecrease} title="Outdent" />
+        <ToolbarButton onClick={() => execCommand("indent")} icon={IndentIncrease} title="Indent" />
 
         <div className="h-6 w-px bg-zinc-200 mx-2" />
 
@@ -128,6 +146,8 @@ export default function RichTextEditor({ value, onChange, placeholder }) {
 
         {/* Actions */}
         <ToolbarButton onClick={handleLink} icon={LinkIcon} title="Insert Link" />
+        <ToolbarButton onClick={() => execCommand("unlink")} icon={Unlink} title="Remove Link" />
+        <ToolbarButton onClick={() => execCommand("insertHorizontalRule")} icon={Minus} title="Horizontal Line" />
         <ToolbarButton onClick={() => execCommand("removeFormat")} icon={Eraser} title="Clear Formatting" />
       </div>
 

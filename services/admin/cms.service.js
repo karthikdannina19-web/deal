@@ -8,8 +8,8 @@ export const cmsAdminService = {
   /**
    * Fetch a CMS page by slug
    */
-  async getPage(slug) {
-    const response = await api.get(`/api/cms/pages/${slug}`);
+  async getPage(slug, audience = 'user') {
+    const response = await api.get(`/api/cms/pages/${slug}?audience=${encodeURIComponent(audience)}`);
     return response.data;
   },
 

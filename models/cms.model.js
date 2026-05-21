@@ -28,6 +28,12 @@ const cmsPageSchema = new mongoose.Schema(
       enum: ['html', 'json'],
       default: 'html',
     },
+    audience: {
+      type: String,
+      enum: ['user', 'vendor', 'shared'],
+      default: 'user',
+      index: true,
+    },
     isActive: {
       type: Boolean,
       default: true,

@@ -14,6 +14,8 @@ export class CmsController {
       // For Next.js App Router dynamic route parameters
       const resolvedParams = await params;
       const slug = resolvedParams.slug;
+      const { searchParams } = new URL(req.url);
+      const audience = searchParams.get('audience') || 'user';
       
       if (!slug) {
         return Response.json({ success: false, message: 'Slug is required' }, { status: 400 });
@@ -22,7 +24,7 @@ export class CmsController {
       // If called from admin (check referrer or just allow for now as it's a GET)
       const isAdmin = req.headers.get('referer')?.includes('/admin');
 
-      const pageData = await CmsService.getPageBySlug(slug, isAdmin);
+      const pageData = await CmsService.getPageBySlug(slug, isAdmin, audience);
       
       return Response.json({
         success: true,

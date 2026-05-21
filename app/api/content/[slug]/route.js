@@ -90,8 +90,17 @@ export async function GET(request, { params }) {
   try {
     await dbConnect();
     const { slug } = await params;
+    const { searchParams } = new URL(request.url);
+    const audience = searchParams.get('audience') || 'user';
 
-    const page = await CmsPage.findOne({ slug, isActive: true });
+    const page = await CmsPage.findOne({
+      slug,
+      isActive: true,
+      $or: [
+        { audience },
+        { audience: { $exists: false } }
+      ]
+    }).sort({ updatedAt: -1 });
 
     if (page) {
       let data = {};
@@ -116,6 +125,8 @@ export async function GET(request, { params }) {
       // Add common DB fields if not present in parsed JSON
       if (!data.title) data.title = page.title;
       data.updatedAt = page.updatedAt;
+      data.slug = slug;
+      data.audience = page.audience || audience;
 
       // Automatically generate sections for legal pages if only HTML is available
       if ((slug === 'terms-and-conditions' || slug === 'privacy-policy') && !data.sections) {
@@ -136,7 +147,11 @@ export async function GET(request, { params }) {
       return Response.json({
         success: true,
         message: 'Content fetched successfully (default)',
-        data: defaultData,
+        data: {
+          ...defaultData,
+          slug,
+          audience
+        },
         pagination: null
       }, { status: 200 });
     }

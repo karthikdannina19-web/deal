@@ -11,13 +11,23 @@ export class CmsService {
    * Get a specific CMS page by slug
    * @param {string} slug 
    * @param {boolean} includeInactive
+   * @param {string} audience
    */
-  static async getPageBySlug(slug, includeInactive = false) {
+  static async getPageBySlug(slug, includeInactive = false, audience = 'user') {
     await dbConnect();
-    const query = { slug };
+    const query = {
+      slug,
+      $or: [
+        { audience },
+        { audience: { $exists: false } }
+      ]
+    };
     if (!includeInactive) query.isActive = true;
 
-    const page = await CmsPage.findOne(query).select('slug title content contentType updatedAt').lean();
+    const page = await CmsPage.findOne(query)
+      .sort({ updatedAt: -1 })
+      .select('slug title content contentType audience updatedAt isActive')
+      .lean();
     
     if (!page) {
       return null;
@@ -28,8 +38,9 @@ export class CmsService {
       title: page.title,
       lastUpdated: page.updatedAt,
       contentType: page.contentType,
+      audience: page.audience || 'user',
       content: page.content, // HTML structure or JSON
-      isActive: true
+      isActive: page.isActive !== false
     };
   }
 
@@ -59,15 +70,21 @@ export class CmsService {
    */
   static async upsertPage(data) {
     await dbConnect();
-    const { slug, title, content, contentType, isActive } = data;
+    const { slug, title, content, contentType, audience, isActive } = data;
     
     if (!slug || !title || !content) {
       throw new Error('Slug, title, and content are required');
     }
 
     const page = await CmsPage.findOneAndUpdate(
-      { slug },
-      { title, content, contentType: contentType || 'html', isActive: isActive !== false },
+      { slug, audience: audience || 'user' },
+      {
+        title,
+        content,
+        contentType: contentType || 'html',
+        audience: audience || 'user',
+        isActive: isActive !== false
+      },
       { new: true, upsert: true }
     );
     
