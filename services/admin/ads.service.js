@@ -19,9 +19,12 @@ export const adsService = {
   /**
    * Review an ad (Approve/Reject)
    */
-  reviewAd: async (id, status, notes = '', sectionId = null) => {
+  reviewAd: async (id, status, notes = '', sectionId = null, category = null) => {
     try {
-      const response = await api.put(`/api/admin/ads/review/${id}`, { status, notes, sectionId });
+      const body = { status, notes };
+      if (sectionId !== undefined) body.sectionId = sectionId;
+      if (category !== undefined) body.category = category;
+      const response = await api.put(`/api/admin/ads/review/${id}`, body);
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to review ad';

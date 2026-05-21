@@ -28,6 +28,8 @@ export default function AdsPage() {
   const [selectedAd, setSelectedAd] = useState(null);
   const [sections, setSections] = useState([]);
   const [selectedSection, setSelectedSection] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
 
   const fetchAds = async () => {
@@ -58,22 +60,34 @@ export default function AdsPage() {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const result = await res.json();
+      if (result.success) setCategories(result.data || []);
+    } catch (err) {
+      console.error('Failed to fetch categories', err);
+    }
+  };
+
   useEffect(() => {
     fetchAds();
     fetchSections();
+    fetchCategories();
   }, [page, searchTerm, statusFilter]);
 
   const handleOpenModeration = (ad) => {
     setSelectedAd(ad);
     setSelectedSection(ad.section || "");
+    setSelectedCategory(ad.category || '');
     setReviewNotes("");
     setIsModerationModalOpen(true);
   };
 
-  const handleReview = async (id, status, sectionId = null, notes = "Admin moderation") => {
+  const handleReview = async (id, status, sectionId = null, notes = "Admin moderation", category = undefined) => {
     setProcessingId(id);
     try {
-      await adsService.reviewAd(id, status, notes, sectionId);
+      await adsService.reviewAd(id, status, notes, sectionId, category);
       updateAdStatus(id, status === 'approve' || status === 'activate' ? 'approved' : status === 'reject' ? 'rejected' : status);
       setIsModerationModalOpen(false);
     } catch (err) {
@@ -499,6 +513,23 @@ export default function AdsPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Category (Optional)</label>
+                <select
+                  value={selectedCategory}
+                  onChange={e => setSelectedCategory(e.target.value)}
+                  className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold text-zinc-900 dark:text-white"
+                >
+                  <option value="">Keep existing</option>
+                  {categories.map(cat => (
+                    <option key={cat._id || cat.id || cat} value={cat.id || cat._id || cat}>{cat.name || cat}</option>
+                  ))}
+                </select>
+                <p className="mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
+                  Set or override the ad category when approving.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Moderation Notes (Internal)</label>
                 <textarea 
                   value={reviewNotes}
@@ -518,7 +549,7 @@ export default function AdsPage() {
                   Reject Ad
                 </button>
                 <button 
-                  onClick={() => handleReview(selectedAd._id, 'approve', selectedSection, reviewNotes)}
+                  onClick={() => handleReview(selectedAd._id, 'approve', selectedSection, reviewNotes, selectedCategory)}
                   disabled={!!processingId}
                   className="flex-1 py-4 bg-admin-primary text-white font-black rounded-[24px] hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                 >

@@ -237,6 +237,7 @@ export class AdminController {
       const action = body.action || body.status; // Support both 'action' and 'status' from frontend
       const notes = body.notes || 'Admin moderation';
       const sectionId = body.hasOwnProperty('sectionId') ? body.sectionId : undefined;
+      const category = body.hasOwnProperty('category') ? body.category : undefined;
 
       const authHeader = req.headers.get('authorization');
       let adminId = null;
@@ -250,7 +251,7 @@ export class AdminController {
         }
       }
 
-      const ad = await moderateAd(id, action, adminId, notes, sectionId);
+      const ad = await moderateAd(id, action, adminId, notes, sectionId, category);
       
       return Response.json({ 
         success: true, 
