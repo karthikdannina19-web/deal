@@ -2,7 +2,6 @@ import mongoose from 'mongoose';
 import Vendor from '../../models/vendor.model.js';
 import Ads from '../../models/ads.model.js';
 import Review from '../../models/review.model.js';
-import User from '../../models/user.model.js';
 import Ad from '../../models/ad.model.js';
 
 /**
@@ -27,6 +26,17 @@ export class StoreService {
     if (!vendor) {
       return null;
     }
+
+    const resolvedAbout = this.buildStoreAbout(vendor);
+    const latitude = vendor.locationCoordinates?.coordinates?.[1];
+    const longitude = vendor.locationCoordinates?.coordinates?.[0];
+    const hasValidCoordinates = this.hasValidCoordinates(latitude, longitude);
+    const resolvedWorkingHours = vendor.workingHours?.trim() || 'Not specified';
+    const resolvedAddress = vendor.fullAddress?.trim() || [
+      vendor.location?.mandal,
+      vendor.location?.district,
+      vendor.location?.state
+    ].filter(Boolean).join(', ');
 
     // 2. Fetch Active Reviews & Ratings Breakdown
     const reviews = await Review.find({ vendorId: storeId, isActive: true })
@@ -102,14 +112,23 @@ export class StoreService {
     const legacyStore = {
       _id: vendor._id,
       storeName: vendor.storeName,
-      about: vendor.storeAbout,
+      about: resolvedAbout,
+      description: resolvedAbout,
       contactNumber: vendor.mobileNumber,
       location: {
-        address: vendor.fullAddress || '',
+        address: resolvedAddress,
+        fullAddress: resolvedAddress,
         state: vendor.location?.state || '',
-        district: vendor.location?.district || ''
+        district: vendor.location?.district || '',
+        mandal: vendor.location?.mandal || '',
+        latitude: hasValidCoordinates ? latitude : null,
+        longitude: hasValidCoordinates ? longitude : null,
+        coordinates: hasValidCoordinates ? [longitude, latitude] : []
       },
-      workingHours: vendor.workingHours || 'Not specified',
+      latitude: hasValidCoordinates ? latitude : null,
+      longitude: hasValidCoordinates ? longitude : null,
+      hasValidCoordinates,
+      workingHours: resolvedWorkingHours,
       media: vendor.media || { thumbnailUrl: '', bannerUrl: '' },
       rating: averageRating,
       totalReviews: totalReviews
@@ -124,19 +143,45 @@ export class StoreService {
       coverImage: vendor.media?.bannerUrl || '',
       logoImage: vendor.media?.thumbnailUrl || '',
       galleryImages: vendor.media?.images || [],
-      description: vendor.storeAbout || '',
-      about: vendor.storeAbout || '',
-      fullAddress: vendor.fullAddress || '',
-      latitude: vendor.locationCoordinates?.coordinates?.[1] || 0.0,
-      longitude: vendor.locationCoordinates?.coordinates?.[0] || 0.0,
+      description: resolvedAbout,
+      about: resolvedAbout,
+      fullAddress: resolvedAddress,
+      latitude: hasValidCoordinates ? latitude : null,
+      longitude: hasValidCoordinates ? longitude : null,
+      location: {
+        address: resolvedAddress,
+        fullAddress: resolvedAddress,
+        state: vendor.location?.state || '',
+        district: vendor.location?.district || '',
+        mandal: vendor.location?.mandal || '',
+        latitude: hasValidCoordinates ? latitude : null,
+        longitude: hasValidCoordinates ? longitude : null,
+        coordinates: hasValidCoordinates ? [longitude, latitude] : []
+      },
       phoneNumber: vendor.mobileNumber || '',
-      openingHours: vendor.workingHours || 'Not specified',
+      openingHours: resolvedWorkingHours,
+      workingHours: resolvedWorkingHours,
       socialLinks: {
         facebook: vendor.facebook || '',
         instagram: vendor.instagram || '',
         youtube: vendor.youtube || '',
         website: vendor.website || '',
-        x: vendor.linkedin || '' // Using linkedin or empty as x fallback
+        linkedin: vendor.linkedin || '',
+        x: vendor.linkedin || ''
+      },
+      storeDetails: {
+        about: resolvedAbout,
+        address: resolvedAddress,
+        fullAddress: resolvedAddress,
+        state: vendor.location?.state || '',
+        district: vendor.location?.district || '',
+        mandal: vendor.location?.mandal || '',
+        phoneNumber: vendor.mobileNumber || '',
+        openingHours: resolvedWorkingHours,
+        hasAbout: Boolean(resolvedAbout),
+        hasValidCoordinates,
+        latitude: hasValidCoordinates ? latitude : null,
+        longitude: hasValidCoordinates ? longitude : null
       },
       storeRatingSummary: {
         averageRating,
@@ -150,6 +195,29 @@ export class StoreService {
       store: legacyStore,
       deals: legacyDeals
     };
+  }
+
+  static hasValidCoordinates(latitude, longitude) {
+    return Number.isFinite(latitude)
+      && Number.isFinite(longitude)
+      && !(latitude === 0 && longitude === 0);
+  }
+
+  static buildStoreAbout(vendor) {
+    const explicitAbout = vendor.storeAbout?.trim();
+    if (explicitAbout) {
+      return explicitAbout;
+    }
+
+    const fallbackParts = [
+      vendor.storeName ? `${vendor.storeName} is available on Rhock.` : '',
+      vendor.location?.mandal || vendor.location?.district || vendor.location?.state
+        ? `Serving customers in ${[vendor.location?.mandal, vendor.location?.district, vendor.location?.state].filter(Boolean).join(', ')}.`
+        : '',
+      vendor.workingHours?.trim() ? `Open ${vendor.workingHours.trim()}.` : ''
+    ].filter(Boolean);
+
+    return fallbackParts.join(' ').trim();
   }
 
   /**
