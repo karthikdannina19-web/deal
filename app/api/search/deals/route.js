@@ -1,5 +1,6 @@
 import { dbConnect } from '@/config/database';
 import Ad from '@/models/ad.model';
+import Vendor from '@/models/vendor.model.js';
 
 export async function GET(req) {
   try {
