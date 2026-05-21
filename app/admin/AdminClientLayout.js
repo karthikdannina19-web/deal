@@ -36,7 +36,7 @@ export default function AdminClientLayout({ children }) {
 
   return (
     <div 
-      className="min-h-screen bg-[#F3F6FB] font-sans flex text-[#1A1A2E] overflow-x-hidden"
+      className="min-h-screen bg-[#F3F6FB] font-sans font-normal text-base text-[#1A1A2E] flex overflow-x-hidden"
       style={{
         '--admin-primary': '#1A5CA8',
         '--color-admin-primary': '#1A5CA8',

@@ -428,8 +428,8 @@ export class StoreController {
       let reviewDoc = await Review.findOne({ vendorId: storeId, userId });
       let isUpdate = false;
 
-      // Extract review comment using potential field names from client
-      const text = comment || reviewText || review || '';
+      // Normalize client review text fields
+      const text = String(comment || body.reviewText || body.review || '').trim();
 
       if (reviewDoc) {
         // Update existing review (upsert behavior)
@@ -476,6 +476,199 @@ export class StoreController {
       return Response.json({
         success: false,
         message: 'Failed to submit review',
+        data: null
+      }, { status: 500 });
+    }
+  }
+
+  /**
+   * PATCH /api/stores/:storeId/reviews/:reviewId
+   * Update an existing review for the authenticated owner
+   */
+  static async updateReview(req, { params }) {
+    try {
+      await dbConnect();
+      const { storeId, reviewId } = await params;
+
+      if (!reviewId) {
+        return Response.json({
+          success: false,
+          message: 'Review ID is required',
+          data: null
+        }, { status: 400 });
+      }
+
+      const { authenticate } = await import('@/middleware/auth.middleware.js');
+      const { user, error: authError } = await authenticate(req);
+      if (authError) {
+        return Response.json({
+          success: false,
+          message: authError.message || 'Authentication failed',
+          data: null
+        }, { status: authError.status || 401 });
+      }
+
+      const body = await req.json().catch(() => ({}));
+      const { rating, comment } = body;
+      const Review = (await import('@/models/review.model.js')).default;
+      const reviewDoc = await Review.findById(reviewId);
+
+      if (!reviewDoc) {
+        return Response.json({
+          success: false,
+          message: 'Review not found',
+          data: null
+        }, { status: 404 });
+      }
+
+      if (storeId && reviewDoc.vendorId.toString() !== storeId.toString()) {
+        return Response.json({
+          success: false,
+          message: 'Review does not belong to the requested store',
+          data: null
+        }, { status: 404 });
+      }
+
+      if (reviewDoc.userId.toString() !== user.id.toString()) {
+        return Response.json({
+          success: false,
+          message: 'You are not authorized to edit this review',
+          data: null
+        }, { status: 403 });
+      }
+
+      const updateFields = {};
+      if (rating !== undefined && rating !== null) {
+        const numRating = Number(rating);
+        if (Number.isNaN(numRating) || numRating < 1 || numRating > 5) {
+          return Response.json({
+            success: false,
+            message: 'Rating must be a number between 1 and 5',
+            data: null
+          }, { status: 400 });
+        }
+        updateFields.rating = numRating;
+      }
+
+      if (comment !== undefined) {
+        updateFields.reviewText = String(comment).trim();
+      }
+
+      if (Object.keys(updateFields).length === 0) {
+        return Response.json({
+          success: false,
+          message: 'At least one of rating or comment must be provided',
+          data: null
+        }, { status: 400 });
+      }
+
+      Object.assign(reviewDoc, updateFields);
+      await reviewDoc.save();
+
+      return Response.json({
+        success: true,
+        message: 'Review updated successfully',
+        data: {
+          review: {
+            _id: reviewDoc._id,
+            userId: reviewDoc.userId,
+            rating: reviewDoc.rating,
+            comment: reviewDoc.reviewText || '',
+            createdAt: reviewDoc.createdAt,
+            updatedAt: reviewDoc.updatedAt
+          }
+        }
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[StoreController.updateReview Error]', error);
+      if (error.name === 'CastError') {
+        return Response.json({
+          success: false,
+          message: 'Invalid store or review ID provided',
+          data: null
+        }, { status: 400 });
+      }
+      return Response.json({
+        success: false,
+        message: 'Failed to update review',
+        data: null
+      }, { status: 500 });
+    }
+  }
+
+  /**
+   * DELETE /api/stores/:storeId/reviews/:reviewId
+   * Soft delete a review owned by the authenticated user
+   */
+  static async deleteReview(req, { params }) {
+    try {
+      await dbConnect();
+      const { storeId, reviewId } = await params;
+
+      if (!reviewId) {
+        return Response.json({
+          success: false,
+          message: 'Review ID is required',
+          data: null
+        }, { status: 400 });
+      }
+
+      const { authenticate } = await import('@/middleware/auth.middleware.js');
+      const { user, error: authError } = await authenticate(req);
+      if (authError) {
+        return Response.json({
+          success: false,
+          message: authError.message || 'Authentication failed',
+          data: null
+        }, { status: authError.status || 401 });
+      }
+
+      const Review = (await import('@/models/review.model.js')).default;
+      const reviewDoc = await Review.findById(reviewId);
+
+      if (!reviewDoc) {
+        return Response.json({
+          success: false,
+          message: 'Review not found',
+          data: null
+        }, { status: 404 });
+      }
+
+      if (storeId && reviewDoc.vendorId.toString() !== storeId.toString()) {
+        return Response.json({
+          success: false,
+          message: 'Review does not belong to the requested store',
+          data: null
+        }, { status: 404 });
+      }
+
+      if (reviewDoc.userId.toString() !== user.id.toString()) {
+        return Response.json({
+          success: false,
+          message: 'You are not authorized to delete this review',
+          data: null
+        }, { status: 403 });
+      }
+
+      reviewDoc.isActive = false;
+      await reviewDoc.save();
+
+      return Response.json({
+        success: true,
+        message: 'Review deleted successfully'
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[StoreController.deleteReview Error]', error);
+      if (error.name === 'CastError') {
+        return Response.json({
+          success: false,
+          message: 'Invalid store or review ID provided',
+          data: null
+        }, { status: 400 });
+      }
+      return Response.json({
+        success: false,
+        message: 'Failed to delete review',
         data: null
       }, { status: 500 });
     }

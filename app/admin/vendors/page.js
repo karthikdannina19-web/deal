@@ -126,13 +126,13 @@ export default function VendorsPage() {
             className="inline-flex items-center gap-2 px-4 py-2 bg-admin-primary/5 rounded-full border border-admin-primary/10"
           >
             <Shield size={14} className="text-admin-primary" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-admin-primary">Administrative Oversight</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-admin-primary">Administrative oversight</span>
           </motion.div>
-          <h1 className="text-5xl font-black text-zinc-900 tracking-tighter">
-            Vendor <span className="text-admin-primary italic">Intelligence</span>
+          <h1 className="text-5xl font-semibold text-zinc-900 tracking-tight">
+            Vendor <span className="text-admin-primary font-semibold">Intelligence</span>
           </h1>
-          <p className="text-zinc-500 font-bold text-sm">
-            Orchestrating <span className="text-zinc-900 font-black underline decoration-admin-primary/30 decoration-4">{pagination.total}</span> verified business nodes in the ecosystem
+          <p className="text-zinc-500 font-medium text-sm">
+            Orchestrating <span className="text-zinc-900 font-semibold underline decoration-admin-primary/30 decoration-2">{pagination.total}</span> verified business nodes in the ecosystem
           </p>
         </div>
         
@@ -147,9 +147,9 @@ export default function VendorsPage() {
               className="w-full pl-14 pr-8 py-5 bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-[28px] text-sm font-bold text-zinc-900 dark:text-white focus:ring-8 ring-admin-primary/5 focus:border-admin-primary/20 outline-none transition-all shadow-sm group-hover:shadow-md"
             />
           </div>
-          <button className="flex items-center justify-center gap-3 px-10 py-5 bg-zinc-900 text-white rounded-[28px] text-sm font-black uppercase tracking-[0.2em] hover:bg-admin-primary hover:shadow-2xl hover:shadow-admin-primary/30 transition-all w-full sm:w-auto group">
-            <CreditCard size={20} className="group-hover:scale-110 transition-transform" />
-            Export Audit
+          <button className="flex items-center justify-center gap-3 px-10 py-5 bg-zinc-900 text-white rounded-[28px] text-sm font-semibold uppercase tracking-[0.08em] hover:bg-admin-primary hover:shadow-lg hover:shadow-admin-primary/30 transition-all w-full sm:w-auto">
+            <CreditCard size={20} className="transition-transform" />
+            Export audit
           </button>
         </div>
       </div>
@@ -161,9 +161,9 @@ export default function VendorsPage() {
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); setPagination(p => ({...p, page: 1})); }}
             className={cn(
-              "px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-500 relative overflow-hidden",
+              "px-8 py-4 rounded-2xl text-[10px] font-semibold uppercase tracking-[0.08em] transition-all duration-500 relative overflow-hidden",
               activeTab === tab.id 
-                ? "bg-white text-admin-primary shadow-xl shadow-zinc-200/60 scale-105 border border-zinc-100" 
+                ? "bg-white text-admin-primary shadow-md shadow-zinc-200/50 scale-105 border border-zinc-100" 
                 : "text-zinc-500 hover:text-zinc-900 hover:bg-white/50"
             )}
           >
@@ -180,7 +180,7 @@ export default function VendorsPage() {
         {isLoading && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-md z-20 flex flex-col items-center justify-center gap-4">
             <Loader2 className="text-admin-primary animate-spin" size={48} />
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-400">Syncing Intelligence</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Syncing intelligence</p>
           </div>
         )}
         
@@ -188,10 +188,10 @@ export default function VendorsPage() {
           <table className="w-full text-left">
             <thead>
               <tr className="bg-zinc-50/30 border-b border-zinc-100/80">
-                <th className="px-10 py-8 text-[11px] font-black uppercase tracking-[0.3em] text-zinc-400">Business DNA</th>
-                <th className="px-10 py-8 text-[11px] font-black uppercase tracking-[0.3em] text-zinc-400">Governance & Trust</th>
-                <th className="px-10 py-8 text-[11px] font-black uppercase tracking-[0.3em] text-zinc-400">Economic Portfolio</th>
-                <th className="px-10 py-8 text-[11px] font-black uppercase tracking-[0.3em] text-zinc-400 text-right">Administrative</th>
+                <th className="px-10 py-8 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Business DNA</th>
+                <th className="px-10 py-8 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Governance & Trust</th>
+                <th className="px-10 py-8 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Economic Portfolio</th>
+                <th className="px-10 py-8 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 text-right">Administrative</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
@@ -203,7 +203,7 @@ export default function VendorsPage() {
                           <div className="w-24 h-24 rounded-full bg-zinc-50 flex items-center justify-center text-zinc-200">
                              <Store size={48} />
                           </div>
-                          <p className="font-black text-zinc-400 uppercase tracking-widest text-sm">No business nodes found</p>
+                          <p className="font-semibold text-zinc-400 uppercase tracking-[0.08em] text-sm">No business nodes found</p>
                        </div>
                     </td>
                   </tr>
@@ -235,11 +235,11 @@ export default function VendorsPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="font-black text-zinc-900 text-lg tracking-tight mb-1 group-hover:text-admin-primary transition-colors">
+                          <p className="font-semibold text-zinc-900 text-lg tracking-tight mb-1 group-hover:text-admin-primary transition-colors">
                             {vendor.storeName || 'Independent Node'}
                           </p>
                           <div className="flex items-center gap-3">
-                            <span className="px-2 py-0.5 bg-zinc-100 rounded text-[9px] font-black text-zinc-400 uppercase tracking-widest">
+                            <span className="px-2 py-0.5 bg-zinc-100 rounded text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.08em]">
                               {vendor.categoryId?.name || 'Category Pending'}
                             </span>
                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-400">
@@ -253,7 +253,7 @@ export default function VendorsPage() {
                     <td className="px-10 py-8">
                       <div className="flex flex-col gap-3">
                         <span className={cn(
-                          "inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] border transition-all duration-500",
+                          "inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-semibold uppercase tracking-[0.08em] border transition-all duration-500",
                           vendor.status === 'active' ? "bg-green-50/50 text-green-700 border-green-100 shadow-sm shadow-green-100/50" :
                           vendor.status === 'pending_approval' ? "bg-orange-50/50 text-orange-700 border-orange-100 shadow-sm shadow-orange-100/50" :
                           vendor.status === 'rejected' ? "bg-red-50/50 text-red-700 border-red-100 shadow-sm shadow-red-100/50" :
@@ -268,7 +268,7 @@ export default function VendorsPage() {
                           {vendor.status.replace('_', ' ')}
                         </span>
                         <div className="flex items-center gap-3 bg-zinc-50/80 px-3 py-1.5 rounded-xl w-fit border border-zinc-100/50">
-                          <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Audit Stage</span>
+                          <span className="text-[9px] font-semibold text-zinc-500 uppercase tracking-[0.08em]">Audit stage</span>
                           <div className="flex gap-1">
                             {[1, 2, 3].map(step => (
                                <div key={step} className={cn(
@@ -280,7 +280,7 @@ export default function VendorsPage() {
                         </div>
                         {(vendor.is_deleted || vendor.status === 'deleted') && (
                           <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
                               Deleted {vendor.deletedAt ? new Date(vendor.deletedAt).toLocaleDateString() : 'Archived'}
                             </p>
                             {vendor.deletedReason && (
@@ -293,18 +293,18 @@ export default function VendorsPage() {
                       </div>
                     </td>
                     <td className="px-10 py-8">
-                      <div className="bg-gradient-to-br from-zinc-50 to-white p-4 rounded-3xl border border-zinc-100/50 shadow-sm group-hover:shadow-md transition-all">
+                      <div className="bg-zinc-50 p-4 rounded-3xl border border-zinc-100 shadow-sm transition-all">
                         <div className="flex items-center gap-3 mb-2">
                            <div className="p-2 bg-admin-primary/10 rounded-xl text-admin-primary">
                               <Zap size={14} />
                            </div>
-                           <p className="text-xl font-black text-zinc-900 tracking-tighter italic">
+                           <p className="text-xl font-semibold text-zinc-900 tracking-tight">
                               {(vendor.creditsRemaining || 0).toLocaleString()}
                            </p>
                         </div>
                         <div className="flex items-center gap-2">
                            <TrendingUp size={10} className="text-green-500" />
-                           <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Active Credits</p>
+                           <p className="text-[11px] font-semibold text-zinc-500 uppercase tracking-[0.08em]">Active Credits</p>
                         </div>
                       </div>
                     </td>
@@ -327,7 +327,7 @@ export default function VendorsPage() {
         {/* Dynamic Pagination Console */}
         <div className="px-10 py-10 bg-zinc-50/50 border-t border-zinc-100/50 flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="flex flex-col gap-1">
-             <p className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.3em]">Governance Ledger</p>
+             <p className="text-[10px] font-semibold text-zinc-400 uppercase tracking-[0.08em]">Governance ledger</p>
              <p className="text-xs font-bold text-zinc-500">Showing {vendors.length} of {pagination.total} Dynamic Entities</p>
           </div>
           
@@ -341,11 +341,11 @@ export default function VendorsPage() {
             </button>
             
             <div className="flex items-center gap-3">
-              <div className="w-14 h-14 rounded-3xl bg-zinc-900 text-white flex items-center justify-center font-black text-lg shadow-2xl shadow-zinc-900/20 rotate-3">
+              <div className="w-14 h-14 rounded-3xl bg-zinc-900 text-white flex items-center justify-center font-semibold text-lg shadow-md shadow-zinc-900/10">
                 {pagination.page}
               </div>
-              <span className="text-zinc-300 font-black text-xs mx-1">/</span>
-              <div className="w-14 h-14 rounded-3xl bg-white border-2 border-zinc-100 text-zinc-500 flex items-center justify-center font-black text-lg">
+              <span className="text-zinc-300 font-semibold text-xs mx-1">/</span>
+              <div className="w-14 h-14 rounded-3xl bg-white border-2 border-zinc-100 text-zinc-500 flex items-center justify-center font-semibold text-lg">
                 {pagination.pages}
               </div>
             </div>
@@ -378,80 +378,80 @@ export default function VendorsPage() {
               animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 50 }}
               transition={{ type: "spring", damping: 20, stiffness: 100 }}
-              className="relative w-full max-w-5xl bg-white rounded-[56px] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] overflow-hidden z-10 border border-white/20"
+              className="relative w-full max-w-[min(100vw-2rem,1100px)] bg-white rounded-[32px] shadow-2xl shadow-zinc-200/30 overflow-hidden z-10 border border-zinc-100"
             >
               {/* Modal Header/Banner */}
-              <div className="relative h-64 bg-zinc-900 group">
+              <div className="relative h-56 sm:h-64 bg-zinc-950">
                 {selectedVendor.media?.bannerUrl ? (
-                  <img src={selectedVendor.media.bannerUrl} alt="" className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
+                  <img src={selectedVendor.media.bannerUrl} alt="" className="w-full h-full object-cover opacity-85" />
                 ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-zinc-900 flex items-center justify-center">
-                    <Globe size={120} className="text-white/5 animate-pulse" />
+                  <div className="w-full h-full bg-zinc-950 flex items-center justify-center">
+                    <Globe size={100} className="text-white/15" />
                   </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent" />
+                <div className="absolute inset-0 bg-black/20" />
                 
                 <button 
                   onClick={() => setSelectedVendor(null)}
-                  className="absolute top-10 right-10 w-14 h-14 rounded-3xl bg-white/10 backdrop-blur-2xl text-white hover:bg-white hover:text-zinc-900 hover:rotate-90 transition-all duration-500 flex items-center justify-center z-20"
+                  className="absolute top-8 right-8 w-12 h-12 rounded-2xl bg-white/90 text-zinc-900 hover:bg-white shadow-lg transition-all duration-300 flex items-center justify-center z-20"
                 >
-                  <XCircle size={28} />
+                  <XCircle size={24} />
                 </button>
                 
                 {/* Floating Status Badge */}
-                <div className="absolute top-10 left-10 z-20">
+                <div className="absolute top-8 left-8 z-20">
                    <span className={cn(
-                      "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.3em] backdrop-blur-xl border-2",
-                      selectedVendor.status === 'active' ? "bg-green-500/20 text-green-400 border-green-500/30" :
-                      selectedVendor.status === 'pending_approval' ? "bg-orange-500/20 text-orange-400 border-orange-500/30" :
-                      selectedVendor.status === 'deleted' ? "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" :
-                      "bg-red-500/20 text-red-400 border-red-500/30"
+                      "px-4 py-2 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.08em] border",
+                      selectedVendor.status === 'active' ? "bg-green-50 text-green-700 border-green-200" :
+                      selectedVendor.status === 'pending_approval' ? "bg-orange-50 text-orange-700 border-orange-200" :
+                      selectedVendor.status === 'deleted' ? "bg-zinc-100 text-zinc-600 border-zinc-200" :
+                      "bg-red-50 text-red-700 border-red-200"
                    )}>
-                      {selectedVendor.status} Protocol
+                      {selectedVendor.status.replace('_', ' ')}
                    </span>
                 </div>
               </div>
 
               {/* Modal Content */}
-              <div className="px-14 pb-16 -mt-20 relative z-10">
-                 <div className="flex flex-col md:flex-row items-end gap-10 mb-12">
+              <div className="px-6 sm:px-10 pb-16 -mt-20 relative z-10">
+                 <div className="flex flex-col md:flex-row items-end gap-6 mb-8">
                     <div className="relative">
-                       <div className="w-40 h-40 rounded-[50px] bg-white p-3 shadow-2xl ring-[12px] ring-white">
-                          <div className="w-full h-full rounded-[40px] bg-zinc-50 flex items-center justify-center overflow-hidden border border-zinc-100">
+                       <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-3xl bg-white p-3 shadow-lg border border-zinc-100">
+                          <div className="w-full h-full rounded-3xl bg-zinc-50 flex items-center justify-center overflow-hidden border border-zinc-100">
                             {selectedVendor.media?.thumbnailUrl ? (
                               <img src={selectedVendor.media.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <Store size={48} className="text-zinc-200" />
+                              <Store size={40} className="text-zinc-300" />
                             )}
                           </div>
                        </div>
                     </div>
-                    <div className="flex-1 pb-6">
-                       <h2 className="text-5xl font-black text-zinc-900 tracking-tighter mb-2 italic">{selectedVendor.storeName}</h2>
-                       <div className="flex items-center gap-4">
-                          <p className="text-admin-primary font-black uppercase tracking-[0.4em] text-xs">Administrative Audit Manifest</p>
+                    <div className="flex-1 pb-4 min-w-0">
+                       <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-900 tracking-tight mb-2 truncate">{selectedVendor.storeName}</h2>
+                       <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+                          <p className="text-admin-primary font-semibold uppercase tracking-[0.12em]">Administrative audit</p>
                           <div className="h-1 w-12 bg-zinc-100 rounded-full" />
-                          <p className="text-zinc-400 font-bold text-xs">Node #{selectedVendor._id.slice(-8).toUpperCase()}</p>
+                          <p>Node #{selectedVendor._id.slice(-8).toUpperCase()}</p>
                        </div>
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-14">
+                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                     {/* Column 1: Identity & Social */}
                     <div className="space-y-10">
                        <section>
-                          <label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-6 flex items-center gap-3">
-                             <UserIcon size={14} className="text-admin-primary" /> Entity Ownership
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                             <UserIcon size={14} className="text-admin-primary" /> Entity ownership
                           </label>
-                          <div className="bg-zinc-900 rounded-[32px] p-8 text-white shadow-2xl shadow-zinc-900/20 group hover:-translate-y-1 transition-transform duration-500">
-                             <p className="text-xl font-black tracking-tight mb-1">{selectedVendor.fullName || selectedVendor.userId?.fullName}</p>
-                             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-6">Authorized Signatory</p>
-                             <div className="space-y-4 pt-6 border-t border-white/10">
-                                <div className="flex items-center gap-4 text-xs font-bold text-white/70">
+                          <div className="bg-zinc-50 rounded-[32px] p-6 shadow-sm border border-zinc-100 text-zinc-900">
+                             <p className="text-lg font-semibold tracking-tight mb-1">{selectedVendor.fullName || selectedVendor.userId?.fullName}</p>
+                             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-5">Authorized signatory</p>
+                             <div className="space-y-4 pt-5 border-t border-zinc-200">
+                                <div className="flex items-center gap-3 text-sm font-medium text-zinc-700">
                                    <Mail size={16} className="text-admin-primary" />
                                    {selectedVendor.email || selectedVendor.userId?.email}
                                 </div>
-                                <div className="flex items-center gap-4 text-xs font-bold text-white/70">
+                                <div className="flex items-center gap-3 text-sm font-medium text-zinc-700">
                                    <Phone size={16} className="text-admin-primary" />
                                    {selectedVendor.mobileNumber || selectedVendor.userId?.phone}
                                 </div>
@@ -460,23 +460,24 @@ export default function VendorsPage() {
                        </section>
 
                        <section>
-                          <label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-6 flex items-center gap-3">
-                             <Globe size={14} /> Social DNA
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                             <Globe size={14} /> Social links
                           </label>
-                          <div className="flex flex-wrap gap-4">
+                          <div className="flex flex-wrap gap-3">
                              {[
                                { icon: Globe, val: selectedVendor.website, label: 'WEB' },
-                               { icon: Globe, val: selectedVendor.instagram, label: 'INSTA' },
-                               { icon: Globe, val: selectedVendor.facebook, label: 'FB' },
-                               { icon: Globe, val: selectedVendor.linkedin, label: 'LINK' },
+                               { icon: Globe, val: selectedVendor.instagram, label: 'INSTAGRAM' },
+                               { icon: Globe, val: selectedVendor.facebook, label: 'FACEBOOK' },
+                               { icon: Globe, val: selectedVendor.linkedin, label: 'LINKEDIN' },
                              ].map((social, idx) => (
                                <a 
                                  key={idx}
                                  href={social.val || '#'} 
                                  target="_blank"
+                                 rel="noreferrer"
                                  className={cn(
-                                   "w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500",
-                                   social.val ? "bg-zinc-100 text-zinc-900 hover:bg-admin-primary hover:text-white" : "bg-zinc-50 text-zinc-200 cursor-not-allowed"
+                                   "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200",
+                                   social.val ? "bg-zinc-100 text-zinc-900 hover:bg-admin-primary hover:text-white" : "bg-zinc-50 text-zinc-300 cursor-not-allowed"
                                  )}
                                >
                                   <social.icon size={20} />
@@ -489,35 +490,35 @@ export default function VendorsPage() {
                     {/* Column 2: Localization & Categories */}
                     <div className="space-y-10">
                        <section>
-                          <label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-6 flex items-center gap-3">
-                             <MapPin size={14} className="text-admin-primary" /> Localization Profile
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                             <MapPin size={14} className="text-admin-primary" /> Location profile
                           </label>
-                          <div className="bg-zinc-50 rounded-[32px] p-8 border-2 border-dashed border-zinc-200">
-                             <p className="text-sm font-bold text-zinc-700 leading-relaxed italic mb-8">
-                                &ldquo;{selectedVendor.fullAddress || 'Full geographical address pending validation'}&rdquo;
+                          <div className="bg-zinc-50 rounded-[32px] p-6 border border-zinc-200">
+                             <p className="text-sm font-medium text-zinc-700 leading-relaxed mb-6">
+                                {selectedVendor.fullAddress || 'Full geographical address pending validation'}
                              </p>
                              <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                   <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">District</p>
-                                   <p className="font-black text-zinc-900">{selectedVendor.location?.district}</p>
+                                   <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">District</p>
+                                   <p className="font-semibold text-zinc-900">{selectedVendor.location?.district || 'N/A'}</p>
                                 </div>
                                 <div>
-                                   <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1">State</p>
-                                   <p className="font-black text-zinc-900">{selectedVendor.location?.state}</p>
+                                   <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">State</p>
+                                   <p className="font-semibold text-zinc-900">{selectedVendor.location?.state || 'N/A'}</p>
                                 </div>
                              </div>
                           </div>
                        </section>
 
                        <section>
-                          <label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-6 flex items-center gap-3">
-                             <Tag size={14} /> Market Sector
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                             <Tag size={14} /> Market sector
                           </label>
-                          <div className="inline-flex items-center gap-4 px-8 py-5 bg-admin-primary/5 border border-admin-primary/10 rounded-full">
+                          <div className="inline-flex items-center gap-3 px-6 py-4 bg-admin-primary/10 border border-admin-primary/15 rounded-3xl">
                              <div className="w-10 h-10 rounded-xl bg-admin-primary/10 flex items-center justify-center text-admin-primary">
                                 <Store size={18} />
                              </div>
-                             <span className="font-black text-admin-primary text-sm tracking-tight">{selectedVendor.categoryId?.name || 'Unclassified'}</span>
+                             <span className="font-semibold text-admin-primary text-sm">{selectedVendor.categoryId?.name || 'Unclassified'}</span>
                           </div>
                        </section>
                     </div>
@@ -525,28 +526,25 @@ export default function VendorsPage() {
                     {/* Column 3: Economic Portfolio & Actions */}
                     <div className="space-y-10">
                        <section>
-                          <label className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-6 flex items-center gap-3">
-                             <Zap size={14} className="text-admin-primary" /> Financial Portfolio
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-6 flex items-center gap-3">
+                             <Zap size={14} className="text-admin-primary" /> Financial portfolio
                           </label>
                           <div className="space-y-4">
-                             <div className="bg-gradient-to-br from-admin-primary to-admin-primary/80 rounded-[32px] p-8 text-white shadow-2xl shadow-admin-primary/30 relative overflow-hidden group">
-                                <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform duration-500">
-                                   <Zap size={80} />
-                                </div>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-2">Active Credits</p>
-                                <h3 className="text-5xl font-black tracking-tighter italic">{(selectedVendor.creditsRemaining || 0).toLocaleString()}</h3>
-                                <div className="mt-8 flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full w-fit backdrop-blur-md">
+                             <div className="bg-admin-primary rounded-[32px] p-8 text-white shadow-sm border border-admin-primary/15">
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70 mb-2">Active credits</p>
+                                <h3 className="text-4xl font-semibold tracking-tight">{(selectedVendor.creditsRemaining || 0).toLocaleString()}</h3>
+                                <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-white/15 rounded-full">
                                    <TrendingUp size={14} className="text-white" />
-                                   <span className="text-[9px] font-black uppercase tracking-widest">Protocol Credits</span>
+                                   <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80">Protocol credits</span>
                                 </div>
                              </div>
 
-                             <div className="bg-zinc-900 rounded-[32px] p-6 text-white flex items-center justify-between border border-white/5">
+                             <div className="bg-zinc-50 rounded-[32px] p-6 flex items-center justify-between border border-zinc-200">
                                 <div>
-                                   <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-1">Rhock Coins</p>
-                                   <p className="text-2xl font-black italic">₹{(selectedVendor.coinBalance || 0).toLocaleString()}</p>
+                                   <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-1">Rhock coins</p>
+                                   <p className="text-2xl font-semibold text-zinc-900">₹{(selectedVendor.coinBalance || 0).toLocaleString()}</p>
                                 </div>
-                                <div className="p-3 bg-white/5 rounded-2xl text-admin-primary">
+                                <div className="p-3 bg-admin-primary/10 rounded-2xl text-admin-primary">
                                    <CreditCard size={24} />
                                 </div>
                              </div>
@@ -560,31 +558,31 @@ export default function VendorsPage() {
                                <button 
                                  disabled={!!processingId}
                                  onClick={() => handleReview(selectedVendor._id, 'active')}
-                                 className="py-6 bg-green-500 text-white rounded-3xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-green-200 hover:bg-green-600 transition-all flex flex-col items-center justify-center gap-2 group/btn"
+                                 className="py-5 bg-green-600 text-white rounded-3xl font-semibold text-sm shadow-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                                >
-                                  {processingId ? <Loader2 className="animate-spin" size={24} /> : <CheckCircle2 size={24} className="group-hover/btn:scale-125 transition-transform" />}
-                                  <span>Verify Hub</span>
+                                  {processingId ? <Loader2 className="animate-spin" size={24} /> : <CheckCircle2 size={24} />}
+                                  <span>Verify hub</span>
                                </button>
                                <button 
                                  disabled={!!processingId}
                                  onClick={() => handleReview(selectedVendor._id, 'rejected')}
-                                 className="py-6 bg-white border-2 border-red-100 text-red-500 rounded-3xl font-black text-xs uppercase tracking-[0.2em] hover:bg-red-50 transition-all flex flex-col items-center justify-center gap-2 group/btn"
+                                 className="py-5 bg-white border border-red-200 text-red-600 rounded-3xl font-semibold text-sm hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
                                >
-                                  {processingId ? <Loader2 className="animate-spin" size={24} /> : <XCircle size={24} className="group-hover/btn:scale-125 transition-transform" />}
-                                  <span>Restrict Node</span>
+                                  {processingId ? <Loader2 className="animate-spin" size={24} /> : <XCircle size={24} />}
+                                  <span>Restrict node</span>
                                </button>
                             </div>
                           ) : (selectedVendor.is_deleted || selectedVendor.status === 'deleted') ? (
                              <>
                                <div className="rounded-[32px] border border-zinc-200 bg-zinc-50 p-6 text-left">
-                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Deletion Audit</p>
-                                 <p className="mt-3 text-sm font-bold text-zinc-800">
+                                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Deletion audit</p>
+                                 <p className="mt-3 text-sm font-medium text-zinc-800">
                                    {selectedVendor.deletedReason || 'No deletion reason captured.'}
                                  </p>
-                                 <p className="mt-2 text-xs font-semibold text-zinc-500">
+                                 <p className="mt-2 text-xs text-zinc-500">
                                    Deleted on {selectedVendor.deletedAt ? new Date(selectedVendor.deletedAt).toLocaleString() : 'Unknown date'}
                                  </p>
-                                 <p className="mt-2 text-xs font-semibold text-zinc-500">
+                                 <p className="mt-1 text-xs text-zinc-500">
                                    Wallet before delete: {(selectedVendor.walletBalanceBeforeDelete || 0).toLocaleString()} coins
                                  </p>
                                </div>
@@ -603,26 +601,26 @@ export default function VendorsPage() {
                                       setProcessingId(null);
                                    }
                                  }}
-                                 className="w-full py-6 bg-green-500 text-white rounded-[32px] font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-green-600 transition-all flex items-center justify-center gap-3 group/btn"
+                                 className="w-full py-5 bg-green-600 text-white rounded-[32px] font-semibold text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-3"
                                >
-                                 {processingId ? <Loader2 className="animate-spin" size={20} /> : <ShieldCheck size={20} className="group-hover/btn:scale-110 transition-transform" />}
-                                 Restore Vendor Account
+                                 {processingId ? <Loader2 className="animate-spin" size={20} /> : <ShieldCheck size={20} />}
+                                 Restore vendor account
                                </button>
                              </>
                           ) : (
-                             <div className="flex items-center gap-4 p-6 bg-zinc-50 rounded-3xl border border-zinc-100">
+                             <div className="flex items-center gap-3 p-6 bg-zinc-50 rounded-3xl border border-zinc-200">
                                 <div className={cn("w-3 h-3 rounded-full animate-pulse", 
                                    selectedVendor.status === 'active' ? "bg-green-500" : "bg-red-500"
                                 )} />
-                                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                                   This node is currently <span className="text-zinc-900 font-black">{selectedVendor.status.replace('_', ' ')}</span> in the system
+                                <p className="text-sm font-medium text-zinc-600">
+                                   This node is currently <span className="text-zinc-900 font-semibold">{selectedVendor.status.replace('_', ' ')}</span>
                                 </p>
                              </div>
                           )}
                           
-                          <button className="w-full py-6 bg-zinc-100 text-zinc-500 rounded-[32px] font-black text-xs uppercase tracking-[0.2em] hover:bg-zinc-900 hover:text-white transition-all duration-500 flex items-center justify-center gap-4 group/btn">
-                             <ExternalLink size={20} className="group-hover/btn:rotate-12 transition-transform" />
-                             Advanced Analytics
+                          <button className="w-full py-5 bg-zinc-100 text-zinc-700 rounded-[32px] font-semibold text-sm hover:bg-zinc-200 transition-colors flex items-center justify-center gap-3">
+                             <ExternalLink size={20} />
+                             Advanced analytics
                           </button>
                        </div>
                     </div>
