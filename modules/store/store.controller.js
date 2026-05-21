@@ -421,40 +421,45 @@ export class StoreController {
 
       const Review = (await import('@/models/review.model.js')).default;
 
-      const existingReview = await Review.findOne({ vendorId: storeId, userId });
-      if (existingReview) {
-        return Response.json({
-          success: false,
-          message: 'You have already submitted a review for this store',
-          data: null
-        }, { status: 400 });
+      // Check if user has already submitted a review for this store
+      let reviewDoc = await Review.findOne({ vendorId: storeId, userId });
+      let isUpdate = false;
+
+      // Extract review comment using potential field names from client
+      const text = comment || reviewText || review || '';
+
+      if (reviewDoc) {
+        // Update existing review (upsert behavior)
+        reviewDoc.rating = numRating;
+        reviewDoc.reviewText = text;
+        await reviewDoc.save();
+        isUpdate = true;
+      } else {
+        // Create and Save new Review
+        reviewDoc = new Review({
+          vendorId: storeId,
+          userId,
+          rating: numRating,
+          reviewText: text,
+          isActive: true
+        });
+        await reviewDoc.save();
       }
-
-      // 4. Create and Save Review
-      const newReview = new Review({
-        vendorId: storeId,
-        userId,
-        rating: numRating,
-        reviewText: comment || '',
-        isActive: true
-      });
-
-      await newReview.save();
 
       return Response.json({
         success: true,
-        message: 'Review submitted successfully',
+        message: isUpdate ? 'Review updated successfully' : 'Review submitted successfully',
         data: {
-          reviewId: newReview._id,
-          userId: newReview.userId,
-          vendorId: newReview.vendorId,
-          rating: newReview.rating,
-          reviewText: newReview.reviewText,
-          isActive: newReview.isActive,
-          createdAt: newReview.createdAt,
-          updatedAt: newReview.updatedAt
+          reviewId: reviewDoc._id,
+          userId: reviewDoc.userId,
+          vendorId: reviewDoc.vendorId,
+          rating: reviewDoc.rating,
+          reviewText: reviewDoc.reviewText,
+          isActive: reviewDoc.isActive,
+          createdAt: reviewDoc.createdAt,
+          updatedAt: reviewDoc.updatedAt
         }
-      }, { status: 201 });
+      }, { status: isUpdate ? 200 : 201 });
 
     } catch (error) {
       console.error('[StoreController.submitReview Error]', error);
