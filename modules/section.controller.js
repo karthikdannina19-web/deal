@@ -67,6 +67,8 @@ export class SectionController {
           fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
         },
         image: { url: ad.images?.[0]?.url || '' },
+        viewCount: ad.showViews !== false ? (ad.views || 0) : null,
+        clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
         status: ad.status
       }));
 
