@@ -64,7 +64,10 @@ export default function AdsPage() {
     try {
       const res = await fetch('/api/categories');
       const result = await res.json();
-      if (result.success) setCategories(result.data || []);
+      // API returns { success: true, categories: [...] }
+      if (result && result.success) {
+        setCategories(result.categories || result.data || []);
+      }
     } catch (err) {
       console.error('Failed to fetch categories', err);
     }
@@ -290,8 +293,8 @@ export default function AdsPage() {
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           {/* Quick Actions for Pending */}
-                          {ad.status === 'pending' ? (
-                            <>
+                          <div className="flex flex-col gap-2">
+                            {ad.status === 'pending' ? (
                               <button 
                                 onClick={() => handleOpenModeration(ad)}
                                 disabled={!!processingId}
@@ -299,29 +302,38 @@ export default function AdsPage() {
                               >
                                 Review & Approve
                               </button>
-                            </>
-                          ) : (
-                            /* Status Management for non-pending */
-                            <div className="flex gap-2">
-                               {ad.status === 'suspended' || ad.status === 'rejected' || ad.status === 'expired' ? (
-                                 <button 
-                                   onClick={() => handleReview(ad._id, 'activate')}
-                                   disabled={!!processingId}
-                                   className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors disabled:opacity-50"
-                                 >
-                                   Activate
-                                 </button>
-                               ) : ad.status === 'approved' ? (
-                                 <button 
-                                   onClick={() => handleReview(ad._id, 'suspend')}
-                                   disabled={!!processingId}
-                                   className="px-2 py-1 bg-amber-500 text-white rounded text-xs hover:bg-amber-600 transition-colors disabled:opacity-50"
-                                 >
-                                   Suspend
-                                 </button>
-                               ) : null}
-                            </div>
-                          )}
+                            ) : (
+                              <button
+                                onClick={() => handleOpenModeration(ad)}
+                                disabled={!!processingId}
+                                className="px-3 py-1 bg-slate-800 text-white rounded-lg text-xs font-semibold hover:opacity-90 transition-all disabled:opacity-50 shadow-sm"
+                              >
+                                Edit Section / Category
+                              </button>
+                            )}
+
+                            {ad.status !== 'pending' && (
+                              <div className="flex gap-2">
+                                {ad.status === 'suspended' || ad.status === 'rejected' || ad.status === 'expired' ? (
+                                  <button 
+                                    onClick={() => handleReview(ad._id, 'activate')}
+                                    disabled={!!processingId}
+                                    className="px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600 transition-colors disabled:opacity-50"
+                                  >
+                                    Activate
+                                  </button>
+                                ) : ad.status === 'approved' ? (
+                                  <button 
+                                    onClick={() => handleReview(ad._id, 'suspend')}
+                                    disabled={!!processingId}
+                                    className="px-2 py-1 bg-amber-500 text-white rounded text-xs hover:bg-amber-600 transition-colors disabled:opacity-50"
+                                  >
+                                    Suspend
+                                  </button>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
 
                           <div className="relative group">
                             <button className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
@@ -521,11 +533,11 @@ export default function AdsPage() {
                 >
                   <option value="">Keep existing</option>
                   {categories.map(cat => (
-                    <option key={cat._id || cat.id || cat} value={cat.id || cat._id || cat}>{cat.name || cat}</option>
+                    <option key={cat._id} value={cat.name}>{cat.name}</option>
                   ))}
                 </select>
                 <p className="mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-                  Set or override the ad category when approving.
+                  Set or override the ad category when approving or editing.
                 </p>
               </div>
 
@@ -554,7 +566,7 @@ export default function AdsPage() {
                   className="flex-1 py-4 bg-admin-primary text-white font-black rounded-[24px] hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {processingId === selectedAd._id ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 size={20} />}
-                  Approve Ad
+                  {selectedAd?.status === 'approved' ? 'Update Ad' : 'Approve Ad'}
                 </button>
               </div>
             </div>
