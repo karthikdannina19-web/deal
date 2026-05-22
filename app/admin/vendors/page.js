@@ -235,9 +235,11 @@ export default function VendorsPage() {
                           </div>
                         </div>
                         <div>
-                          <p className="font-semibold text-zinc-900 text-lg tracking-tight mb-1 group-hover:text-admin-primary transition-colors">
-                            {vendor.storeName || 'Independent Node'}
-                          </p>
+                          <div className="rounded-3xl bg-white border border-zinc-100 shadow-sm px-4 py-3 mb-2 transition-all duration-300 group-hover:border-admin-primary/30 group-hover:shadow-md">
+                            <h3 className="text-lg font-black text-zinc-900 tracking-tight truncate">
+                              {vendor.storeName || 'Independent Node'}
+                            </h3>
+                          </div>
                           <div className="flex items-center gap-3">
                             <span className="px-2 py-0.5 bg-zinc-100 rounded text-[10px] font-semibold text-zinc-500 uppercase tracking-[0.08em]">
                               {vendor.categoryId?.name || 'Category Pending'}
@@ -427,11 +429,15 @@ export default function VendorsPage() {
                        </div>
                     </div>
                     <div className="flex-1 pb-4 min-w-0">
-                       <h2 className="text-3xl sm:text-4xl font-semibold text-zinc-900 tracking-tight mb-2 truncate">{selectedVendor.storeName}</h2>
-                       <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-                          <p className="text-admin-primary font-semibold uppercase tracking-[0.12em]">Administrative audit</p>
-                          <div className="h-1 w-12 bg-zinc-100 rounded-full" />
-                          <p>Node #{selectedVendor._id.slice(-8).toUpperCase()}</p>
+                       <div className="inline-flex flex-col gap-3 bg-white/95 border border-zinc-100 shadow-xl shadow-zinc-200/40 rounded-3xl px-6 py-5">
+                          <h1 className="text-4xl sm:text-5xl font-black text-zinc-900 tracking-tight leading-tight truncate">
+                            {selectedVendor.storeName || 'Unnamed Store'}
+                          </h1>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+                            <p className="text-admin-primary font-semibold uppercase tracking-[0.12em]">Administrative audit</p>
+                            <div className="h-1 w-12 bg-zinc-100 rounded-full" />
+                            <p>Node #{selectedVendor._id.slice(-8).toUpperCase()}</p>
+                          </div>
                        </div>
                     </div>
                  </div>
@@ -444,16 +450,16 @@ export default function VendorsPage() {
                              <UserIcon size={14} className="text-admin-primary" /> Entity ownership
                           </label>
                           <div className="bg-zinc-50 rounded-[32px] p-6 shadow-sm border border-zinc-100 text-zinc-900">
-                             <p className="text-lg font-semibold tracking-tight mb-1">{selectedVendor.fullName || selectedVendor.userId?.fullName}</p>
+                             <p className="text-lg font-semibold tracking-tight mb-1">{selectedVendor.fullName || selectedVendor.userId?.fullName || 'Unknown Proprietor'}</p>
                              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-5">Authorized signatory</p>
                              <div className="space-y-4 pt-5 border-t border-zinc-200">
                                 <div className="flex items-center gap-3 text-sm font-medium text-zinc-700">
                                    <Mail size={16} className="text-admin-primary" />
-                                   {selectedVendor.email || selectedVendor.userId?.email}
+                                   {selectedVendor.email || selectedVendor.userId?.email || 'No email provided'}
                                 </div>
                                 <div className="flex items-center gap-3 text-sm font-medium text-zinc-700">
                                    <Phone size={16} className="text-admin-primary" />
-                                   {selectedVendor.mobileNumber || selectedVendor.userId?.phone}
+                                   {selectedVendor.mobileNumber || selectedVendor.userId?.phone || 'No phone provided'}
                                 </div>
                              </div>
                           </div>
