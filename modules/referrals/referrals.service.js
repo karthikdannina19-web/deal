@@ -123,6 +123,8 @@ export class ReferralsService {
         throw new Error('This account was referred by another user');
       }
 
+      const existingReferral = await Referral.findOne({ referred: referredUser._id }).session(session);
+
       // 1. Fetch settings
       let settings = await ReferralSetting.findOne().session(session);
       if (!settings) {
@@ -143,14 +145,21 @@ export class ReferralsService {
         referredUser.referredBy = referrerUser._id;
         referredUser.referralUsed = true;
         await referredUser.save({ session });
-        
-        const refObj = new Referral({
-          referrer: referrerUser._id,
-          referred: referredUser._id,
-          rewardCoins: 0,
-          status: 'pending'
-        });
-        await refObj.save({ session });
+
+        if (existingReferral) {
+          existingReferral.referrer = referrerUser._id;
+          existingReferral.rewardCoins = 0;
+          existingReferral.status = 'pending';
+          await existingReferral.save({ session });
+        } else {
+          const refObj = new Referral({
+            referrer: referrerUser._id,
+            referred: referredUser._id,
+            rewardCoins: 0,
+            status: 'pending'
+          });
+          await refObj.save({ session });
+        }
         
         await session.commitTransaction();
         return { success: true, reward: 0 };
@@ -172,13 +181,16 @@ export class ReferralsService {
       const referredOldBalance = referredUser.coinBalance || 0;
       referredUser.coinBalance = referredOldBalance + coinsForReferred;
 
-      // 3. Create referral record
-      const referralObj = new Referral({
+      // 3. Create or update existing referral record
+      const referralObj = existingReferral || new Referral({
         referrer: referrerUser._id,
         referred: referredUser._id,
         rewardCoins: coinsForReferrer,
         status: 'completed'
       });
+      referralObj.referrer = referrerUser._id;
+      referralObj.rewardCoins = coinsForReferrer;
+      referralObj.status = 'completed';
       await referralObj.save({ session });
 
       // 4. Create wallet transactions for both users

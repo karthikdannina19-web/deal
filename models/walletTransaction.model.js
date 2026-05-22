@@ -32,7 +32,7 @@ const walletTransactionSchema = new mongoose.Schema(
     },
     transactionType: {
       type: String,
-      enum: ['REFERRAL_REWARD', 'REDEMPTION_DEBIT', 'BONUS', 'ADMIN_ADJUSTMENT'],
+      enum: ['REFERRAL_REWARD', 'REFERRAL_BONUS', 'REDEMPTION_DEBIT', 'BONUS', 'ADMIN_ADJUSTMENT'],
       required: true,
       index: true,
     },

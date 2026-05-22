@@ -1,4 +1,5 @@
 import User from '@/models/user.model.js';
+import Referral from '@/models/referral.model.js';
 import Otp from '@/models/otp.model.js';
 import { generateOtp } from '@/utils/generateOtp.js';
 import { hashData, compareHash } from '@/utils/hash.js';
@@ -6,7 +7,7 @@ import { generateToken } from '@/utils/jwt.js';
 import { dbConnect } from '@/config/database.js';
 import { ReferralsService } from '@/modules/referrals/referrals.service.js';
 
-function normalizeMobileNumber(mobileNumber) {
+export function normalizeMobileNumber(mobileNumber) {
   const digits = String(mobileNumber || '').replace(/\D/g, '');
   if (/^[0-9]{10}$/.test(digits)) return digits;
   if (/^91[0-9]{10}$/.test(digits)) return digits.slice(-10);
@@ -92,7 +93,13 @@ export class AuthService {
    */
   static async registerUser(userData) {
     const { fullName, email, mobileNumber, state, district, mandal, referralCode, profileImage } = userData;
-    const effectiveReferralCode = referralCode?.trim() || userData.ref?.trim() || userData.referrerCode?.trim() || userData.code?.trim();
+    const effectiveReferralCode = referralCode?.trim()
+      || userData.ref?.trim()
+      || userData.referrerCode?.trim()
+      || userData.code?.trim()
+      || userData.referral_code?.trim()
+      || userData.referCode?.trim()
+      || userData.referredByCode?.trim();
     const normalizedPhone = normalizeMobileNumber(mobileNumber);
 
     if (!/^[0-9]{10}$/.test(normalizedPhone)) {
@@ -127,17 +134,27 @@ export class AuthService {
       profileCompleted: true // Since they provided all details during registration
     });
 
-    // 4. Handle Referral (Optional)
+    let pendingReferral = null;
     if (effectiveReferralCode) {
-       const referrer = await User.findOne({ 
-         $or: [{ referralCode: effectiveReferralCode }, { phone: effectiveReferralCode }] 
-       });
-       if (referrer) {
-         user.referredBy = referrer._id;
-       }
+      const referrer = await User.findOne({ 
+        $or: [{ referralCode: effectiveReferralCode }, { phone: effectiveReferralCode }] 
+      });
+      if (!referrer) {
+        throw new Error('Invalid referral code');
+      }
+      user.referredBy = referrer._id;
+      pendingReferral = new Referral({
+        referrer: referrer._id,
+        referred: user._id,
+        rewardCoins: 0,
+        status: 'pending'
+      });
     }
 
     await user.save();
+    if (pendingReferral) {
+      await pendingReferral.save();
+    }
 
     // 5. Automatically trigger Send OTP for the new user
     await this.sendVendorOtp(mobileNumber);

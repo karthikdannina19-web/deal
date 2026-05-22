@@ -29,42 +29,24 @@ export async function GET(req) {
     const activity = logs.map(log => {
       const newUserName = log.newUserId ? `${log.newUserId.firstName || ''} ${log.newUserId.lastName || ''}`.trim() : 'Unknown User';
       return {
-        id: log._id,
-        type: 'referral_success',
-        title: 'Referral Reward',
-        subtitle: `Invited ${newUserName || 'a friend'}`,
-        amount: log.coinsGivenToReferrer,
-        isPositive: true,
-        date: log.createdAt.toISOString()
+        referredUserName: newUserName || 'Unknown User',
+        amount: log.coinsGivenToReferrer || 0,
+        type: 'referral_reward',
+        createdAt: log.createdAt.toISOString()
       };
     });
 
     const totalReferrals = logs.length;
     const totalReferralCoins = logs.reduce((sum, log) => sum + log.coinsGivenToReferrer, 0);
-    const domain = process.env.NEXT_PUBLIC_APP_URL || 'https://example.com';
 
     return Response.json({
       success: true,
       message: 'Referrals dashboard fetched successfully',
       data: {
         referralCode: user.referralCode || 'N/A',
-        shareMessage: `Use my referral code ${user.referralCode} to get free coins!`,
-        shareUrl: `${domain}/invite/${user.referralCode}`,
-        banner: {
-          badgeText: 'Earn Coins',
-          title: 'Invite Friends & Earn',
-          subtitle: 'Get 500 coins for every friend who joins using your code.',
-          rewardText: '500 Coins',
-          imageUrl: `${domain}/images/referral-banner.png`, // Placeholder
-          ctaLabel: 'Share Now'
-        },
-        wallet: {
-          availableCoins: user.coinBalance || 0
-        },
+        availableCoins: user.coinBalance || 0,
         totalReferrals,
         totalReferralCoins,
-        infoText: 'Coins will be credited once your friend signs up.',
-        termsText: 'Terms and Conditions apply. Subject to fair use policy.',
         activity
       }
     }, { status: 200 });

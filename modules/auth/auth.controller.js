@@ -1,4 +1,4 @@
-import { AuthService } from '@/modules/auth/auth.service.js';
+import { AuthService, normalizeMobileNumber } from '@/modules/auth/auth.service.js';
 import { authLimiter, otpLimiter } from '@/middleware/rateLimiter.js';
 import { dbConnect } from '@/config/database.js';
 import { S3Service } from '@/services/s3.service.js';
@@ -25,15 +25,16 @@ export class AuthController {
       }
 
       const { mobileNumber } = body;
+      const normalizedPhone = normalizeMobileNumber(mobileNumber);
 
-      if (!mobileNumber || mobileNumber.length !== 10) {
+      if (!normalizedPhone) {
         return new Response(
-          JSON.stringify({ success: false, message: 'Please provide a valid 10-digit mobile number' }),
+          JSON.stringify({ success: false, message: 'Please provide a valid mobile number' }),
           { status: 400, headers: { 'Content-Type': 'application/json' } }
         );
       }
 
-      await AuthService.sendVendorOtp(mobileNumber);
+      await AuthService.sendVendorOtp(normalizedPhone);
 
       return new Response(
         JSON.stringify({ success: true, message: 'OTP sent successfully' }),
@@ -75,8 +76,12 @@ export class AuthController {
       if (!mobileNumber) {
         return new Response(JSON.stringify({ success: false, message: 'Mobile number required' }), { status: 400 });
       }
+      const normalizedPhone = normalizeMobileNumber(mobileNumber);
+      if (!normalizedPhone) {
+        return new Response(JSON.stringify({ success: false, message: 'Mobile number required' }), { status: 400 });
+      }
 
-      const result = await AuthService.checkUser(mobileNumber);
+      const result = await AuthService.checkUser(normalizedPhone);
       return new Response(JSON.stringify(result), { status: 200 });
     } catch (error) {
       return new Response(JSON.stringify({ success: false, message: error.message }), { status: 500 });
@@ -131,7 +136,20 @@ export class AuthController {
         return new Response(JSON.stringify({ success: false, message: 'All fields are required' }), { status: 400 });
       }
 
-      body.referralCode = body.referralCode || body.ref || body.referrerCode || body.code;
+      body.referralCode = body.referralCode
+        || body.referral_code
+        || body.referCode
+        || body.ref
+        || body.referrerCode
+        || body.referredByCode
+        || body.code;
+
+      const normalizedPhone = normalizeMobileNumber(mobileNumber);
+      if (!normalizedPhone) {
+        return new Response(JSON.stringify({ success: false, message: 'Please provide a valid mobile number' }), { status: 400 });
+      }
+      body.mobileNumber = normalizedPhone;
+
       const result = await AuthService.registerUser(body);
       return new Response(JSON.stringify(result), { status: 201 });
     } catch (error) {
@@ -162,14 +180,15 @@ export class AuthController {
 
       const { mobileNumber, otp } = body;
 
-      if (!mobileNumber || !otp) {
+      const normalizedPhone = normalizeMobileNumber(mobileNumber);
+      if (!normalizedPhone || !otp) {
         return new Response(
           JSON.stringify({ success: false, message: 'Mobile number and OTP are required' }),
           { status: 400, headers: { 'Content-Type': 'application/json' } }
         );
       }
 
-      const result = await AuthService.verifyVendorOtp(mobileNumber, String(otp));
+      const result = await AuthService.verifyVendorOtp(normalizedPhone, String(otp));
 
       return new Response(
         JSON.stringify(result),

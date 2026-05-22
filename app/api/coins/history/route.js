@@ -34,15 +34,42 @@ export async function GET(req) {
       WalletTransaction.countDocuments({ user: userId })
     ]);
 
-    const formattedTransactions = transactions.map(tx => ({
-      id: tx._id,
-      title: tx.transactionType.replace(/_/g, ' '),
-      subtitle: tx.type === 'credit' ? 'Coins Added' : 'Coins Deducted',
-      date: tx.createdAt.toISOString(),
-      amount: tx.type === 'credit' ? tx.amount : -tx.amount,
-      type: tx.type,
-      imageUrl: '' // Add default or specific image URL if necessary
-    }));
+    const formattedTransactions = transactions.map(tx => {
+      let title = tx.transactionType.replace(/_/g, ' ');
+      let subtitle = tx.type === 'credit' ? 'Coins Added' : 'Coins Deducted';
+      let type = tx.transactionType.toLowerCase();
+
+      if (tx.transactionType === 'REFERRAL_REWARD') {
+        title = 'Referral Reward';
+        subtitle = 'Referral reward credited';
+        type = 'referral_reward';
+      } else if (tx.transactionType === 'REFERRAL_BONUS') {
+        title = 'Referral Bonus';
+        subtitle = 'Welcome bonus credited';
+        type = 'referral_bonus';
+      } else if (tx.transactionType === 'BONUS') {
+        title = 'Bonus';
+        subtitle = 'Bonus credited';
+        type = 'bonus';
+      } else if (tx.transactionType === 'REDEMPTION_DEBIT') {
+        title = 'Redemption';
+        subtitle = 'Coins redeemed';
+        type = 'redemption';
+      } else if (tx.transactionType === 'ADMIN_ADJUSTMENT') {
+        title = 'Adjustment';
+        subtitle = 'Admin adjustment';
+        type = 'adjustment';
+      }
+
+      return {
+        id: tx._id,
+        title,
+        subtitle,
+        amount: tx.amount,
+        type,
+        createdAt: tx.createdAt.toISOString()
+      };
+    });
 
     return Response.json({
       success: true,
