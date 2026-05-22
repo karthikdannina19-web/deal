@@ -90,14 +90,20 @@ export class ReferralsService {
    * @param {string} referredUserId 
    * @param {string} referralCode 
    */
-  static async handleReferralSignup(referredUserId, referralCode) {
+  static async handleReferralSignup(referredUserId, { referralCode, referrerId, deviceId, ipAddress } = {}) {
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      const referrerUser = await User.findOne({ referralCode }).session(session);
+      let referrerUser;
+      if (referrerId) {
+        referrerUser = await User.findById(referrerId).session(session);
+      } else if (referralCode) {
+        referrerUser = await User.findOne({ referralCode }).session(session);
+      }
+
       if (!referrerUser) {
-        throw new Error('Invalid referral code');
+        throw new Error('Invalid referral information');
       }
 
       if (referrerUser._id.toString() === referredUserId.toString()) {
@@ -109,8 +115,12 @@ export class ReferralsService {
         throw new Error('Referred user not found');
       }
 
-      if (referredUser.referredBy) {
-        throw new Error('User has already been referred');
+      if (referredUser.referralUsed) {
+        throw new Error('Referral code already applied for this account');
+      }
+
+      if (referredUser.referredBy && referredUser.referredBy.toString() !== referrerUser._id.toString()) {
+        throw new Error('This account was referred by another user');
       }
 
       // 1. Fetch settings
@@ -149,6 +159,8 @@ export class ReferralsService {
       // 2. Perform reward and updates
       referredUser.referredBy = referrerUser._id;
       referredUser.referralUsed = true;
+      referredUser.deviceId = deviceId || referredUser.deviceId;
+      referredUser.ipAddress = ipAddress || referredUser.ipAddress;
 
       // Determine coin amounts (support backward compatibility)
       const coinsForReferrer = (settings.coinsForReferrer !== undefined) ? settings.coinsForReferrer : settings.coinsPerReferral || 0;

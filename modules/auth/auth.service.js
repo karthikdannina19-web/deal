@@ -4,6 +4,7 @@ import { generateOtp } from '@/utils/generateOtp.js';
 import { hashData, compareHash } from '@/utils/hash.js';
 import { generateToken } from '@/utils/jwt.js';
 import { dbConnect } from '@/config/database.js';
+import { ReferralsService } from '@/modules/referrals/referrals.service.js';
 
 export class AuthService {
   /**
@@ -178,11 +179,20 @@ export class AuthService {
 
     if (user) {
       // CASE A: User Exists
+      const wasPending = user.status === 'pending';
       user.phoneVerified = true;
       if (user.status === 'pending') {
         user.status = 'active';
       }
       await user.save();
+
+      if (wasPending && user.referredBy && !user.referralUsed) {
+        try {
+          await ReferralsService.handleReferralSignup(user._id, { referrerId: user.referredBy });
+        } catch (err) {
+          console.warn('[Referral Signup] Failed to apply referral after OTP verification:', err.message);
+        }
+      }
     } else {
       // CASE B: User Does Not Exist (Legacy / Auto-register)
       // Note: In the new flow, checkUser prevents getting here without registration,
