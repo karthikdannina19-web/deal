@@ -8,6 +8,16 @@ import {
 import { cn } from "@/utils/cn";
 
 export default function ReferralsDashboard() {
+  const defaultSettings = {
+    coinsPerReferral: 50,
+    coinsForReferrer: 500,
+    coinsForReferred: 200,
+    dailyReferralLimit: 20,
+    maxReferralLimit: 100,
+    activationCondition: 'signup',
+    expiryDays: 365
+  };
+
   const [activeTab, setActiveTab] = useState('settings'); // settings | visualization | logs
   const [isLoading, setIsLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -17,13 +27,7 @@ export default function ReferralsDashboard() {
   // Data states
   const [referrals, setReferrals] = useState([]);
   const [treeData, setTreeData] = useState([]);
-  const [settings, setSettings] = useState({
-    coinsPerReferral: 50,
-    dailyReferralLimit: 20,
-    maxReferralLimit: 100,
-    activationCondition: 'signup',
-    expiryDays: 365
-  });
+  const [settings, setSettings] = useState(defaultSettings);
 
   // Logs filters & pagination
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +54,7 @@ export default function ReferralsDashboard() {
       if (data.success) {
         setReferrals(data.referrals || []);
         if (data.settings) {
-          setSettings(data.settings);
+          setSettings({ ...defaultSettings, ...data.settings });
         }
         setTotalPagesLogs(data.pagination?.totalPages || 1);
       }
@@ -265,14 +269,25 @@ export default function ReferralsDashboard() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Coins Per Successful Invite</label>
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Coins To Referrer</label>
               <input 
                 type="number" 
-                value={settings.coinsPerReferral} 
-                onChange={(e) => setSettings({ ...settings, coinsPerReferral: parseInt(e.target.value) || 0 })}
+                value={settings.coinsForReferrer ?? settings.coinsPerReferral ?? 0} 
+                onChange={(e) => setSettings({ ...settings, coinsForReferrer: parseInt(e.target.value) || 0 })}
                 className="w-full px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
               />
               <p className="text-[10px] text-zinc-400">The amount of coins credited to the referrer once the referred friend registers.</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Coins To Referred User</label>
+              <input 
+                type="number" 
+                value={settings.coinsForReferred ?? 0} 
+                onChange={(e) => setSettings({ ...settings, coinsForReferred: parseInt(e.target.value) || 0 })}
+                className="w-full px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
+              />
+              <p className="text-[10px] text-zinc-400">The amount of coins credited to the newly registered user as a signup bonus.</p>
             </div>
 
             <div className="space-y-2">

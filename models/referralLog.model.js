@@ -22,12 +22,12 @@ const referralLogSchema = new mongoose.Schema(
     coinsGivenToReferrer: {
       type: Number,
       required: true,
-      default: 500,
+      default: 0,
     },
     coinsGivenToUser: {
       type: Number,
       required: true,
-      default: 200,
+      default: 0,
     },
     deviceId: {
       type: String,

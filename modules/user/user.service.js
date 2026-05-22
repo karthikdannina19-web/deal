@@ -1,6 +1,9 @@
 import User from '../../models/user.model.js';
 import Vendor from '../../models/vendor.model.js';
 import ReferralLog from '../../models/referralLog.model.js';
+import Referral from '../../models/referral.model.js';
+import ReferralSetting from '../../models/referralSetting.model.js';
+import WalletTransaction from '../../models/walletTransaction.model.js';
 import mongoose from 'mongoose';
 
 /**
@@ -125,24 +128,71 @@ export class UserService {
         throw new Error('You cannot refer yourself');
       }
 
-      // 5. Update New User Balance & Link Referrer
+
+      // 5. Fetch settings and apply configured rewards
+      let settings = await ReferralSetting.findOne().session(session);
+      if (!settings) {
+        settings = new ReferralSetting();
+        await settings.save({ session });
+      }
+
+      const coinsForReferrer = (settings.coinsForReferrer !== undefined) ? settings.coinsForReferrer : settings.coinsPerReferral || 0;
+      const coinsForReferred = (settings.coinsForReferred !== undefined) ? settings.coinsForReferred : 0;
+
+      // Update balances and links
       newUser.referredBy = referrer._id;
       newUser.referralUsed = true;
       newUser.deviceId = deviceId;
       newUser.ipAddress = ipAddress;
-      newUser.coinBalance = (newUser.coinBalance || 0) + 200;
+
+      const newUserOld = newUser.coinBalance || 0;
+      newUser.coinBalance = newUserOld + coinsForReferred;
       await newUser.save({ session, validateBeforeSave: false });
 
-      // 6. Update Referrer Balance
-      referrer.coinBalance = (referrer.coinBalance || 0) + 500;
+      const refOld = referrer.coinBalance || 0;
+      referrer.coinBalance = refOld + coinsForReferrer;
       await referrer.save({ session, validateBeforeSave: false });
 
-      // 7. Ledger: Create an immutable log for growth tracking
+      // 6. Create Referral record
+      const referralObj = new Referral({
+        referrer: referrer._id,
+        referred: newUser._id,
+        rewardCoins: coinsForReferrer,
+        status: 'completed'
+      });
+      await referralObj.save({ session });
+
+      // 7. Ledger entries
+      const refTx = new WalletTransaction({
+        user: referrer._id,
+        type: 'credit',
+        amount: coinsForReferrer,
+        balanceBefore: refOld,
+        balanceAfter: refOld + coinsForReferrer,
+        transactionType: 'REFERRAL_REWARD',
+        referenceId: referralObj._id
+      });
+      await refTx.save({ session });
+
+      if (coinsForReferred > 0) {
+        const newUserTx = new WalletTransaction({
+          user: newUser._id,
+          type: 'credit',
+          amount: coinsForReferred,
+          balanceBefore: newUserOld,
+          balanceAfter: newUserOld + coinsForReferred,
+          transactionType: 'REFERRAL_BONUS',
+          referenceId: referralObj._id
+        });
+        await newUserTx.save({ session });
+      }
+
+      // 8. Immutable referral log
       const log = new ReferralLog({
         referrerId: referrer._id,
         newUserId: newUser._id,
-        coinsGivenToReferrer: 500,
-        coinsGivenToUser: 200,
+        coinsGivenToReferrer: coinsForReferrer,
+        coinsGivenToUser: coinsForReferred,
         deviceId,
         ipAddress
       });
@@ -152,8 +202,8 @@ export class UserService {
       await session.commitTransaction();
       
       return {
-        referrerCoins: 500,
-        newUserCoins: 200
+        referrerCoins: coinsForReferrer,
+        newUserCoins: coinsForReferred
       };
 
     } catch (error) {

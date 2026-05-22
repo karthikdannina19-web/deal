@@ -187,14 +187,21 @@ export class ReferralsController {
       if (roleError) return roleError;
 
       const body = await req.json();
-      const { coinsPerReferral, dailyReferralLimit, maxReferralLimit, activationCondition, expiryDays } = body;
+      const { coinsPerReferral, coinsForReferrer, coinsForReferred, dailyReferralLimit, maxReferralLimit, activationCondition, expiryDays } = body;
 
       let settings = await ReferralSetting.findOne();
       if (!settings) {
         settings = new ReferralSetting();
       }
 
-      if (coinsPerReferral !== undefined) settings.coinsPerReferral = coinsPerReferral;
+      // Support both new explicit fields and legacy alias
+      if (coinsForReferrer !== undefined) settings.coinsForReferrer = coinsForReferrer;
+      if (coinsForReferred !== undefined) settings.coinsForReferred = coinsForReferred;
+      if (coinsPerReferral !== undefined) {
+        settings.coinsPerReferral = coinsPerReferral;
+        // keep coinsForReferrer in sync for legacy callers
+        settings.coinsForReferrer = coinsPerReferral;
+      }
       if (dailyReferralLimit !== undefined) settings.dailyReferralLimit = dailyReferralLimit;
       if (maxReferralLimit !== undefined) settings.maxReferralLimit = maxReferralLimit;
       if (activationCondition !== undefined) settings.activationCondition = activationCondition;

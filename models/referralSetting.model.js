@@ -6,9 +6,22 @@ import mongoose from 'mongoose';
  */
 const referralSettingSchema = new mongoose.Schema(
   {
+    // Coins awarded to the referrer when a referral converts
+    coinsForReferrer: {
+      type: Number,
+      default: 500,
+      min: 0,
+    },
+    // Coins awarded to the referred (new) user when they convert
+    coinsForReferred: {
+      type: Number,
+      default: 200,
+      min: 0,
+    },
+    // Backward-compatible alias (kept for older code that may still reference it)
     coinsPerReferral: {
       type: Number,
-      default: 50,
+      default: 500,
       min: 0,
     },
     dailyReferralLimit: {

@@ -2,6 +2,7 @@ import User from '../../models/user.model.js';
 import Referral from '../../models/referral.model.js';
 import ReferralSetting from '../../models/referralSetting.model.js';
 import WalletTransaction from '../../models/walletTransaction.model.js';
+import ReferralLog from '../../models/referralLog.model.js';
 import mongoose from 'mongoose';
 
 /**
@@ -148,31 +149,65 @@ export class ReferralsService {
       // 2. Perform reward and updates
       referredUser.referredBy = referrerUser._id;
       referredUser.referralUsed = true;
-      
-      const coins = settings.coinsPerReferral;
-      const oldBalance = referrerUser.coinBalance || 0;
-      
-      referrerUser.coinBalance = oldBalance + coins;
 
-      // 3. Create records
+      // Determine coin amounts (support backward compatibility)
+      const coinsForReferrer = (settings.coinsForReferrer !== undefined) ? settings.coinsForReferrer : settings.coinsPerReferral || 0;
+      const coinsForReferred = (settings.coinsForReferred !== undefined) ? settings.coinsForReferred : 0;
+
+      const refOldBalance = referrerUser.coinBalance || 0;
+      referrerUser.coinBalance = refOldBalance + coinsForReferrer;
+
+      const referredOldBalance = referredUser.coinBalance || 0;
+      referredUser.coinBalance = referredOldBalance + coinsForReferred;
+
+      // 3. Create referral record
       const referralObj = new Referral({
         referrer: referrerUser._id,
         referred: referredUser._id,
-        rewardCoins: coins,
+        rewardCoins: coinsForReferrer,
         status: 'completed'
       });
       await referralObj.save({ session });
 
-      const tx = new WalletTransaction({
+      // 4. Create wallet transactions for both users
+      const txReferrer = new WalletTransaction({
         user: referrerUser._id,
         type: 'credit',
-        amount: coins,
-        balanceBefore: oldBalance,
-        balanceAfter: oldBalance + coins,
+        amount: coinsForReferrer,
+        balanceBefore: refOldBalance,
+        balanceAfter: refOldBalance + coinsForReferrer,
         transactionType: 'REFERRAL_REWARD',
         referenceId: referralObj._id
       });
-      await tx.save({ session });
+      await txReferrer.save({ session });
+
+      if (coinsForReferred > 0) {
+        const txReferred = new WalletTransaction({
+          user: referredUser._id,
+          type: 'credit',
+          amount: coinsForReferred,
+          balanceBefore: referredOldBalance,
+          balanceAfter: referredOldBalance + coinsForReferred,
+          transactionType: 'REFERRAL_BONUS',
+          referenceId: referralObj._id
+        });
+        await txReferred.save({ session });
+      }
+
+      // 5. Create a referral log for analytics
+      try {
+        const rlog = new ReferralLog({
+          referrerId: referrerUser._id,
+          newUserId: referredUser._id,
+          coinsGivenToReferrer: coinsForReferrer,
+          coinsGivenToUser: coinsForReferred,
+          deviceId: referredUser.deviceId,
+          ipAddress: referredUser.ipAddress
+        });
+        await rlog.save({ session });
+      } catch (err) {
+        console.warn('Failed to save ReferralLog:', err.message);
+      }
 
       await referredUser.save({ session });
       await referrerUser.save({ session });
@@ -184,7 +219,7 @@ export class ReferralsService {
         if (tokens.length > 0) {
           await PushNotificationService.sendToTokens(tokens, {
             title: 'Coins Received!',
-            body: `You earned ${coins} coins for referring ${referredUser.firstName || 'a friend'}!`,
+            body: `You earned ${coinsForReferrer} coins for referring ${referredUser.firstName || 'a friend'}!`,
             type: 'referral_reward'
           });
         }
@@ -193,7 +228,7 @@ export class ReferralsService {
       }
 
       await session.commitTransaction();
-      return { success: true, reward: coins };
+      return { success: true, reward: { referrer: coinsForReferrer, referred: coinsForReferred } };
 
     } catch (err) {
       await session.abortTransaction();
