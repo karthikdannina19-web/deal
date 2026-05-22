@@ -6,13 +6,22 @@ import { generateToken } from '@/utils/jwt.js';
 import { dbConnect } from '@/config/database.js';
 import { ReferralsService } from '@/modules/referrals/referrals.service.js';
 
+function normalizeMobileNumber(mobileNumber) {
+  const digits = String(mobileNumber || '').replace(/\D/g, '');
+  if (/^[0-9]{10}$/.test(digits)) return digits;
+  if (/^91[0-9]{10}$/.test(digits)) return digits.slice(-10);
+  if (/^0[0-9]{10}$/.test(digits)) return digits.slice(-10);
+  return digits;
+}
+
 export class AuthService {
   /**
    * Send OTP to a vendor's mobile number
    * @param {string} mobileNumber 
    */
   static async sendVendorOtp(mobileNumber) {
-    if (!mobileNumber || !/^\d{10}$/.test(mobileNumber)) {
+    const normalizedPhone = normalizeMobileNumber(mobileNumber);
+    if (!/^[0-9]{10}$/.test(normalizedPhone)) {
       throw new Error('Invalid mobile number');
     }
 
@@ -20,7 +29,7 @@ export class AuthService {
 
     // 1. Check Rate Limiter (Max 5 OTPs per hour)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    let otpRecord = await Otp.findOne({ target: mobileNumber, type: 'phone' });
+    let otpRecord = await Otp.findOne({ target: normalizedPhone, type: 'phone' });
 
     if (otpRecord) {
       if (otpRecord.updatedAt >= oneHourAgo) {
@@ -33,14 +42,14 @@ export class AuthService {
       }
     } else {
       otpRecord = new Otp({
-        target: mobileNumber,
+        target: normalizedPhone,
         type: 'phone',
         attempts: 1,
       });
     }
 
     // 2. Determine Role (from User model if exists)
-    const user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
+    const user = await User.findOne({ phone: normalizedPhone, status: { $ne: 'deleted' } });
     if (!user) {
       throw new Error('Account not found. Please register.');
     }
@@ -71,8 +80,9 @@ export class AuthService {
    * @param {string} mobileNumber 
    */
   static async checkUser(mobileNumber) {
+    const normalizedPhone = normalizeMobileNumber(mobileNumber);
     await dbConnect();
-    const user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
+    const user = await User.findOne({ phone: normalizedPhone, status: { $ne: 'deleted' } });
     return { exists: !!user };
   }
 
@@ -82,11 +92,17 @@ export class AuthService {
    */
   static async registerUser(userData) {
     const { fullName, email, mobileNumber, state, district, mandal, referralCode, profileImage } = userData;
+    const effectiveReferralCode = referralCode?.trim() || userData.ref?.trim() || userData.referrerCode?.trim() || userData.code?.trim();
+    const normalizedPhone = normalizeMobileNumber(mobileNumber);
+
+    if (!/^[0-9]{10}$/.test(normalizedPhone)) {
+      throw new Error('Invalid mobile number');
+    }
 
     await dbConnect();
 
     // 1. Check if user already exists
-    const existingUser = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
+    const existingUser = await User.findOne({ phone: normalizedPhone, status: { $ne: 'deleted' } });
     if (existingUser) {
       throw new Error('User already exists with this mobile number');
     }
@@ -101,7 +117,7 @@ export class AuthService {
       firstName,
       lastName,
       email,
-      phone: mobileNumber,
+      phone: normalizedPhone,
       state,
       district,
       mandal,
@@ -112,9 +128,9 @@ export class AuthService {
     });
 
     // 4. Handle Referral (Optional)
-    if (referralCode) {
+    if (effectiveReferralCode) {
        const referrer = await User.findOne({ 
-         $or: [{ referralCode }, { phone: referralCode }] 
+         $or: [{ referralCode: effectiveReferralCode }, { phone: effectiveReferralCode }] 
        });
        if (referrer) {
          user.referredBy = referrer._id;
@@ -138,8 +154,9 @@ export class AuthService {
    * @param {string} otpCode
    */
   static async verifyVendorOtp(mobileNumber, otpCode) {
+    const normalizedPhone = normalizeMobileNumber(mobileNumber);
     // 1. Validate Input
-    if (!mobileNumber || !/^\d{10}$/.test(mobileNumber)) {
+    if (!/^[0-9]{10}$/.test(normalizedPhone)) {
       throw new Error('Invalid mobile number');
     }
     if (!otpCode || !/^\d{4}$/.test(otpCode)) {
@@ -149,7 +166,7 @@ export class AuthService {
     await dbConnect();
 
     // 2. Find OTP Record
-    const otpRecord = await Otp.findOne({ target: mobileNumber, type: 'phone' });
+    const otpRecord = await Otp.findOne({ target: normalizedPhone, type: 'phone' });
     
     if (!otpRecord) {
       throw new Error('Invalid or expired OTP');
@@ -174,7 +191,7 @@ export class AuthService {
     }
 
     // 4. Find User by phone (ignore deleted accounts)
-    let user = await User.findOne({ phone: mobileNumber, status: { $ne: 'deleted' } });
+    let user = await User.findOne({ phone: normalizedPhone, status: { $ne: 'deleted' } });
     let isNewUser = false;
 
     if (user) {
@@ -199,7 +216,7 @@ export class AuthService {
       // but we keep this for backward compatibility or direct API calls.
       isNewUser = true;
       user = new User({
-        phone: mobileNumber,
+        phone: normalizedPhone,
         role: 'user',
         phoneVerified: true,
         status: 'active'

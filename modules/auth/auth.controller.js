@@ -131,6 +131,7 @@ export class AuthController {
         return new Response(JSON.stringify({ success: false, message: 'All fields are required' }), { status: 400 });
       }
 
+      body.referralCode = body.referralCode || body.ref || body.referrerCode || body.code;
       const result = await AuthService.registerUser(body);
       return new Response(JSON.stringify(result), { status: 201 });
     } catch (error) {
