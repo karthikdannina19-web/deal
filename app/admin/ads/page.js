@@ -6,7 +6,7 @@ import { adsService } from "@/services/admin/ads.service";
 import { Search, Filter, MoreHorizontal, Megaphone, Eye, MousePointerClick, Calendar, CheckCircle2, XCircle, Clock, Loader2, Plus, X as CloseIcon, Upload, Check } from "lucide-react";
 
 export default function AdsPage() {
-  const { ads, setAds, isLoading, setLoading, setError, updateAdStatus } = useAdminStore();
+  const { ads, setAds, isLoading, setLoading, setError, updateAdStatus, removeAd } = useAdminStore();
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -146,6 +146,20 @@ export default function AdsPage() {
     }
   };
 
+  const handleDeleteAd = async (adId) => {
+    if (!confirm('Delete this ad? This will remove it from active listings.')) return;
+
+    setProcessingId(adId);
+    try {
+      await adsService.deleteAd(adId);
+      removeAd(adId);
+    } catch (err) {
+      alert(err || 'Failed to delete ad');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -191,8 +205,8 @@ export default function AdsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-visible shadow-sm">
+        <div className="overflow-x-auto overflow-y-visible no-scrollbar rounded-t-2xl">
           <table className="w-full text-left text-sm">
             <thead className="bg-zinc-50/50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800 text-zinc-500 dark:text-zinc-400 font-medium">
               <tr>
@@ -341,7 +355,7 @@ export default function AdsPage() {
                             </button>
                             
                             {/* Action Dropdown (Hover-based for simplicity) */}
-                            <div className="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-10 hidden group-hover:block animate-in fade-in zoom-in-95 duration-150">
+                            <div className="absolute right-0 bottom-full mb-1 w-40 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-xl py-1 z-30 hidden group-hover:block group-focus-within:block animate-in fade-in zoom-in-95 duration-150">
                               <button 
                                 onClick={() => handleReview(ad._id, 'expire')}
                                 className="w-full text-left px-4 py-2 text-xs text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
@@ -356,10 +370,11 @@ export default function AdsPage() {
                               </button>
                               <div className="border-t border-zinc-100 dark:border-zinc-800 my-1"></div>
                               <button 
-                                onClick={() => {/* TODO: Implement Delete */}}
-                                className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10"
+                                onClick={() => handleDeleteAd(ad._id)}
+                                disabled={processingId === ad._id}
+                                className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 disabled:opacity-50"
                               >
-                                Delete Ad
+                                {processingId === ad._id ? 'Deleting...' : 'Delete Ad'}
                               </button>
                             </div>
                           </div>

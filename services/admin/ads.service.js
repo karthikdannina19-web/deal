@@ -29,5 +29,17 @@ export const adsService = {
     } catch (error) {
       throw error.response?.data?.message || 'Failed to review ad';
     }
+  },
+
+  /**
+   * Delete an ad
+   */
+  deleteAd: async (id) => {
+    try {
+      const response = await api.delete(`/api/admin/ads/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to delete ad';
+    }
   }
 };

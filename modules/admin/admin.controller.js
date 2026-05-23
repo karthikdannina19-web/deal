@@ -4,7 +4,7 @@ import { generateToken } from '@/utils/jwt.js';
 import { dbConnect } from '@/config/database.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import { createPlan, getPlans } from '@/services/subscription.service.js';
-import { listAds, moderateAd, assignSectionToAd } from '@/services/ad.service.js';
+import { listAds, moderateAd, assignSectionToAd, adminDeleteAd } from '@/services/ad.service.js';
 import { verifyToken } from '@/utils/jwt.js';
 
 export class AdminController {
@@ -212,6 +212,39 @@ export class AdminController {
         success: true, 
         message: 'Section assigned successfully',
         data: ad 
+      }, { status: 200 });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
+
+  /**
+   * DELETE /api/admin/ads/[id]
+   */
+  static async deleteAd(req, { params }) {
+    try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
+      const { id } = await params;
+      if (!id) {
+        return Response.json({ success: false, message: 'Ad ID is required' }, { status: 400 });
+      }
+
+      const result = await adminDeleteAd(id);
+
+      return Response.json({
+        success: true,
+        message: 'Ad deleted successfully',
+        data: {
+          adId: result.ad._id,
+          status: result.ad.status,
+          creditRefunded: result.refund.refunded,
+          creditsRefunded: result.refund.creditsRefunded,
+        },
+        remainingCredits: result.refund.remainingCredits,
+        creditSummary: result.refund.creditSummary,
       }, { status: 200 });
     } catch (error) {
       const status = error.statusCode || 500;

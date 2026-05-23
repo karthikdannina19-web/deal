@@ -24,7 +24,7 @@ const DEFAULT_DURATIONS = {
   premium: 90,
 };
 
-async function getActiveAdSubscription(userId) {
+function getActiveAdSubscription(userId) {
   return UserSubscription.findOne({
     user: userId,
     status: { $in: ['active', 'trial'] },
@@ -42,7 +42,8 @@ function buildCreditSummary({ allocated = 0, remaining = 0 }) {
 }
 
 function applySession(query, session) {
-  return session ? query.session(session) : query;
+  if (!session) return query;
+  return typeof query?.session === 'function' ? query.session(session) : query;
 }
 
 async function refundCreditsForAd(ad, { session = null } = {}) {
@@ -439,6 +440,56 @@ export async function deleteAd(adId, userId) {
     const refund = await refundCreditsForAd(ad, { session });
 
     ad.status = 'deleted';
+    await ad.save({ session });
+
+    await session.commitTransaction();
+
+    return {
+      ad,
+      refund,
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+}
+
+/**
+ * Admin soft-delete an ad
+ * @param {string} adId - Ad document ID
+ * @returns {Promise<object>} Deleted ad
+ */
+export async function adminDeleteAd(adId) {
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const ad = await Ad.findById(adId).session(session);
+
+    if (!ad) {
+      throw {
+        statusCode: 404,
+        message: 'Ad not found',
+        errorType: 'NOT_FOUND_ERROR',
+      };
+    }
+
+    if (ad.status === 'deleted') {
+      throw {
+        statusCode: 400,
+        message: 'Ad is already deleted',
+        errorType: 'VALIDATION_ERROR',
+      };
+    }
+
+    const refund = await refundCreditsForAd(ad, { session });
+
+    ad.status = 'deleted';
+    ad.reviewNotes = 'Deleted by admin';
+    ad.reviewedAt = new Date();
     await ad.save({ session });
 
     await session.commitTransaction();

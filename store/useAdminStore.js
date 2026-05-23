@@ -81,4 +81,8 @@ export const useAdminStore = create((set) => ({
       ad._id === adId ? { ...ad, status } : ad
     ),
   })),
+
+  removeAd: (adId) => set((state) => ({
+    ads: state.ads.filter((ad) => ad._id !== adId),
+  })),
 }));
