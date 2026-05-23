@@ -55,6 +55,17 @@ export class SectionController {
         Ad.countDocuments({ section: section._id, status: 'approved' }),
       ]);
 
+      const mappedBanners = banners.map((banner) => {
+        const imageUrl = banner.image?.url || '';
+        return {
+          ...banner,
+          id: banner._id,
+          image: { ...(banner.image || {}), url: imageUrl },
+          imageUrl,
+          bannerUrl: imageUrl,
+        };
+      });
+
       const mappedAds = ads.map(ad => ({
         id: ad._id,
         title: ad.title,
@@ -76,7 +87,7 @@ export class SectionController {
         success: true,
         data: {
           section,
-          banners,
+          banners: mappedBanners,
           ads: mappedAds,
         },
         pagination: {

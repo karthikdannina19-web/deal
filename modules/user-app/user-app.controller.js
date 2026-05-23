@@ -5,7 +5,20 @@ import { UserAppService } from './user-app.service.js';
 export class UserAppController {
   static async sections() {
     await dbConnect();
-    const data = await UserAppService.listSections();
+    const sections = await UserAppService.listSections();
+    const data = sections.map((section) => {
+      const imageUrl = section.image?.url || '';
+      const bannerUrl = section.banner?.url || imageUrl;
+      return {
+        ...section,
+        id: section._id,
+        image: { ...(section.image || {}), url: imageUrl },
+        banner: { ...(section.banner || {}), url: bannerUrl },
+        imageUrl,
+        iconUrl: imageUrl,
+        bannerUrl,
+      };
+    });
     return Response.json({ success: true, data }, { status: 200 });
   }
 
@@ -79,7 +92,17 @@ export class UserAppController {
   static async categories() {
     await dbConnect();
     const categories = await UserAppService.listCategories();
-    return Response.json({ success: true, categories }, { status: 200 });
+    const data = categories.map((c) => ({
+      ...c,
+      id: c._id,
+      icon: c.iconUrl || '',
+      iconImage: c.iconUrl || '',
+      image: c.imageUrl || c.iconUrl || '',
+      imageUrl: c.imageUrl || c.iconUrl || '',
+      iconUrl: c.iconUrl || c.imageUrl || '',
+      bannerUrl: c.imageUrl || '',
+    }));
+    return Response.json({ success: true, categories: data }, { status: 200 });
   }
 
   static async coupons(req) {

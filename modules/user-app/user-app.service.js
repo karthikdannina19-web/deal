@@ -34,11 +34,16 @@ function locationMatches(doc, filters) {
 }
 
 function mapBanner(banner) {
+  const imageUrl = banner.image?.url || '';
   return {
     id: banner._id,
+    _id: banner._id,
     sectionId: banner.section?._id || banner.section || null,
     title: banner.title || '',
-    image: { url: banner.image?.url || '' },
+    image: { url: imageUrl },
+    imageUrl,
+    bannerUrl: imageUrl,
+    mediaUrl: imageUrl,
     locationLabel: banner.locationLabel || banner.location || '',
     distanceKm: num(banner.distanceKm, null),
     viewCount: banner.clicks || 0,
@@ -51,12 +56,15 @@ function mapBanner(banner) {
 }
 
 function mapAd(ad) {
+  const imageUrl = ad.primaryImage || ad.images?.[0]?.url || '';
   return {
     id: ad._id,
+    _id: ad._id,
     sectionId: ad.section?._id || ad.section || null,
     title: ad.title,
     category: ad.category || 'General',
-    image: { url: ad.primaryImage || ad.images?.[0]?.url || '' },
+    image: { url: imageUrl },
+    imageUrl,
     storeId: ad.vendor?._id || null,
     storeName: ad.vendor?.storeName || '',
     storeSummary: {
