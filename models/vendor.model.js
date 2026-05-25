@@ -101,6 +101,27 @@ const vendorSchema = new mongoose.Schema(
       index: true,
     },
     
+    // Supervisor Mapping
+    supervisorCode: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+    supervisorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Supervisor',
+      index: true,
+    },
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+      index: true,
+    },
+    approvedAt: {
+      type: Date,
+    },
+    
     // Registration progress
     registrationStep: {
       type: Number,

@@ -74,7 +74,7 @@ const userSchema = new mongoose.Schema(
     // Role & Status
     role: {
       type: String,
-      enum: ['user', 'vendor', 'admin'],
+      enum: ['user', 'vendor', 'admin', 'supervisor'],
       default: 'user',
     },
     status: {
@@ -229,6 +229,9 @@ userSchema.methods.updateLastLogin = async function () {
   await this.save({ validateBeforeSave: false });
 };
 
-const User = mongoose.models.User || mongoose.model('User', userSchema);
+if (mongoose.models.User) {
+  delete mongoose.models.User;
+}
+const User = mongoose.model('User', userSchema);
 
 export default User;

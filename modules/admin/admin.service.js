@@ -101,6 +101,14 @@ export class AdminService {
 
     vendor.status = status;
     vendor.rejectionReason = status === 'rejected' ? String(reason || '').trim() : '';
+    
+    if (status === 'active') {
+      vendor.approvalStatus = 'approved';
+      vendor.approvedAt = new Date();
+    } else if (status === 'rejected') {
+      vendor.approvalStatus = 'rejected';
+    }
+    
     await vendor.save();
 
     // If approved, update the associated user's role to 'vendor'
@@ -109,6 +117,14 @@ export class AdminService {
         role: 'vendor',
         status: 'active' 
       });
+      
+      if (vendor.supervisorId) {
+        const Supervisor = (await import('../../models/supervisor.model.js')).default;
+        await Supervisor.findByIdAndUpdate(
+          vendor.supervisorId,
+          { $inc: { totalVendors: 1 } }
+        );
+      }
     }
 
     return vendor;
@@ -157,7 +173,9 @@ export class AdminService {
       pendingAds,
       revenueData,
       activeSubscriptions,
-      coinData
+      coinData,
+      totalSupervisors,
+      activeSupervisors
     ] = await Promise.all([
       User.countDocuments({ role: 'user' }),
       Vendor.countDocuments({ status: 'active' }),
@@ -170,7 +188,15 @@ export class AdminService {
       UserSubscription.countDocuments({ status: 'active' }),
       Vendor.aggregate([
         { $group: { _id: null, total: { $sum: '$coinBalance' } } }
-      ])
+      ]),
+      (async () => {
+        const Supervisor = (await import('../../models/supervisor.model.js')).default;
+        return Supervisor.countDocuments({ is_deleted: false });
+      })(),
+      (async () => {
+        const Supervisor = (await import('../../models/supervisor.model.js')).default;
+        return Supervisor.countDocuments({ is_deleted: false, status: 'active' });
+      })()
     ]);
 
     const totalRevenue = revenueData.length > 0 ? revenueData[0].total : 0;
@@ -183,7 +209,9 @@ export class AdminService {
       pendingAds,
       totalRevenue,
       totalCoins,
-      activeSubscriptions
+      activeSubscriptions,
+      totalSupervisors,
+      activeSupervisors
     };
   }
 

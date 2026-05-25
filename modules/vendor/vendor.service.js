@@ -445,7 +445,7 @@ export class VendorService {
    * @param {Object} data { vendorId, fullAddress, locationCoordinates, agentCode }
    */
   static async registerVendorStep3(data) {
-    const { vendorId, fullAddress, locationCoordinates, agentCode } = data;
+    const { vendorId, fullAddress, locationCoordinates, agentCode, supervisorCode } = data;
 
     await dbConnect();
 
@@ -462,6 +462,19 @@ export class VendorService {
 
     // 3. Validate agent code if provided
     let agent = null;
+    let supervisor = null;
+    
+    if (supervisorCode && supervisorCode.trim()) {
+      const Supervisor = (await import('../../models/supervisor.model.js')).default;
+      supervisor = await Supervisor.findOne({
+        supervisorCode: supervisorCode.trim(),
+        is_deleted: false,
+        status: 'active'
+      });
+      if (!supervisor) {
+        throw new Error('Invalid Supervisor Code');
+      }
+    }
     if (agentCode && agentCode.trim()) {
       agent = await Agent.findOne({ 
         code: agentCode.trim().toUpperCase(), 
@@ -484,6 +497,11 @@ export class VendorService {
     
     if (agentCode && agentCode.trim()) {
       vendor.agentCode = agentCode.trim().toUpperCase();
+    }
+    
+    if (supervisor) {
+      vendor.supervisorCode = supervisor.supervisorCode;
+      vendor.supervisorId = supervisor._id;
     }
 
     // 5. Finalize registration

@@ -20,7 +20,8 @@ import {
   Bell,
   Tag,
   FileText,
-  HelpCircle
+  HelpCircle,
+  UserCheck
 } from 'lucide-react';
 import { useAdminStore } from '../../../store/useAdminStore';
 import { cn } from '../../../utils/cn';
@@ -32,6 +33,7 @@ import { cn } from '../../../utils/cn';
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Vendors", href: "/admin/vendors", icon: Store },
+  { label: "Supervisors", href: "/admin/supervisors", icon: UserCheck },
   { label: "Ads", href: "/admin/ads", icon: Megaphone },
   { label: "Ad Sections", href: "/admin/sections", icon: Tag },
   { label: "Users", href: "/admin/users", icon: Users },

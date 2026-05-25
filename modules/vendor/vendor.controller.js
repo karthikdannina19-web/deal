@@ -217,7 +217,7 @@ export class VendorController {
         }, { status: 400 });
       }
 
-      const { vendorId, fullAddress, locationCoordinates, agentCode } = body;
+      const { vendorId, fullAddress, locationCoordinates, agentCode, supervisorCode } = body;
 
       // 2. Validate Required Fields
       if (!vendorId) {
@@ -239,7 +239,8 @@ export class VendorController {
         vendorId,
         fullAddress: fullAddress.trim(),
         locationCoordinates,
-        agentCode
+        agentCode,
+        supervisorCode
       });
 
       // 4. Success Response

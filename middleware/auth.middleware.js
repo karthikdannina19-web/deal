@@ -38,6 +38,14 @@ export async function authenticate(req) {
       }
     }
 
+    if (decoded.supervisorId) {
+      const Supervisor = (await import('@/models/supervisor.model.js')).default;
+      const supDoc = await Supervisor.findById(decoded.supervisorId).select('is_deleted status');
+      if (supDoc && (supDoc.is_deleted === true || supDoc.status !== 'active')) {
+        return { error: apiError(403, 'Account inactive or deleted.', 'AUTHENTICATION_ERROR') };
+      }
+    }
+
     if (userId && decoded.role !== 'admin') {
       const User = (await import('@/models/user.model.js')).default;
       const userDoc = await User.findById(userId).select('status');
@@ -51,6 +59,7 @@ export async function authenticate(req) {
       user: {
         id: userId,
         vendorId: decoded.vendorId,
+        supervisorId: decoded.supervisorId,
         email: decoded.email,
         role: decoded.role,
       } 
