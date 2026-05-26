@@ -29,33 +29,52 @@ class LocationMasterService {
   };
 
   static async ensureSeeded() {
-    const existingCount = await State.estimatedDocumentCount();
-    if (existingCount > 0) {
-      return;
-    }
-
     for (const [stateName, districts] of Object.entries(locationData)) {
-      const state = await State.create({
-        name: stateName,
-        code: buildStateCode(stateName),
-        normalizedName: normalizeName(stateName),
-      });
+      const state = await State.findOneAndUpdate(
+        { normalizedName: normalizeName(stateName) },
+        {
+          $set: {
+            name: stateName,
+            code: buildStateCode(stateName),
+            normalizedName: normalizeName(stateName),
+          },
+        },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
 
       for (const [districtName, mandals] of Object.entries(districts)) {
-        const district = await District.create({
-          stateId: state._id,
-          name: districtName,
-          normalizedName: normalizeName(districtName),
-        });
+        const district = await District.findOneAndUpdate(
+          {
+            stateId: state._id,
+            normalizedName: normalizeName(districtName),
+          },
+          {
+            $set: {
+              stateId: state._id,
+              name: districtName,
+              normalizedName: normalizeName(districtName),
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+        );
 
         if (!Array.isArray(mandals)) continue;
 
         for (const mandalName of mandals) {
-          await Mandal.create({
-            districtId: district._id,
-            name: mandalName,
-            normalizedName: normalizeName(mandalName),
-          });
+          await Mandal.findOneAndUpdate(
+            {
+              districtId: district._id,
+              normalizedName: normalizeName(mandalName),
+            },
+            {
+              $set: {
+                districtId: district._id,
+                name: mandalName,
+                normalizedName: normalizeName(mandalName),
+              },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
         }
       }
     }
@@ -121,40 +140,81 @@ class LocationMasterService {
     return tree;
   }
 
-  static async findByNames({ state, district, mandal }) {
+  static async findByNames({
+    state,
+    district,
+    mandal,
+    districtCandidates = [],
+    mandalCandidates = [],
+    autoCreateMissingState = false,
+    autoCreateMissingDistrict = false,
+    autoCreateMissingMandal = false,
+  }) {
     await this.ensureSeeded();
 
     if (!state) {
       throw new Error('State is required');
     }
 
-    const stateDoc = await State.findOne({ normalizedName: normalizeName(state) });
+    let stateDoc = await State.findOne({ normalizedName: normalizeName(state) });
     if (!stateDoc) {
-      throw new Error(`Unsupported state: ${state}`);
+      if (!autoCreateMissingState) {
+        throw new Error(`Unsupported state: ${state}`);
+      }
+      stateDoc = await State.create({
+        name: state,
+        code: buildStateCode(state),
+        normalizedName: normalizeName(state),
+      });
+      this.cache.expiresAt = 0;
     }
 
     let districtDoc = null;
-    if (district) {
+    const districtSearchCandidates = [district, ...districtCandidates].filter(Boolean);
+    if (districtSearchCandidates.length > 0) {
       districtDoc = await District.findOne({
         stateId: stateDoc._id,
-        normalizedName: normalizeName(district),
+        normalizedName: {
+          $in: districtSearchCandidates.map((candidate) => normalizeName(candidate)),
+        },
       });
       if (!districtDoc) {
-        throw new Error(`Unsupported district for state ${stateDoc.name}: ${district}`);
+        if (!autoCreateMissingDistrict) {
+          throw new Error(`Unsupported district for state ${stateDoc.name}: ${district}`);
+        }
+        const districtNameToCreate = districtSearchCandidates[0];
+        districtDoc = await District.create({
+          stateId: stateDoc._id,
+          name: districtNameToCreate,
+          normalizedName: normalizeName(districtNameToCreate),
+        });
+        this.cache.expiresAt = 0;
       }
     }
 
     let mandalDoc = null;
-    if (mandal) {
+    const mandalSearchCandidates = [mandal, ...mandalCandidates].filter(Boolean);
+    if (mandalSearchCandidates.length > 0) {
       if (!districtDoc) {
         throw new Error('District is required when mandal is provided');
       }
       mandalDoc = await Mandal.findOne({
         districtId: districtDoc._id,
-        normalizedName: normalizeName(mandal),
+        normalizedName: {
+          $in: mandalSearchCandidates.map((candidate) => normalizeName(candidate)),
+        },
       });
       if (!mandalDoc) {
-        throw new Error(`Unsupported mandal for district ${districtDoc.name}: ${mandal}`);
+        if (!autoCreateMissingMandal) {
+          throw new Error(`Unsupported mandal for district ${districtDoc.name}: ${mandal}`);
+        }
+        const mandalNameToCreate = mandalSearchCandidates[0];
+        mandalDoc = await Mandal.create({
+          districtId: districtDoc._id,
+          name: mandalNameToCreate,
+          normalizedName: normalizeName(mandalNameToCreate),
+        });
+        this.cache.expiresAt = 0;
       }
     }
 
@@ -170,6 +230,8 @@ class LocationMasterService {
       state: state || entity?.location?.state,
       district: district || entity?.location?.district,
       mandal: mandal || entity?.location?.mandal,
+      autoCreateMissingDistrict: true,
+      autoCreateMissingMandal: true,
     });
 
     if (!entity) {

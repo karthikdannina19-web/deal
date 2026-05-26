@@ -25,14 +25,33 @@ class NominatimProvider {
     const address = payload?.address || {};
 
     const state = address.state || address.region || '';
-    const district = address.state_district || address.county || address.city_district || address.city || '';
-    const mandal = address.suburb || address.town || address.village || address.city || '';
+    const districtCandidates = [
+      address.state_district,
+      address.county,
+      address.city_district,
+      address.city,
+      address.town,
+    ].filter(Boolean);
+    const mandalCandidates = [
+      address.suburb,
+      address.neighbourhood,
+      address.quarter,
+      address.residential,
+      address.city_district,
+      address.town,
+      address.village,
+      address.city,
+    ].filter(Boolean);
+    const district = districtCandidates[0] || '';
+    const mandal = mandalCandidates[0] || '';
 
     return {
       raw: payload,
       state,
       district,
       mandal,
+      districtCandidates,
+      mandalCandidates,
       addressLine: payload?.display_name || '',
       area: address.suburb || address.neighbourhood || '',
       city: address.city || address.town || address.village || '',
@@ -69,6 +88,10 @@ export class LocationResolverService {
       state: resolved.state,
       district: resolved.district,
       mandal: resolved.mandal,
+      districtCandidates: resolved.districtCandidates || [],
+      mandalCandidates: resolved.mandalCandidates || [],
+      autoCreateMissingDistrict: true,
+      autoCreateMissingMandal: true,
     });
 
     return {
