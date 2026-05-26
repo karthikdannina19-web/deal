@@ -6,6 +6,7 @@ import Section from '@/models/section.model.js';
 import User from '@/models/user.model.js';
 import '@/models/vendor.model.js';
 import mongoose from 'mongoose';
+import { VisibilityService } from '@/services/visibility.service.js';
 
 function num(v, fallback = 999999) {
   return Number.isFinite(v) ? v : fallback;
@@ -88,13 +89,18 @@ export class UserAppService {
     return Section.find({ isActive: true }).sort({ order: 1 }).lean();
   }
 
-  static async listBanners({ section, state, district, mandal, lat, lng, topOnly = false }) {
-    const query = { isActive: true };
+  static async listBanners({ section, state, district, mandal, lat, lng, topOnly = false, userLocation = null }) {
+    const query = userLocation
+      ? VisibilityService.buildMatchQuery(userLocation, { isActive: true })
+      : { isActive: true };
     if (section) query.section = section;
     if (topOnly) query.isTopBanner = true;
     const banners = await Banner.find(query).populate('section', '_id name order').sort({ order: 1 }).lean();
-    return banners
-      .filter((b) => locationMatches(b, { state, district, mandal }))
+    const filteredBanners = userLocation
+      ? banners
+      : banners.filter((b) => locationMatches(b, { state, district, mandal }));
+
+    return filteredBanners
       .map((b) => ({
         ...b,
         distanceKm: distanceKm(Number(lat), Number(lng), b.locationCoordinates?.lat, b.locationCoordinates?.lng),
@@ -107,8 +113,10 @@ export class UserAppService {
       .map(mapBanner);
   }
 
-  static async listAds({ section, category, state, district, mandal, lat, lng, savedOnly, userId }) {
-    const query = { status: 'approved' };
+  static async listAds({ section, category, state, district, mandal, lat, lng, savedOnly, userId, userLocation = null }) {
+    const query = userLocation
+      ? VisibilityService.buildMatchQuery(userLocation, { status: 'approved' })
+      : { status: 'approved' };
     if (section) query.section = section;
     if (category) query.category = category;
     if (savedOnly && userId) {
@@ -122,7 +130,7 @@ export class UserAppService {
       .sort({ createdAt: -1 })
       .lean({ virtuals: true });
 
-    const filtered = ads
+    const filtered = (userLocation ? ads : ads
       .filter((ad) => {
         const loc = {
           state: ad.vendor?.location?.state || ad.location?.state || ad.state,
@@ -130,7 +138,7 @@ export class UserAppService {
           mandal: ad.vendor?.location?.mandal || ad.location?.city || ad.mandal,
         };
         return locationMatches(loc, { state, district, mandal });
-      })
+      }))
       .map((ad) => ({
         ...ad,
         distanceKm: distanceKm(

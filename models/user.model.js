@@ -36,6 +36,31 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    stateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    districtId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    mandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    latitude: {
+      type: Number,
+    },
+    longitude: {
+      type: Number,
+    },
+    locationUpdatedAt: {
+      type: Date,
+      index: true,
+    },
     
     // Detailed Location (Dynamic GPS Save)
     location: {
@@ -48,7 +73,12 @@ const userSchema = new mongoose.Schema(
       city: { type: String, trim: true },
       district: { type: String, trim: true },
       state: { type: String, trim: true },
+      mandal: { type: String, trim: true },
       pincode: { type: String, trim: true },
+      stateId: { type: mongoose.Schema.Types.ObjectId, ref: 'State' },
+      districtId: { type: mongoose.Schema.Types.ObjectId, ref: 'District' },
+      mandalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Mandal' },
+      provider: { type: String, trim: true },
       lastUpdated: { type: Date, default: Date.now }
     },
     
@@ -190,6 +220,7 @@ const userSchema = new mongoose.Schema(
 // Indexes for faster queries
 userSchema.index({ email: 1, phone: 1 });
 userSchema.index({ role: 1, status: 1 });
+userSchema.index({ stateId: 1, districtId: 1, mandalId: 1 });
 
 /**
  * Hash password before saving

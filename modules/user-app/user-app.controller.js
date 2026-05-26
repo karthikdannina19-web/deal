@@ -1,6 +1,7 @@
 import { dbConnect } from '@/config/database.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { UserAppService } from './user-app.service.js';
+import User from '@/models/user.model.js';
 
 export class UserAppController {
   static async sections() {
@@ -25,6 +26,12 @@ export class UserAppController {
   static async banners(req, { topOnly = false } = {}) {
     await dbConnect();
     const { searchParams } = new URL(req.url);
+    const authHeader = req.headers.get('authorization');
+    const auth = authHeader ? await authenticate(req) : { user: null, error: null };
+    if (auth?.error && authHeader) return auth.error;
+    const authUser = auth?.user?.id
+      ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
+      : null;
     const data = await UserAppService.listBanners({
       section: searchParams.get('section') || searchParams.get('sectionId'),
       state: searchParams.get('state'),
@@ -33,6 +40,11 @@ export class UserAppController {
       lat: searchParams.get('lat'),
       lng: searchParams.get('lng'),
       topOnly,
+      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
+        stateId: authUser.stateId,
+        districtId: authUser.districtId,
+        mandalId: authUser.mandalId,
+      } : null,
     });
     return Response.json({ success: true, data }, { status: 200 });
   }
@@ -40,8 +52,13 @@ export class UserAppController {
   static async ads(req) {
     await dbConnect();
     const { searchParams } = new URL(req.url);
-    const auth = await authenticate(req);
+    const authHeader = req.headers.get('authorization');
+    const auth = authHeader ? await authenticate(req) : { user: null, error: null };
+    if (auth?.error && authHeader) return auth.error;
     const userId = auth?.user?.id;
+    const authUser = userId
+      ? await User.findById(userId).select('stateId districtId mandalId').lean()
+      : null;
 
     const data = await UserAppService.listAds({
       section: searchParams.get('section') || searchParams.get('sectionId'),
@@ -53,6 +70,11 @@ export class UserAppController {
       lng: searchParams.get('lng'),
       savedOnly: searchParams.get('savedOnly') === 'true',
       userId,
+      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
+        stateId: authUser.stateId,
+        districtId: authUser.districtId,
+        mandalId: authUser.mandalId,
+      } : null,
     });
     return Response.json({ success: true, data }, { status: 200 });
   }

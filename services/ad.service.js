@@ -4,6 +4,8 @@ import User from '../models/user.model.js';
 import Vendor from '../models/vendor.model.js';
 import UserSubscription from '../models/userSubscription.model.js';
 import { NotificationService } from '../modules/notifications/notification.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
+import { VisibilityService } from '@/services/visibility.service.js';
 
 /**
  * Ad Management Service
@@ -521,6 +523,7 @@ export async function adminDeleteAd(adId) {
 export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
   const skip = (page - 1) * limit;
   const filters = {};
+  const activeOnly = query.activeOnly === true || query.activeOnly === 'true';
 
   // Status filter
   if (query.status) {
@@ -565,6 +568,15 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
   // Text search
   if (query.search) {
     filters.$text = { $search: query.search };
+  }
+
+  if (activeOnly) {
+    filters.status = 'approved';
+    filters.$or = [
+      { expiresAt: { $exists: false } },
+      { expiresAt: null },
+      { expiresAt: { $gte: new Date() } },
+    ];
   }
 
   // Sorting
@@ -614,7 +626,7 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
     // Standard query
     [ads, total] = await Promise.all([
       Ad.find(filters)
-        .populate('vendor', 'fullName storeName email')
+        .populate('vendor', 'fullName storeName email location fullAddress storeStateId storeDistrictId storeMandalId')
         .sort(sortOption)
         .skip(skip)
         .limit(limit)
@@ -717,7 +729,18 @@ export async function trackAdView(adId, viewerId) {
  * @param {string} notes - Review notes (optional)
  * @returns {Promise<object>} Updated ad
  */
-export async function moderateAd(adId, action, adminId, notes = '', sectionId = undefined, category = undefined) {
+export async function moderateAd(
+  adId,
+  action,
+  adminId,
+  notes = '',
+  sectionId = undefined,
+  category = undefined,
+  visibilityLevel = undefined,
+  visibilityStateId = undefined,
+  visibilityDistrictId = undefined,
+  visibilityMandalId = undefined
+) {
   const ad = await Ad.findById(adId);
 
   if (!ad) {
@@ -750,6 +773,50 @@ export async function moderateAd(adId, action, adminId, notes = '', sectionId = 
   ad.reviewNotes = notes || ad.reviewNotes;
   ad.reviewedBy = adminId;
   ad.reviewedAt = new Date();
+
+  if (action === 'approve' && visibilityLevel) {
+    const vendor = await Vendor.findById(ad.vendor);
+    if (!vendor) {
+      throw {
+        statusCode: 400,
+        message: 'Ad vendor not found',
+        errorType: 'VALIDATION_ERROR',
+      };
+    }
+
+    await LocationMasterService.syncLegacyLocation(vendor);
+    await vendor.save();
+
+    let visibility;
+    if (visibilityStateId) {
+      VisibilityService.validateVisibilityPayload({
+        visibilityLevel,
+        stateId: visibilityStateId,
+        districtId: visibilityDistrictId,
+        mandalId: visibilityMandalId,
+      });
+      await LocationMasterService.validateHierarchy({
+        stateId: visibilityStateId,
+        districtId: visibilityDistrictId,
+        mandalId: visibilityMandalId,
+      });
+      visibility = {
+        visibilityLevel,
+        visibilityStateId,
+        visibilityDistrictId: visibilityLevel === 'state' ? null : visibilityDistrictId,
+        visibilityMandalId: visibilityLevel === 'mandal' ? visibilityMandalId : null,
+        visibilityEnabled: true,
+      };
+    } else {
+      visibility = VisibilityService.deriveFromStore(vendor, visibilityLevel);
+    }
+
+    ad.visibilityLevel = visibility.visibilityLevel;
+    ad.visibilityStateId = visibility.visibilityStateId;
+    ad.visibilityDistrictId = visibility.visibilityDistrictId;
+    ad.visibilityMandalId = visibility.visibilityMandalId;
+    ad.visibilityEnabled = visibility.visibilityEnabled;
+  }
 
   if (action === 'reject' && !ad.creditRefunded && !ad.editedFromApproved) {
     // Refund only when:

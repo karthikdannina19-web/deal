@@ -11,9 +11,10 @@ export class BannerController {
       const { searchParams } = new URL(req.url);
       const filters = {
         sectionId: searchParams.get('section') || searchParams.get('sectionId'),
-        state: searchParams.get('state'),
-        district: searchParams.get('district'),
-        mandal: searchParams.get('mandal'),
+        visibilityLevel: searchParams.get('visibilityLevel'),
+        stateId: searchParams.get('stateId'),
+        districtId: searchParams.get('districtId'),
+        mandalId: searchParams.get('mandalId'),
       };
       const banners = await BannerService.listBanners(filters);
       return Response.json({ success: true, data: banners }, { status: 200 });
@@ -35,6 +36,10 @@ export class BannerController {
       const state = formData.get('state');
       const district = formData.get('district');
       const mandal = formData.get('mandal');
+      const visibilityLevel = formData.get('visibilityLevel');
+      const visibilityStateId = formData.get('visibilityStateId');
+      const visibilityDistrictId = formData.get('visibilityDistrictId');
+      const visibilityMandalId = formData.get('visibilityMandalId');
       const title = formData.get('title');
       const isTopBanner = formData.get('isTopBanner') === 'true';
       const viewUrl = formData.get('viewUrl');
@@ -45,6 +50,9 @@ export class BannerController {
 
       if (!section || !imageFile) {
         return Response.json({ success: false, message: 'Section and Image are required' }, { status: 400 });
+      }
+      if (!visibilityLevel || !visibilityStateId) {
+        return Response.json({ success: false, message: 'Visibility level and target location are required' }, { status: 400 });
       }
 
       const buffer = Buffer.from(await imageFile.arrayBuffer());
@@ -63,6 +71,10 @@ export class BannerController {
         state,
         district,
         mandal,
+        visibilityLevel,
+        visibilityStateId,
+        visibilityDistrictId: visibilityDistrictId || null,
+        visibilityMandalId: visibilityMandalId || null,
         isTopBanner,
         viewUrl,
         whatsappLink,
@@ -87,12 +99,13 @@ export class BannerController {
       const formData = await req.formData();
       
       const updateData = {};
-      const fields = ['section', 'location', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive'];
+      const fields = ['section', 'location', 'locationLabel', 'state', 'district', 'mandal', 'visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive', 'title'];
       fields.forEach(field => {
         if (formData.has(field)) {
           let value = formData.get(field);
           if (field === 'order') value = parseInt(value);
           if (field === 'isActive') value = value === 'true';
+          if ((field === 'visibilityDistrictId' || field === 'visibilityMandalId') && !value) value = null;
           updateData[field] = value;
         }
       });

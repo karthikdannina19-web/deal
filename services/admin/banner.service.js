@@ -1,5 +1,7 @@
 import Banner from '@/models/banner.model.js';
 import { uploadToS3 } from '@/services/s3.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
+import { VisibilityService } from '@/services/visibility.service.js';
 
 /**
  * Banner Service (Admin)
@@ -11,9 +13,10 @@ export const BannerService = {
   listBanners: async (filters = {}) => {
     const query = {};
     if (filters.sectionId) query.section = filters.sectionId;
-    if (filters.state) query.state = filters.state;
-    if (filters.district) query.district = filters.district;
-    if (filters.mandal) query.mandal = filters.mandal;
+    if (filters.visibilityLevel) query.visibilityLevel = filters.visibilityLevel;
+    if (filters.stateId) query.visibilityStateId = filters.stateId;
+    if (filters.districtId) query.visibilityDistrictId = filters.districtId;
+    if (filters.mandalId) query.visibilityMandalId = filters.mandalId;
     return await Banner.find(query)
       .populate('section', 'name')
       .sort({ section: 1, order: 1 });
@@ -23,6 +26,17 @@ export const BannerService = {
    * Create new banner
    */
   createBanner: async (data) => {
+    VisibilityService.validateVisibilityPayload({
+      visibilityLevel: data.visibilityLevel,
+      stateId: data.visibilityStateId,
+      districtId: data.visibilityDistrictId,
+      mandalId: data.visibilityMandalId,
+    });
+    await LocationMasterService.validateHierarchy({
+      stateId: data.visibilityStateId,
+      districtId: data.visibilityDistrictId,
+      mandalId: data.visibilityMandalId,
+    });
     const banner = new Banner(data);
     await banner.save();
     await banner.populate('section', 'name');
@@ -33,6 +47,19 @@ export const BannerService = {
    * Update banner
    */
   updateBanner: async (id, data) => {
+    if (data.visibilityLevel) {
+      VisibilityService.validateVisibilityPayload({
+        visibilityLevel: data.visibilityLevel,
+        stateId: data.visibilityStateId,
+        districtId: data.visibilityDistrictId,
+        mandalId: data.visibilityMandalId,
+      });
+      await LocationMasterService.validateHierarchy({
+        stateId: data.visibilityStateId,
+        districtId: data.visibilityDistrictId,
+        mandalId: data.visibilityMandalId,
+      });
+    }
     const banner = await Banner.findByIdAndUpdate(id, data, { returnDocument: 'after' });
     if (!banner) throw new Error('Banner not found');
     await banner.populate('section', 'name');

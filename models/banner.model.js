@@ -80,6 +80,32 @@ const bannerSchema = new mongoose.Schema(
       default: false,
       index: true,
     },
+    visibilityLevel: {
+      type: String,
+      enum: ['state', 'district', 'mandal'],
+      default: 'state',
+      index: true,
+    },
+    visibilityStateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    visibilityDistrictId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    visibilityMandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    visibilityEnabled: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -89,7 +115,11 @@ const bannerSchema = new mongoose.Schema(
 // Indexes
 bannerSchema.index({ section: 1, order: 1 });
 bannerSchema.index({ isActive: 1 });
+bannerSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, isActive: 1 });
 
-const Banner = mongoose.models.Banner || mongoose.model('Banner', bannerSchema);
+if (mongoose.models.Banner) {
+  delete mongoose.models.Banner;
+}
+const Banner = mongoose.model('Banner', bannerSchema);
 
 export default Banner;

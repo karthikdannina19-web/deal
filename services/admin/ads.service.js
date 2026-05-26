@@ -19,11 +19,25 @@ export const adsService = {
   /**
    * Review an ad (Approve/Reject)
    */
-  reviewAd: async (id, status, notes = '', sectionId = null, category = null) => {
+  reviewAd: async (
+    id,
+    status,
+    notes = '',
+    sectionId = null,
+    category = null,
+    visibilityLevel = null,
+    visibilityStateId = null,
+    visibilityDistrictId = null,
+    visibilityMandalId = null
+  ) => {
     try {
       const body = { status, notes };
       if (sectionId !== undefined) body.sectionId = sectionId;
       if (category !== undefined) body.category = category;
+      if (visibilityLevel !== undefined && visibilityLevel !== null) body.visibility_level = visibilityLevel;
+      if (visibilityStateId !== undefined && visibilityStateId !== null) body.visibility_state_id = visibilityStateId;
+      if (visibilityDistrictId !== undefined) body.visibility_district_id = visibilityDistrictId;
+      if (visibilityMandalId !== undefined) body.visibility_mandal_id = visibilityMandalId;
       const response = await api.put(`/api/admin/ads/review/${id}`, body);
       return response.data;
     } catch (error) {

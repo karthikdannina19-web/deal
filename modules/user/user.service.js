@@ -5,6 +5,7 @@ import Referral from '../../models/referral.model.js';
 import ReferralSetting from '../../models/referralSetting.model.js';
 import WalletTransaction from '../../models/walletTransaction.model.js';
 import mongoose from 'mongoose';
+import { LocationResolverService } from '@/services/location-resolver.service.js';
 
 /**
  * User Service
@@ -19,7 +20,7 @@ export class UserService {
   static async getUserProfile(userId) {
     // We only select the non-sensitive fields required for the profile view
     const user = await User.findById(userId)
-      .select('firstName lastName email profileImage phone referralCode coinBalance location createdAt')
+      .select('firstName lastName email profileImage phone referralCode coinBalance location state district mandal stateId districtId mandalId latitude longitude locationUpdatedAt createdAt')
       .lean();
 
     return user;
@@ -68,6 +69,15 @@ export class UserService {
       userId,
       { 
         $set: { 
+          state: locationData.state,
+          district: locationData.district,
+          mandal: locationData.mandal,
+          stateId: locationData.stateId,
+          districtId: locationData.districtId,
+          mandalId: locationData.mandalId,
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          locationUpdatedAt: new Date(),
           location: {
             ...locationData,
             lastUpdated: new Date()
@@ -80,6 +90,31 @@ export class UserService {
     if (!user) throw new Error('User account not found');
 
     return user.location;
+  }
+
+  static async resolveAndSaveLocation(userId, { latitude, longitude, accuracy = null }) {
+    const resolved = await LocationResolverService.resolveCoordinates({ latitude, longitude });
+
+    const locationData = {
+      latitude: resolved.latitude,
+      longitude: resolved.longitude,
+      accuracy,
+      addressLine: resolved.addressLine,
+      area: resolved.area,
+      city: resolved.city,
+      pincode: resolved.pincode,
+      state: resolved.state.name,
+      district: resolved.district.name,
+      mandal: resolved.mandal.name,
+      stateId: resolved.state._id,
+      districtId: resolved.district._id,
+      mandalId: resolved.mandal._id,
+      provider: resolved.provider,
+    };
+
+    await this.saveLocation(userId, locationData);
+
+    return resolved;
   }
 
   /**

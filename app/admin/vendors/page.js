@@ -30,6 +30,13 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
+function normalizeId(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.toString) return value.toString();
+  return String(value);
+}
+
 /**
  * Tab definitions for filtering vendors by their registration status
  */
@@ -53,6 +60,13 @@ export default function VendorsPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [processingId, setProcessingId] = useState(null);
+  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState('mandal');
+  const [locationTree, setLocationTree] = useState([]);
+  const [visibilityLocation, setVisibilityLocation] = useState({
+    stateId: '',
+    districtId: '',
+    mandalId: '',
+  });
 
   /**
    * Fetch vendors from the dynamic backend API
@@ -90,6 +104,22 @@ export default function VendorsPage() {
     fetchVendors();
   }, [fetchVendors]);
 
+  useEffect(() => {
+    const loadLocations = async () => {
+      try {
+        const response = await fetch('/api/locations/tree');
+        const data = await response.json();
+        if (data.success) {
+          setLocationTree(data.data || []);
+        }
+      } catch (error) {
+        console.error('Failed to load locations', error);
+      }
+    };
+
+    loadLocations();
+  }, []);
+
   /**
    * Handle Approval or Rejection
    */
@@ -97,7 +127,7 @@ export default function VendorsPage() {
     setProcessingId(id);
     try {
       if (status === 'active') {
-        await vendorService.approveVendor(id);
+        await vendorService.approveVendor(id, selectedVisibilityLevel);
       } else if (status === 'rejected') {
         await vendorService.rejectVendor(id, "Admin moderation review");
       }
@@ -106,7 +136,7 @@ export default function VendorsPage() {
       updateVendorStatus(id, status);
       // Update selected vendor in modal if open
       if (selectedVendor && selectedVendor._id === id) {
-        setSelectedVendor({ ...selectedVendor, status });
+        setSelectedVendor({ ...selectedVendor, status, visibilityLevel: selectedVisibilityLevel });
       }
     } catch (error) {
       alert(error?.message || 'Failed to update vendor status');
@@ -114,6 +144,31 @@ export default function VendorsPage() {
       setProcessingId(null);
     }
   };
+
+  const handleUpdateVisibility = async () => {
+    if (!selectedVendor) return;
+
+    setProcessingId(selectedVendor._id);
+    try {
+      const response = await vendorService.updateVendorVisibility(selectedVendor._id, {
+        visibility_level: selectedVisibilityLevel,
+        visibility_state_id: visibilityLocation.stateId,
+        visibility_district_id: selectedVisibilityLevel === 'state' ? null : visibilityLocation.districtId,
+        visibility_mandal_id: selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null,
+      });
+
+      const updatedVendor = response.data;
+      setSelectedVendor(updatedVendor);
+      await fetchVendors();
+    } catch (error) {
+      alert(error?.message || error || 'Failed to update vendor visibility');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const selectedState = locationTree.find((state) => state.id === visibilityLocation.stateId);
+  const selectedDistrict = selectedState?.districts?.find((district) => district.id === visibilityLocation.districtId);
 
   return (
     <div className="space-y-12 pb-24">
@@ -312,7 +367,15 @@ export default function VendorsPage() {
                     </td>
                     <td className="px-10 py-8 text-right">
                       <button 
-                        onClick={() => setSelectedVendor(vendor)}
+                        onClick={() => {
+                          setSelectedVendor(vendor);
+                          setSelectedVisibilityLevel(vendor.visibilityLevel || 'mandal');
+                          setVisibilityLocation({
+                            stateId: normalizeId(vendor.visibilityStateId || vendor.storeStateId),
+                            districtId: normalizeId(vendor.visibilityDistrictId || vendor.storeDistrictId),
+                            mandalId: normalizeId(vendor.visibilityMandalId || vendor.storeMandalId),
+                          });
+                        }}
                         className="group/btn relative w-14 h-14 rounded-3xl bg-zinc-50 text-zinc-400 hover:bg-admin-primary hover:text-white hover:rotate-12 transition-all duration-500 flex items-center justify-center overflow-hidden shadow-sm"
                       >
                         <Eye size={24} className="group-hover/btn:scale-110 transition-transform" />
@@ -509,8 +572,16 @@ export default function VendorsPage() {
                                    <p className="font-semibold text-zinc-900">{selectedVendor.location?.district || 'N/A'}</p>
                                 </div>
                                 <div>
-                                   <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">State</p>
-                                   <p className="font-semibold text-zinc-900">{selectedVendor.location?.state || 'N/A'}</p>
+                                 <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">State</p>
+                                  <p className="font-semibold text-zinc-900">{selectedVendor.location?.state || 'N/A'}</p>
+                                </div>
+                                <div>
+                                   <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">Mandal</p>
+                                   <p className="font-semibold text-zinc-900">{selectedVendor.location?.mandal || 'N/A'}</p>
+                                </div>
+                                <div>
+                                   <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">Visibility</p>
+                                   <p className="font-semibold text-zinc-900 capitalize">{selectedVendor.visibilityLevel || 'Not set'}</p>
                                 </div>
                              </div>
                           </div>
@@ -560,7 +631,71 @@ export default function VendorsPage() {
                        {/* Governance Actions */}
                        <div className="pt-6 flex flex-col gap-5">
                           {selectedVendor.status === 'pending_approval' ? (
-                            <div className="grid grid-cols-2 gap-4">
+                            <>
+                              <div className="rounded-[32px] border border-zinc-200 bg-zinc-50 p-6 text-left">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Visibility target</p>
+                                <p className="mt-3 text-sm font-medium text-zinc-700">
+                                  Store belongs to {selectedVendor.location?.mandal || 'Unknown mandal'}, {selectedVendor.location?.district || 'Unknown district'}, {selectedVendor.location?.state || 'Unknown state'}.
+                                </p>
+                                <div className="mt-5 grid grid-cols-1 gap-3">
+                                  {['state', 'district', 'mandal'].map((level) => (
+                                    <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 cursor-pointer">
+                                      <div>
+                                        <p className="text-sm font-semibold text-zinc-900 capitalize">{level} Visibility</p>
+                                        <p className="text-xs text-zinc-500">
+                                          {level === 'state' ? selectedVendor.location?.state : level === 'district' ? selectedVendor.location?.district : selectedVendor.location?.mandal}
+                                        </p>
+                                      </div>
+                                      <input
+                                        type="radio"
+                                        name="vendor-visibility"
+                                        value={level}
+                                        checked={selectedVisibilityLevel === level}
+                                        onChange={() => setSelectedVisibilityLevel(level)}
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                                <div className="mt-5 grid grid-cols-1 gap-4">
+                                  <select
+                                    value={visibilityLocation.stateId}
+                                    onChange={(e) => setVisibilityLocation({ stateId: e.target.value, districtId: '', mandalId: '' })}
+                                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                                  >
+                                    <option value="">Select state</option>
+                                    {locationTree.map((state) => (
+                                      <option key={state.id} value={state.id}>{state.name}</option>
+                                    ))}
+                                  </select>
+
+                                  {selectedVisibilityLevel !== 'state' && (
+                                    <select
+                                      value={visibilityLocation.districtId}
+                                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, districtId: e.target.value, mandalId: '' }))}
+                                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                                    >
+                                      <option value="">Select district</option>
+                                      {(selectedState?.districts || []).map((district) => (
+                                        <option key={district.id} value={district.id}>{district.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
+
+                                  {selectedVisibilityLevel === 'mandal' && (
+                                    <select
+                                      value={visibilityLocation.mandalId}
+                                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, mandalId: e.target.value }))}
+                                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                                    >
+                                      <option value="">Select mandal</option>
+                                      {(selectedDistrict?.mandals || []).map((mandal) => (
+                                        <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
+                                      ))}
+                                    </select>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
                                <button 
                                  disabled={!!processingId}
                                  onClick={() => handleReview(selectedVendor._id, 'active')}
@@ -575,9 +710,10 @@ export default function VendorsPage() {
                                  className="py-5 bg-white border border-red-200 text-red-600 rounded-3xl font-semibold text-sm hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
                                >
                                   {processingId ? <Loader2 className="animate-spin" size={24} /> : <XCircle size={24} />}
-                                  <span>Restrict node</span>
+                                 <span>Restrict node</span>
                                </button>
-                            </div>
+                              </div>
+                            </>
                           ) : (selectedVendor.is_deleted || selectedVendor.status === 'deleted') ? (
                              <>
                                <div className="rounded-[32px] border border-zinc-200 bg-zinc-50 p-6 text-left">
@@ -614,14 +750,75 @@ export default function VendorsPage() {
                                </button>
                              </>
                           ) : (
-                             <div className="flex items-center gap-3 p-6 bg-zinc-50 rounded-3xl border border-zinc-200">
-                                <div className={cn("w-3 h-3 rounded-full animate-pulse", 
-                                   selectedVendor.status === 'active' ? "bg-green-500" : "bg-red-500"
-                                )} />
-                                <p className="text-sm font-medium text-zinc-600">
-                                   This node is currently <span className="text-zinc-900 font-semibold">{selectedVendor.status.replace('_', ' ')}</span>
-                                </p>
-                             </div>
+                             <>
+                               <div className="rounded-[32px] border border-zinc-200 bg-zinc-50 p-6 text-left">
+                                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Edit visibility target</p>
+                                 <div className="mt-5 grid grid-cols-1 gap-3">
+                                   {['state', 'district', 'mandal'].map((level) => (
+                                     <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 cursor-pointer">
+                                       <div>
+                                         <p className="text-sm font-semibold text-zinc-900 capitalize">{level} Visibility</p>
+                                         <p className="text-xs text-zinc-500">Change who can see this store</p>
+                                       </div>
+                                       <input
+                                         type="radio"
+                                         name="vendor-visibility-edit"
+                                         value={level}
+                                         checked={selectedVisibilityLevel === level}
+                                         onChange={() => setSelectedVisibilityLevel(level)}
+                                       />
+                                     </label>
+                                   ))}
+                                 </div>
+
+                                 <div className="mt-5 grid grid-cols-1 gap-4">
+                                   <select
+                                     value={visibilityLocation.stateId}
+                                     onChange={(e) => setVisibilityLocation({ stateId: e.target.value, districtId: '', mandalId: '' })}
+                                     className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                                   >
+                                     <option value="">Select state</option>
+                                     {locationTree.map((state) => (
+                                       <option key={state.id} value={state.id}>{state.name}</option>
+                                     ))}
+                                   </select>
+
+                                   {selectedVisibilityLevel !== 'state' && (
+                                     <select
+                                       value={visibilityLocation.districtId}
+                                       onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, districtId: e.target.value, mandalId: '' }))}
+                                       className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                                     >
+                                       <option value="">Select district</option>
+                                       {(selectedState?.districts || []).map((district) => (
+                                         <option key={district.id} value={district.id}>{district.name}</option>
+                                       ))}
+                                     </select>
+                                   )}
+
+                                   {selectedVisibilityLevel === 'mandal' && (
+                                     <select
+                                       value={visibilityLocation.mandalId}
+                                       onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, mandalId: e.target.value }))}
+                                       className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
+                                     >
+                                       <option value="">Select mandal</option>
+                                       {(selectedDistrict?.mandals || []).map((mandal) => (
+                                         <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
+                                       ))}
+                                     </select>
+                                   )}
+                                 </div>
+                               </div>
+
+                               <button
+                                 disabled={!!processingId}
+                                 onClick={handleUpdateVisibility}
+                                 className="w-full py-5 bg-zinc-900 text-white rounded-[32px] font-semibold text-sm hover:bg-zinc-800 transition-colors"
+                               >
+                                 {processingId ? 'Saving...' : 'Update Visibility'}
+                               </button>
+                             </>
                           )}
                           
                           <button className="w-full py-5 bg-zinc-100 text-zinc-700 rounded-[32px] font-semibold text-sm hover:bg-zinc-200 transition-colors flex items-center justify-center gap-3">

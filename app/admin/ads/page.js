@@ -5,6 +5,13 @@ import { useAdminStore } from "@/store/useAdminStore";
 import { adsService } from "@/services/admin/ads.service";
 import { Search, Filter, MoreHorizontal, Megaphone, Eye, MousePointerClick, Calendar, CheckCircle2, XCircle, Clock, Loader2, Plus, X as CloseIcon, Upload, Check } from "lucide-react";
 
+function normalizeId(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.toString) return value.toString();
+  return String(value);
+}
+
 export default function AdsPage() {
   const { ads, setAds, isLoading, setLoading, setError, updateAdStatus, removeAd } = useAdminStore();
   const [searchTerm, setSearchTerm] = useState("");
@@ -31,6 +38,13 @@ export default function AdsPage() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
+  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("mandal");
+  const [locationTree, setLocationTree] = useState([]);
+  const [visibilityLocation, setVisibilityLocation] = useState({
+    stateId: '',
+    districtId: '',
+    mandalId: '',
+  });
 
   const fetchAds = async () => {
     try {
@@ -73,25 +87,63 @@ export default function AdsPage() {
     }
   };
 
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/locations/tree');
+      const result = await res.json();
+      if (result.success) setLocationTree(result.data || []);
+    } catch (err) {
+      console.error('Failed to fetch locations', err);
+    }
+  };
+
   useEffect(() => {
     fetchAds();
     fetchSections();
     fetchCategories();
+    fetchLocations();
   }, [page, searchTerm, statusFilter]);
 
   const handleOpenModeration = (ad) => {
     setSelectedAd(ad);
-    setSelectedSection(ad.section || "");
+    setSelectedSection(normalizeId(ad.section?._id || ad.section));
     setSelectedCategory(ad.category || '');
+    setSelectedVisibilityLevel(ad.visibilityLevel || 'mandal');
+    setVisibilityLocation({
+      stateId: normalizeId(ad.visibilityStateId || ad.vendor?.storeStateId),
+      districtId: normalizeId(ad.visibilityDistrictId || ad.vendor?.storeDistrictId),
+      mandalId: normalizeId(ad.visibilityMandalId || ad.vendor?.storeMandalId),
+    });
     setReviewNotes("");
     setIsModerationModalOpen(true);
   };
 
-  const handleReview = async (id, status, sectionId = null, notes = "Admin moderation", category = undefined) => {
+  const handleReview = async (
+    id,
+    status,
+    sectionId = null,
+    notes = "Admin moderation",
+    category = undefined,
+    visibilityLevel = undefined,
+    visibilityStateId = undefined,
+    visibilityDistrictId = undefined,
+    visibilityMandalId = undefined
+  ) => {
     setProcessingId(id);
     try {
-      await adsService.reviewAd(id, status, notes, sectionId, category);
+      await adsService.reviewAd(
+        id,
+        status,
+        notes,
+        sectionId,
+        category,
+        visibilityLevel,
+        visibilityStateId,
+        visibilityDistrictId,
+        visibilityMandalId
+      );
       updateAdStatus(id, status === 'approve' || status === 'activate' ? 'approved' : status === 'reject' ? 'rejected' : status);
+      await fetchAds();
       setIsModerationModalOpen(false);
     } catch (err) {
       alert(err || 'Failed to update ad status');
@@ -99,6 +151,9 @@ export default function AdsPage() {
       setProcessingId(null);
     }
   };
+
+  const selectedState = locationTree.find((state) => state.id === visibilityLocation.stateId);
+  const selectedDistrict = selectedState?.districts?.find((district) => district.id === visibilityLocation.districtId);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -567,6 +622,71 @@ export default function AdsPage() {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Visibility Target</label>
+                <div className="grid grid-cols-1 gap-3">
+                  {['state', 'district', 'mandal'].map((level) => (
+                    <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-3 cursor-pointer">
+                      <div>
+                        <p className="font-bold text-zinc-900 dark:text-white capitalize">{level} Visibility</p>
+                        <p className="text-xs text-zinc-500">
+                          {level === 'state'
+                            ? selectedAd.vendor?.location?.state || 'Store state'
+                            : level === 'district'
+                              ? selectedAd.vendor?.location?.district || 'Store district'
+                              : selectedAd.vendor?.location?.mandal || 'Store mandal'}
+                        </p>
+                      </div>
+                      <input
+                        type="radio"
+                        name="ad-visibility"
+                        value={level}
+                        checked={selectedVisibilityLevel === level}
+                        onChange={() => setSelectedVisibilityLevel(level)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <div className="mt-4 grid grid-cols-1 gap-3">
+                  <select
+                    value={visibilityLocation.stateId}
+                    onChange={(e) => setVisibilityLocation({ stateId: e.target.value, districtId: '', mandalId: '' })}
+                    className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                  >
+                    <option value="">Select state</option>
+                    {locationTree.map((state) => (
+                      <option key={state.id} value={state.id}>{state.name}</option>
+                    ))}
+                  </select>
+
+                  {selectedVisibilityLevel !== 'state' && (
+                    <select
+                      value={visibilityLocation.districtId}
+                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, districtId: e.target.value, mandalId: '' }))}
+                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                    >
+                      <option value="">Select district</option>
+                      {(selectedState?.districts || []).map((district) => (
+                        <option key={district.id} value={district.id}>{district.name}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {selectedVisibilityLevel === 'mandal' && (
+                    <select
+                      value={visibilityLocation.mandalId}
+                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, mandalId: e.target.value }))}
+                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                    >
+                      <option value="">Select mandal</option>
+                      {(selectedDistrict?.mandals || []).map((mandal) => (
+                        <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-4 flex gap-4">
                 <button 
                   onClick={() => handleReview(selectedAd._id, 'reject', null, reviewNotes)}
@@ -576,7 +696,17 @@ export default function AdsPage() {
                   Reject Ad
                 </button>
                 <button 
-                  onClick={() => handleReview(selectedAd._id, 'approve', selectedSection, reviewNotes, selectedCategory)}
+                  onClick={() => handleReview(
+                    selectedAd._id,
+                    'approve',
+                    selectedSection,
+                    reviewNotes,
+                    selectedCategory,
+                    selectedVisibilityLevel,
+                    visibilityLocation.stateId,
+                    selectedVisibilityLevel === 'state' ? null : visibilityLocation.districtId,
+                    selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null
+                  )}
                   disabled={!!processingId}
                   className="flex-1 py-4 bg-admin-primary text-white font-black rounded-[24px] hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                 >

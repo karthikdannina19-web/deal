@@ -28,11 +28,19 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from "@/utils/cn";
 
+function normalizeId(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.toString) return value.toString();
+  return String(value);
+}
+
 export default function SectionsDashboard() {
   const [activeTab, setActiveTab] = useState('tags'); // 'tags', 'banners', 'tracking'
   const [sections, setSections] = useState([]);
   const [banners, setBanners] = useState([]);
   const [ads, setAds] = useState([]);
+  const [locationTree, setLocationTree] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Tag Modal State
@@ -51,7 +59,21 @@ export default function SectionsDashboard() {
 
   // Form States
   const [tagForm, setTagForm] = useState({ name: '', description: '', order: 0, isActive: true });
-  const [bannerForm, setBannerForm] = useState({ section: '', location: '', viewUrl: '', whatsappLink: '', storeLink: '', order: 0, isActive: true });
+  const [bannerForm, setBannerForm] = useState({
+    section: '',
+    title: '',
+    location: '',
+    locationLabel: '',
+    visibilityLevel: 'state',
+    visibilityStateId: '',
+    visibilityDistrictId: '',
+    visibilityMandalId: '',
+    viewUrl: '',
+    whatsappLink: '',
+    storeLink: '',
+    order: 0,
+    isActive: true
+  });
   
   const [tagImage, setTagImage] = useState(null);
   const [tagImagePreview, setTagImagePreview] = useState(null);
@@ -61,19 +83,22 @@ export default function SectionsDashboard() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [secRes, banRes, adsRes] = await Promise.all([
+      const [secRes, banRes, adsRes, locRes] = await Promise.all([
         fetch('/api/admin/sections'),
         fetch('/api/admin/banners'),
-        fetch('/api/admin/ads?status=approved')
+        fetch('/api/admin/ads?status=approved&activeOnly=true'),
+        fetch('/api/locations/tree')
       ]);
       
       const secData = await secRes.json();
       const banData = await banRes.json();
       const adsData = await adsRes.json();
+      const locData = await locRes.json();
       
       if (secData.success) setSections(secData.data);
       if (banData.success) setBanners(banData.data);
       if (adsData.success) setAds(adsData.ads);
+      if (locData.success) setLocationTree(locData.data || []);
     } catch (err) {
       console.error('Data fetch failed', err);
     } finally {
@@ -119,8 +144,14 @@ export default function SectionsDashboard() {
     if (banner) {
       setEditingBanner(banner);
       setBannerForm({ 
-        section: banner.section?._id || banner.section, 
+        section: normalizeId(banner.section?._id || banner.section), 
+        title: banner.title || '',
         location: banner.location || '', 
+        locationLabel: banner.locationLabel || '',
+        visibilityLevel: banner.visibilityLevel || 'state',
+        visibilityStateId: normalizeId(banner.visibilityStateId),
+        visibilityDistrictId: normalizeId(banner.visibilityDistrictId),
+        visibilityMandalId: normalizeId(banner.visibilityMandalId),
         viewUrl: banner.viewUrl || '', 
         whatsappLink: banner.whatsappLink || '', 
         storeLink: banner.storeLink || '', 
@@ -130,7 +161,21 @@ export default function SectionsDashboard() {
       setBannerImagePreview(banner.image?.url || null);
     } else {
       setEditingBanner(null);
-      setBannerForm({ section: sections[0]?._id || '', location: '', viewUrl: '', whatsappLink: '', storeLink: '', order: 0, isActive: true });
+      setBannerForm({
+        section: sections[0]?._id || '',
+        title: '',
+        location: '',
+        locationLabel: '',
+        visibilityLevel: 'state',
+        visibilityStateId: locationTree[0]?.id || '',
+        visibilityDistrictId: '',
+        visibilityMandalId: '',
+        viewUrl: '',
+        whatsappLink: '',
+        storeLink: '',
+        order: 0,
+        isActive: true
+      });
       setBannerImagePreview(null);
     }
     setBannerImage(null);
@@ -141,6 +186,12 @@ export default function SectionsDashboard() {
     e.preventDefault();
     const data = new FormData();
     Object.keys(bannerForm).forEach(key => data.append(key, bannerForm[key]));
+    const stateName = selectedState?.name || '';
+    const districtName = selectedDistrict?.name || '';
+    const mandalName = (selectedDistrict?.mandals || []).find((mandal) => mandal.id === bannerForm.visibilityMandalId)?.name || '';
+    data.append('state', stateName);
+    data.append('district', districtName);
+    data.append('mandal', mandalName);
     if (bannerImage) data.append('image', bannerImage);
 
     const url = editingBanner ? `/api/admin/banners/${editingBanner._id}` : '/api/admin/banners';
@@ -150,6 +201,9 @@ export default function SectionsDashboard() {
       fetchData();
     }
   };
+
+  const selectedState = locationTree.find((state) => state.id === bannerForm.visibilityStateId);
+  const selectedDistrict = selectedState?.districts?.find((district) => district.id === bannerForm.visibilityDistrictId);
 
   const handleDeleteBanner = async (id) => {
     if (!confirm('Delete this banner?')) return;
@@ -333,9 +387,12 @@ export default function SectionsDashboard() {
                             <div>
                                <span className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-zinc-500">{banner.section?.name || 'Unassigned'}</span>
                                <h4 className="text-xl font-black text-zinc-900 dark:text-zinc-50 mt-1 flex items-center gap-2">
-                                  {banner.location || 'Unknown Location'}
+                                  {banner.title || banner.location || 'Untitled Banner'}
                                   <MapPin size={16} className="text-zinc-400" />
                                </h4>
+                               <p className="mt-1 text-xs text-zinc-500 capitalize">
+                                 {banner.visibilityLevel || 'state'} visibility
+                               </p>
                             </div>
                             <div className={cn("px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest", banner.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400")}>
                                {banner.isActive ? 'Live' : 'Paused'}
@@ -549,9 +606,83 @@ export default function SectionsDashboard() {
                         </select>
                      </div>
                      <div>
-                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Location</label>
-                        <input value={bannerForm.location} onChange={e => setBannerForm({...bannerForm, location: e.target.value})} placeholder="City or Store Area" className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Title</label>
+                        <input value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} placeholder="Festival Offer" className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
                      </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Visibility Level</label>
+                        <select
+                          value={bannerForm.visibilityLevel}
+                          onChange={e => setBannerForm({
+                            ...bannerForm,
+                            visibilityLevel: e.target.value,
+                            visibilityDistrictId: e.target.value === 'state' ? '' : bannerForm.visibilityDistrictId,
+                            visibilityMandalId: e.target.value === 'mandal' ? bannerForm.visibilityMandalId : ''
+                          })}
+                          className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                        >
+                          <option value="state">State</option>
+                          <option value="district">District</option>
+                          <option value="mandal">Mandal</option>
+                        </select>
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">State</label>
+                        <select
+                          value={bannerForm.visibilityStateId}
+                          onChange={e => setBannerForm({
+                            ...bannerForm,
+                            visibilityStateId: e.target.value,
+                            visibilityDistrictId: '',
+                            visibilityMandalId: ''
+                          })}
+                          className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                        >
+                          <option value="">Select state</option>
+                          {locationTree.map(state => <option key={state.id} value={state.id}>{state.name}</option>)}
+                        </select>
+                     </div>
+                  </div>
+
+                  {bannerForm.visibilityLevel !== 'state' && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">District</label>
+                        <select
+                          value={bannerForm.visibilityDistrictId}
+                          onChange={e => setBannerForm({
+                            ...bannerForm,
+                            visibilityDistrictId: e.target.value,
+                            visibilityMandalId: ''
+                          })}
+                          className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                        >
+                          <option value="">Select district</option>
+                          {(selectedState?.districts || []).map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
+                        </select>
+                      </div>
+                      {bannerForm.visibilityLevel === 'mandal' && (
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Mandal</label>
+                          <select
+                            value={bannerForm.visibilityMandalId}
+                            onChange={e => setBannerForm({...bannerForm, visibilityMandalId: e.target.value})}
+                            className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                          >
+                            <option value="">Select mandal</option>
+                            {(selectedDistrict?.mandals || []).map(mandal => <option key={mandal.id} value={mandal.id}>{mandal.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                     <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Location Label</label>
+                     <input value={bannerForm.locationLabel} onChange={e => setBannerForm({...bannerForm, locationLabel: e.target.value})} placeholder="Festival Offer - Anantapur" className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

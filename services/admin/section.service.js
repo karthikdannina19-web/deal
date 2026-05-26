@@ -112,8 +112,19 @@ export const SectionService = {
    * Get section stats (ad counts)
    */
   getSectionStats: async () => {
+    const now = new Date();
     const stats = await Ad.aggregate([
-      { $match: { section: { $exists: true, $ne: null } } },
+      {
+        $match: {
+          section: { $exists: true, $ne: null },
+          status: 'approved',
+          $or: [
+            { expiresAt: { $exists: false } },
+            { expiresAt: null },
+            { expiresAt: { $gte: now } }
+          ]
+        }
+      },
       { $group: { _id: '$section', count: { $sum: 1 } } }
     ]);
 

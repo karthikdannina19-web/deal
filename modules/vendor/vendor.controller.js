@@ -495,7 +495,14 @@ export class VendorController {
         status: profile.status,
         rejectionReason: profile.rejectionReason || '',
         registrationStep: profile.registrationStep,
-        message
+        message,
+        visibility: {
+          level: profile.visibilityLevel || null,
+          stateId: profile.visibilityStateId || null,
+          districtId: profile.visibilityDistrictId || null,
+          mandalId: profile.visibilityMandalId || null,
+          enabled: profile.visibilityEnabled ?? true,
+        }
       }, { status: 200 });
 
     } catch (error) {
@@ -533,6 +540,11 @@ export class VendorController {
         state: profile.location?.state || '',
         district: profile.location?.district || '',
         mandal: profile.location?.mandal || '',
+        visibilityLevel: profile.visibilityLevel || null,
+        visibilityStateId: profile.visibilityStateId || null,
+        visibilityDistrictId: profile.visibilityDistrictId || null,
+        visibilityMandalId: profile.visibilityMandalId || null,
+        visibilityEnabled: profile.visibilityEnabled ?? true,
         thumbnailUrl: profile.media?.thumbnailUrl || '',
         bannerUrl: profile.media?.bannerUrl || '',
         category: profile.categoryId?.name || '',
@@ -589,6 +601,11 @@ export class VendorController {
         state: updatedProfile.location?.state || '',
         district: updatedProfile.location?.district || '',
         mandal: updatedProfile.location?.mandal || '',
+        visibilityLevel: updatedProfile.visibilityLevel || null,
+        visibilityStateId: updatedProfile.visibilityStateId || null,
+        visibilityDistrictId: updatedProfile.visibilityDistrictId || null,
+        visibilityMandalId: updatedProfile.visibilityMandalId || null,
+        visibilityEnabled: updatedProfile.visibilityEnabled ?? true,
         thumbnailUrl: updatedProfile.media?.thumbnailUrl || '',
         bannerUrl: updatedProfile.media?.bannerUrl || '',
         category: updatedProfile.categoryId?.name || ''
@@ -727,7 +744,12 @@ export class VendorController {
           status: result.ad.status,
           createdAt: result.ad.createdAt,
           viewCount: result.ad.views || 0,
-          canEdit: result.ad.canEdit
+          canEdit: result.ad.canEdit,
+          visibilityLevel: result.ad.visibilityLevel || null,
+          visibilityStateId: result.ad.visibilityStateId || null,
+          visibilityDistrictId: result.ad.visibilityDistrictId || null,
+          visibilityMandalId: result.ad.visibilityMandalId || null,
+          visibilityEnabled: result.ad.visibilityEnabled ?? true
         },
         remainingCredits: result.remainingCredits,
         creditSummary: result.creditSummary
@@ -782,7 +804,12 @@ export class VendorController {
         viewCount: ad.views || 0,
         createdAt: ad.createdAt,
         updatedAt: ad.updatedAt,
-        canEdit: ['pending', 'rejected', 'draft'].includes(ad.status)
+        canEdit: ['pending', 'rejected', 'draft'].includes(ad.status),
+        visibilityLevel: ad.visibilityLevel || null,
+        visibilityStateId: ad.visibilityStateId || null,
+        visibilityDistrictId: ad.visibilityDistrictId || null,
+        visibilityMandalId: ad.visibilityMandalId || null,
+        visibilityEnabled: ad.visibilityEnabled ?? true
       }));
 
       return Response.json({

@@ -56,6 +56,47 @@ const vendorSchema = new mongoose.Schema(
       district: { type: String, trim: true },
       mandal: { type: String, trim: true },
     },
+    storeStateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    storeDistrictId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    storeMandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    visibilityLevel: {
+      type: String,
+      enum: ['state', 'district', 'mandal'],
+      default: 'mandal',
+      index: true,
+    },
+    visibilityStateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    visibilityDistrictId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    visibilityMandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    visibilityEnabled: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
 
     media: {
       thumbnailUrl: { type: String },
@@ -224,7 +265,11 @@ vendorSchema.pre('save', async function() {
 vendorSchema.index({ email: 1 });
 vendorSchema.index({ locationCoordinates: '2dsphere' });
 vendorSchema.index({ storeName: 1 }); // Regular index for starts-with/regex search
+vendorSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1 });
 
-const Vendor = mongoose.models.Vendor || mongoose.model('Vendor', vendorSchema);
+if (mongoose.models.Vendor) {
+  delete mongoose.models.Vendor;
+}
+const Vendor = mongoose.model('Vendor', vendorSchema);
 
 export default Vendor;

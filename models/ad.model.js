@@ -233,6 +233,32 @@ const adSchema = new mongoose.Schema(
       ref: 'Section',
       index: true,
     },
+    visibilityLevel: {
+      type: String,
+      enum: ['state', 'district', 'mandal'],
+      default: 'mandal',
+      index: true,
+    },
+    visibilityStateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    visibilityDistrictId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    visibilityMandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    visibilityEnabled: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -250,6 +276,7 @@ adSchema.index({ isFeatured: 1, status: 1 });
 adSchema.index({ vendor: 1, status: 1 });
 adSchema.index({ 'location.city': 1, status: 1 });
 adSchema.index({ title: 'text', description: 'text', tags: 'text' });
+adSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, status: 1 });
 
 // ==========================================
 // Virtuals
@@ -384,6 +411,9 @@ adSchema.statics.countApproved = function (filters = {}) {
   return this.countDocuments({ status: 'approved', ...filters });
 };
 
-const Ad = mongoose.models.Ad || mongoose.model('Ad', adSchema);
+if (mongoose.models.Ad) {
+  delete mongoose.models.Ad;
+}
+const Ad = mongoose.model('Ad', adSchema);
 
 export default Ad;

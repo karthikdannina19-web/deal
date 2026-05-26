@@ -8,6 +8,8 @@ import WalletTransaction from '@/models/walletTransaction.model.js';
 import VendorTransaction from '@/models/vendorTransaction.model.js';
 import VendorAccountLog from '@/models/vendorAccountLog.model.js';
 import { dbConnect } from '@/config/database.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
+import { VisibilityService } from '@/services/visibility.service.js';
 
 export class AdminService {
   /**
@@ -16,7 +18,7 @@ export class AdminService {
    */
   static async listVendors(filters = {}) {
     await dbConnect();
-    const { status, search, page = 1, limit = 10 } = filters;
+    const { status, search, page = 1, limit = 10, visibilityLevel } = filters;
     
     const query = {
       is_deleted: { $ne: true },
@@ -36,6 +38,10 @@ export class AdminService {
         { fullName: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } }
       ];
+    }
+
+    if (visibilityLevel) {
+      query.visibilityLevel = visibilityLevel;
     }
 
     const total = await Vendor.countDocuments(query);
@@ -93,11 +99,28 @@ export class AdminService {
    * @param {string} vendorId 
    * @param {string} status 'active' or 'rejected'
    */
-  static async updateVendorStatus(vendorId, status, reason = '') {
+  static async updateVendorStatus(vendorId, status, reason = '', visibilityLevel = null) {
     await dbConnect();
     
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) throw new Error('Vendor not found');
+
+    if (status === 'active') {
+      if (!vendor.location?.state || !vendor.location?.district || !vendor.location?.mandal) {
+        throw new Error('Vendor store location is incomplete');
+      }
+
+      await LocationMasterService.syncLegacyLocation(vendor);
+
+      if (visibilityLevel) {
+        const visibility = VisibilityService.deriveFromStore(vendor, visibilityLevel);
+        vendor.visibilityLevel = visibility.visibilityLevel;
+        vendor.visibilityStateId = visibility.visibilityStateId;
+        vendor.visibilityDistrictId = visibility.visibilityDistrictId;
+        vendor.visibilityMandalId = visibility.visibilityMandalId;
+        vendor.visibilityEnabled = visibility.visibilityEnabled;
+      }
+    }
 
     vendor.status = status;
     vendor.rejectionReason = status === 'rejected' ? String(reason || '').trim() : '';
@@ -108,7 +131,7 @@ export class AdminService {
     } else if (status === 'rejected') {
       vendor.approvalStatus = 'rejected';
     }
-    
+
     await vendor.save();
 
     // If approved, update the associated user's role to 'vendor'
@@ -126,6 +149,41 @@ export class AdminService {
         );
       }
     }
+
+    return vendor;
+  }
+
+  static async updateVendorVisibility(vendorId, {
+    visibilityLevel,
+    visibilityStateId,
+    visibilityDistrictId = null,
+    visibilityMandalId = null,
+    visibilityEnabled = true,
+  }) {
+    await dbConnect();
+
+    const vendor = await Vendor.findById(vendorId);
+    if (!vendor) throw new Error('Vendor not found');
+
+    VisibilityService.validateVisibilityPayload({
+      visibilityLevel,
+      stateId: visibilityStateId,
+      districtId: visibilityDistrictId,
+      mandalId: visibilityMandalId,
+    });
+
+    await LocationMasterService.validateHierarchy({
+      stateId: visibilityStateId,
+      districtId: visibilityDistrictId,
+      mandalId: visibilityMandalId,
+    });
+
+    vendor.visibilityLevel = visibilityLevel;
+    vendor.visibilityStateId = visibilityStateId;
+    vendor.visibilityDistrictId = visibilityLevel === 'state' ? null : visibilityDistrictId;
+    vendor.visibilityMandalId = visibilityLevel === 'mandal' ? visibilityMandalId : null;
+    vendor.visibilityEnabled = visibilityEnabled !== false;
+    await vendor.save();
 
     return vendor;
   }

@@ -19,9 +19,9 @@ export const vendorService = {
   /**
    * Approve a vendor
    */
-  approveVendor: async (id) => {
+  approveVendor: async (id, visibilityLevel) => {
     try {
-      const response = await api.patch(`/api/admin/vendors/${id}`, { status: 'active' });
+      const response = await api.post(`/api/admin/vendors/${id}/approve`, { visibility_level: visibilityLevel });
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to approve vendor';
@@ -52,6 +52,15 @@ export const vendorService = {
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to suspend vendor';
+    }
+  },
+
+  updateVendorVisibility: async (id, payload) => {
+    try {
+      const response = await api.patch(`/api/admin/vendors/${id}`, payload);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to update vendor visibility';
     }
   },
 

@@ -369,11 +369,16 @@ export class UserController {
       // I'll update it later. For now, let's fetch it here.
       
       const User = (await import('@/models/user.model.js')).default;
-      const userData = await User.findById(authUser.id).select('location');
+      const userData = await User.findById(authUser.id).select('location stateId districtId mandalId');
 
       return Response.json({
         success: true,
-        location: userData?.location || null
+        location: userData?.location || null,
+        locationIds: userData ? {
+          stateId: userData.stateId || null,
+          districtId: userData.districtId || null,
+          mandalId: userData.mandalId || null,
+        } : null
       }, { status: 200 });
 
     } catch (error) {
@@ -399,32 +404,52 @@ export class UserController {
         return Response.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
       }
 
-      const { latitude, longitude, accuracy, label, addressLine, area, city, district, state, pincode } = body;
+      const { latitude, longitude, accuracy, label, addressLine, area, city, district, state, mandal, pincode, stateId, districtId, mandalId } = body;
 
       // Basic Validation
       if (latitude === undefined || longitude === undefined) {
         return Response.json({ success: false, message: 'Latitude and Longitude are required' }, { status: 400 });
       }
 
-      const locationData = {
-        latitude,
-        longitude,
-        accuracy,
-        label,
-        addressLine,
-        area,
-        city,
-        district,
-        state,
-        pincode
-      };
+      const shouldResolve = !stateId || !districtId || !mandalId || !state || !district || !mandal;
+      let savedLocation;
+      let resolvedLocation = null;
 
-      const savedLocation = await UserService.saveLocation(authUser.id, locationData);
+      if (shouldResolve) {
+        const resolved = await UserService.resolveAndSaveLocation(authUser.id, { latitude, longitude, accuracy });
+        resolvedLocation = {
+          state: { id: resolved.state._id, name: resolved.state.name },
+          district: { id: resolved.district._id, name: resolved.district.name },
+          mandal: { id: resolved.mandal._id, name: resolved.mandal.name },
+        };
+        const User = (await import('@/models/user.model.js')).default;
+        const refreshed = await User.findById(authUser.id).select('location');
+        savedLocation = refreshed?.location || null;
+      } else {
+        const locationData = {
+          latitude,
+          longitude,
+          accuracy,
+          label,
+          addressLine,
+          area,
+          city,
+          district,
+          state,
+          mandal,
+          pincode,
+          stateId,
+          districtId,
+          mandalId,
+        };
+        savedLocation = await UserService.saveLocation(authUser.id, locationData);
+      }
 
       return Response.json({
         success: true,
         message: 'Location saved successfully',
-        location: savedLocation
+        location: savedLocation,
+        resolvedLocation
       }, { status: 200 });
 
     } catch (error) {

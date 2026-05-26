@@ -87,7 +87,8 @@ export class AdminController {
         status: searchParams.get('status'),
         search: searchParams.get('search'),
         page: searchParams.get('page'),
-        limit: searchParams.get('limit')
+        limit: searchParams.get('limit'),
+        visibilityLevel: searchParams.get('visibilityLevel'),
       };
       
       const result = await AdminService.listVendors(filters);
@@ -108,13 +109,29 @@ export class AdminController {
 
       const { id } = await params;
       const body = await req.json();
-      const { status, reason } = body; // 'active' or 'rejected'
+      const { status, reason, visibility_level, visibilityLevel } = body; // 'active' or 'rejected'
+
+      if (!status && (visibility_level || visibilityLevel)) {
+        const vendor = await AdminService.updateVendorVisibility(id, {
+          visibilityLevel: visibility_level || visibilityLevel,
+          visibilityStateId: body.visibility_state_id || body.visibilityStateId,
+          visibilityDistrictId: body.visibility_district_id || body.visibilityDistrictId || null,
+          visibilityMandalId: body.visibility_mandal_id || body.visibilityMandalId || null,
+          visibilityEnabled: body.visibility_enabled ?? body.visibilityEnabled ?? true,
+        });
+
+        return Response.json({
+          success: true,
+          message: 'Vendor visibility updated successfully',
+          data: vendor,
+        }, { status: 200 });
+      }
 
       if (!['active', 'rejected', 'suspended'].includes(status)) {
         return Response.json({ success: false, message: 'Invalid status' }, { status: 400 });
       }
 
-      const vendor = await AdminService.updateVendorStatus(id, status, reason);
+      const vendor = await AdminService.updateVendorStatus(id, status, reason, visibility_level || visibilityLevel || null);
       return Response.json({ 
         success: true, 
         message: `Vendor ${status === 'active' ? 'approved' : status} successfully`,
@@ -169,6 +186,7 @@ export class AdminController {
       const { searchParams } = new URL(req.url);
       const status = searchParams.get('status');
       const search = searchParams.get('search');
+      const activeOnly = searchParams.get('activeOnly');
       const page = parseInt(searchParams.get('page')) || 1;
       const limit = parseInt(searchParams.get('limit')) || 20;
 
@@ -182,6 +200,9 @@ export class AdminController {
       }
       if (search) {
         query.search = search;
+      }
+      if (activeOnly === 'true') {
+        query.activeOnly = true;
       }
 
       const result = await listAds(query, page, limit);
@@ -271,6 +292,7 @@ export class AdminController {
       const notes = body.notes || 'Admin moderation';
       const sectionId = body.hasOwnProperty('sectionId') ? body.sectionId : undefined;
       const category = body.hasOwnProperty('category') ? body.category : undefined;
+      const visibilityLevel = body.visibility_level || body.visibilityLevel;
 
       const authHeader = req.headers.get('authorization');
       let adminId = null;
@@ -284,7 +306,18 @@ export class AdminController {
         }
       }
 
-      const ad = await moderateAd(id, action, adminId, notes, sectionId, category);
+      const ad = await moderateAd(
+        id,
+        action,
+        adminId,
+        notes,
+        sectionId,
+        category,
+        visibilityLevel,
+        body.visibility_state_id || body.visibilityStateId,
+        body.visibility_district_id || body.visibilityDistrictId,
+        body.visibility_mandal_id || body.visibilityMandalId
+      );
       
       return Response.json({ 
         success: true, 

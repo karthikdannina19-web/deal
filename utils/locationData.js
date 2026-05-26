@@ -11,6 +11,7 @@ const locationData = {
     'Warangal': ['Hanamkonda', 'Kazipet', 'Warangal City']
   },
   'Andhra Pradesh': {
+    'Anantapur': ['Hindupur', 'Penukonda', 'Kadiri'],
     'Visakhapatnam': ['Gajuwaka', 'Madhurawada', 'Seethammadhara'],
     'Vijayawada': ['Benz Circle', 'Patamata', 'Gunaadala'],
     'Guntur': ['Amaravati', 'Tenali', 'Narasaraopet'],
