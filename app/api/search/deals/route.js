@@ -1,6 +1,6 @@
 import { dbConnect } from '@/config/database';
 import Ad from '@/models/ad.model';
-import Vendor from '@/models/vendor.model.js';
+import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 export async function GET(req) {
   try {
@@ -12,8 +12,8 @@ export async function GET(req) {
     const state = searchParams.get('state');
     const district = searchParams.get('district');
     const mandal = searchParams.get('mandal');
-    const lat = parseFloat(searchParams.get('lat'));
-    const lng = parseFloat(searchParams.get('lng'));
+    const lat = parseCoordinate(searchParams.get('lat'));
+    const lng = parseCoordinate(searchParams.get('lng'));
     
     const groupBy = searchParams.get('groupBy');
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -37,7 +37,7 @@ export async function GET(req) {
     if (district) query.district = district;
     if (mandal) query.mandal = mandal;
 
-    if (!isNaN(lat) && !isNaN(lng)) {
+    if (lat !== null && lng !== null) {
       query.location = {
         $geoWithin: {
           $centerSphere: [[lng, lat], 50 / 6378.1] // 50km radius
@@ -73,12 +73,7 @@ export async function GET(req) {
 
     const mappedAds = ads.map(ad => {
       const { latitude, longitude } = getVendorCoordinates(ad.vendor);
-      let distanceKm = null;
-      // If we used geo-query, distance isn't easily extracted without aggregation, 
-      // but we can send a placeholder or calculate it if lat/lng are provided.
-      if (!isNaN(lat) && !isNaN(lng) && Number.isFinite(latitude) && Number.isFinite(longitude)) {
-        distanceKm = calculateDistance(lat, lng, latitude, longitude);
-      }
+      const distanceKm = calculateDistanceKm(lat, lng, latitude, longitude);
 
       return {
         id: ad._id,
@@ -127,7 +122,7 @@ export async function GET(req) {
         } : null,
         imageUrl: ad.images && ad.images.length > 0 ? ad.images[0].url : '',
         locationLabel: ad.locationLabel || ad.address || ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
-        distanceKm: distanceKm ? parseFloat(distanceKm.toFixed(1)) : null,
+        distanceKm,
         viewCount: ad.showViews !== false ? (ad.views || 0) : null,
         clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
         shareLink: `${process.env.NEXT_PUBLIC_APP_URL || 'https://example.com'}/ad/${ad._id}`,
@@ -197,34 +192,4 @@ export async function GET(req) {
       message: 'Failed to fetch deals'
     }, { status: 500 });
   }
-}
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the earth in km
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in km
-}
-
-function deg2rad(deg) {
-  return deg * (Math.PI / 180);
-}
-
-function getVendorCoordinates(vendor) {
-  const latitude = vendor?.locationCoordinates?.coordinates?.[1]
-    ?? vendor?.location?.coordinates?.[1]
-    ?? null;
-  const longitude = vendor?.locationCoordinates?.coordinates?.[0]
-    ?? vendor?.location?.coordinates?.[0]
-    ?? null;
-
-  return {
-    latitude: Number.isFinite(latitude) ? latitude : null,
-    longitude: Number.isFinite(longitude) ? longitude : null,
-  };
 }

@@ -2,28 +2,16 @@ import Ad from '@/models/ad.model.js';
 import Banner from '@/models/banner.model.js';
 import Category from '@/models/category.model.js';
 import Coupon from '@/models/coupon.model.js';
-import Section from '@/models/section.model.js';
 import User from '@/models/user.model.js';
 import '@/models/vendor.model.js';
 import mongoose from 'mongoose';
 import { VisibilityService } from '@/services/visibility.service.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
+import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 function num(v, fallback = 999999) {
   return Number.isFinite(v) ? v : fallback;
 }
-function distanceKm(lat1, lng1, lat2, lng2) {
-  if (![lat1, lng1, lat2, lng2].every((v) => Number.isFinite(v))) return null;
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Number((R * c).toFixed(2));
-}
-
 function normalizeText(v) {
   return (v || '').toString().trim().toLowerCase();
 }
@@ -33,20 +21,6 @@ function locationMatches(doc, filters) {
   const districtOk = !filters.district || normalizeText(doc.district) === normalizeText(filters.district);
   const mandalOk = !filters.mandal || normalizeText(doc.mandal) === normalizeText(filters.mandal);
   return stateOk && districtOk && mandalOk;
-}
-
-function getVendorCoordinates(vendor) {
-  const lat = vendor?.locationCoordinates?.coordinates?.[1]
-    ?? vendor?.location?.coordinates?.[1]
-    ?? null;
-  const lng = vendor?.locationCoordinates?.coordinates?.[0]
-    ?? vendor?.location?.coordinates?.[0]
-    ?? null;
-
-  return {
-    latitude: Number.isFinite(lat) ? lat : null,
-    longitude: Number.isFinite(lng) ? lng : null,
-  };
 }
 
 function mapBanner(banner) {
@@ -61,7 +35,7 @@ function mapBanner(banner) {
     bannerUrl: imageUrl,
     mediaUrl: imageUrl,
     locationLabel: banner.locationLabel || banner.location || '',
-    distanceKm: num(banner.distanceKm, null),
+    distanceKm: num(parseCoordinate(banner.distanceKm), null),
     viewCount: banner.clicks || 0,
     whatsappLink: banner.whatsappLink || '',
     viewUrl: banner.viewUrl || '',
@@ -122,8 +96,8 @@ function mapAd(ad) {
         lng: longitude,
       },
     } : null,
-    locationLabel: [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
-    distanceKm: num(ad.distanceKm, null),
+    locationLabel: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
+    distanceKm: num(parseCoordinate(ad.distanceKm), null),
     // viewCount: null means vendor disabled view counter — hide the widget in the UI
     viewCount: ad.showViews !== false ? (ad.views || 0) : null,
     // clickCount: null means vendor disabled click counter — hide the widget in the UI
@@ -155,7 +129,12 @@ export class UserAppService {
     return filteredBanners
       .map((b) => ({
         ...b,
-        distanceKm: distanceKm(Number(lat), Number(lng), b.locationCoordinates?.lat, b.locationCoordinates?.lng),
+        distanceKm: calculateDistanceKm(
+          parseCoordinate(lat),
+          parseCoordinate(lng),
+          parseCoordinate(b.locationCoordinates?.lat),
+          parseCoordinate(b.locationCoordinates?.lng)
+        ),
       }))
       .map(mapBanner);
   }
@@ -196,15 +175,18 @@ export class UserAppService {
         };
         return locationMatches(loc, { state, district, mandal });
       }))
-      .map((ad) => ({
-        ...ad,
-        distanceKm: distanceKm(
-          Number(lat),
-          Number(lng),
-          ad.vendor?.locationCoordinates?.coordinates?.[1],
-          ad.vendor?.locationCoordinates?.coordinates?.[0]
-        ),
-      }));
+      .map((ad) => {
+        const { latitude, longitude } = getVendorCoordinates(ad.vendor);
+        return {
+          ...ad,
+          distanceKm: calculateDistanceKm(
+            parseCoordinate(lat),
+            parseCoordinate(lng),
+            latitude,
+            longitude
+          ),
+        };
+      });
     return filtered.map(mapAd);
   }
 

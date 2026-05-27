@@ -1,26 +1,12 @@
 import Section from '@/models/section.model.js';
 import Ad from '@/models/ad.model.js';
-import Banner from '@/models/banner.model.js';
 import { dbConnect } from '@/config/database.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import User from '@/models/user.model.js';
 import { VisibilityService } from '@/services/visibility.service.js';
 import Category from '@/models/category.model.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
-
-function getVendorCoordinates(vendor) {
-  const lat = vendor?.locationCoordinates?.coordinates?.[1]
-    ?? vendor?.location?.coordinates?.[1]
-    ?? null;
-  const lng = vendor?.locationCoordinates?.coordinates?.[0]
-    ?? vendor?.location?.coordinates?.[0]
-    ?? null;
-
-  return {
-    latitude: Number.isFinite(lat) ? lat : null,
-    longitude: Number.isFinite(lng) ? lng : null,
-  };
-}
+import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 export class SectionController {
   /**
@@ -62,6 +48,8 @@ export class SectionController {
       const limit = parseInt(searchParams.get('limit')) || 20;
       const skip = (page - 1) * limit;
       const requestedCategoryId = searchParams.get('categoryId') || searchParams.get('category');
+      const userLatitude = parseCoordinate(searchParams.get('lat'));
+      const userLongitude = parseCoordinate(searchParams.get('lng'));
 
       const section = await Section.findOne(
         VisibilityService.buildMatchQuery(userLocation, { slug, isActive: true })
@@ -139,6 +127,7 @@ export class SectionController {
         longitude,
         lat: latitude,
         lng: longitude,
+        distanceKm: calculateDistanceKm(userLatitude, userLongitude, latitude, longitude),
         storeSummary: {
           businessName: ad.vendor?.storeName || '',
           logoImage: ad.vendor?.media?.thumbnailUrl || '',
