@@ -25,7 +25,7 @@ export class DealService {
     let deals = await Ad.find(query)
       .populate({
         path: 'vendor',
-        select: 'storeName location fullAddress media'
+        select: 'storeName location fullAddress media locationCoordinates'
       })
       .sort({ createdAt: -1 })
       .limit(limit)
@@ -33,20 +33,38 @@ export class DealService {
 
     return deals.map(deal => ({
       offerId: deal._id,
+      _id: deal._id,
       title: deal.title,
       description: deal.description,
       discountValue: deal.price, // Using price as fallback for discountValue
       discountType: 'fixed',
       images: deal.images,
+      locationLabel: deal.vendor?.fullAddress || [deal.vendor?.location?.mandal, deal.vendor?.location?.district, deal.vendor?.location?.state].filter(Boolean).join(', '),
+      latitude: deal.vendor?.locationCoordinates?.coordinates?.[1] ?? null,
+      longitude: deal.vendor?.locationCoordinates?.coordinates?.[0] ?? null,
+      lat: deal.vendor?.locationCoordinates?.coordinates?.[1] ?? null,
+      lng: deal.vendor?.locationCoordinates?.coordinates?.[0] ?? null,
       store: {
         businessName: deal.vendor?.storeName,
+        storeName: deal.vendor?.storeName,
         location: {
           lat: deal.vendor?.locationCoordinates?.coordinates[1],
           lng: deal.vendor?.locationCoordinates?.coordinates[0]
         },
+        locationCoordinates: {
+          lat: deal.vendor?.locationCoordinates?.coordinates?.[1] ?? null,
+          lng: deal.vendor?.locationCoordinates?.coordinates?.[0] ?? null
+        },
         address: deal.vendor?.fullAddress
-      }
+      },
+      vendor: deal.vendor ? {
+        ...deal.vendor,
+        locationCoordinates: {
+          ...(deal.vendor.locationCoordinates || {}),
+          lat: deal.vendor?.locationCoordinates?.coordinates?.[1] ?? null,
+          lng: deal.vendor?.locationCoordinates?.coordinates?.[0] ?? null
+        }
+      } : null
     }));
   }
 }
-

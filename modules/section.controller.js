@@ -8,6 +8,20 @@ import { VisibilityService } from '@/services/visibility.service.js';
 import Category from '@/models/category.model.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
 
+function getVendorCoordinates(vendor) {
+  const lat = vendor?.locationCoordinates?.coordinates?.[1]
+    ?? vendor?.location?.coordinates?.[1]
+    ?? null;
+  const lng = vendor?.locationCoordinates?.coordinates?.[0]
+    ?? vendor?.location?.coordinates?.[0]
+    ?? null;
+
+  return {
+    latitude: Number.isFinite(lat) ? lat : null,
+    longitude: Number.isFinite(lng) ? lng : null,
+  };
+}
+
 export class SectionController {
   /**
    * GET /api/sections
@@ -111,20 +125,60 @@ export class SectionController {
       });
 
       const mappedAds = ads.map(ad => ({
+        ...(() => {
+          const { latitude, longitude } = getVendorCoordinates(ad.vendor);
+          return {
         id: ad._id,
+        _id: ad._id,
         title: ad.title,
         category: ad.category || 'General',
         storeId: ad.vendor?._id || null,
         storeName: ad.vendor?.storeName || '',
+        locationLabel: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
+        latitude,
+        longitude,
+        lat: latitude,
+        lng: longitude,
         storeSummary: {
           businessName: ad.vendor?.storeName || '',
           logoImage: ad.vendor?.media?.thumbnailUrl || '',
           fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
         },
+        store: {
+          storeName: ad.vendor?.storeName || '',
+          location: {
+            lat: latitude,
+            lng: longitude,
+          },
+          locationCoordinates: {
+            lat: latitude,
+            lng: longitude,
+          },
+        },
+        storeDetails: {
+          location: {
+            lat: latitude,
+            lng: longitude,
+          },
+          locationCoordinates: {
+            lat: latitude,
+            lng: longitude,
+          },
+        },
+        vendor: ad.vendor ? {
+          ...ad.vendor,
+          locationCoordinates: {
+            ...(ad.vendor.locationCoordinates || {}),
+            lat: latitude,
+            lng: longitude,
+          },
+        } : null,
         image: { url: ad.images?.[0]?.url || '' },
         viewCount: ad.showViews !== false ? (ad.views || 0) : null,
         clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
         status: ad.status
+          };
+        })()
       }));
 
       return Response.json({

@@ -72,27 +72,61 @@ export async function GET(req) {
     ];
 
     const mappedAds = ads.map(ad => {
+      const { latitude, longitude } = getVendorCoordinates(ad.vendor);
       let distanceKm = null;
       // If we used geo-query, distance isn't easily extracted without aggregation, 
       // but we can send a placeholder or calculate it if lat/lng are provided.
-      if (!isNaN(lat) && !isNaN(lng) && ad.location && ad.location.coordinates) {
-        const [adLng, adLat] = ad.location.coordinates;
-        distanceKm = calculateDistance(lat, lng, adLat, adLng);
+      if (!isNaN(lat) && !isNaN(lng) && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        distanceKm = calculateDistance(lat, lng, latitude, longitude);
       }
 
       return {
         id: ad._id,
+        _id: ad._id,
         title: ad.title,
         category: ad.category,
         storeId: ad.vendor?._id || null,
         storeName: ad.vendor?.storeName || '',
+        latitude,
+        longitude,
+        lat: latitude,
+        lng: longitude,
         storeSummary: {
           businessName: ad.vendor?.storeName || '',
           logoImage: ad.vendor?.media?.thumbnailUrl || '',
           fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
         },
+        store: {
+          storeName: ad.vendor?.storeName || '',
+          location: {
+            lat: latitude,
+            lng: longitude
+          },
+          locationCoordinates: {
+            lat: latitude,
+            lng: longitude
+          }
+        },
+        storeDetails: {
+          location: {
+            lat: latitude,
+            lng: longitude
+          },
+          locationCoordinates: {
+            lat: latitude,
+            lng: longitude
+          }
+        },
+        vendor: ad.vendor ? {
+          ...ad.vendor,
+          locationCoordinates: {
+            ...(ad.vendor.locationCoordinates || {}),
+            lat: latitude,
+            lng: longitude
+          }
+        } : null,
         imageUrl: ad.images && ad.images.length > 0 ? ad.images[0].url : '',
-        locationLabel: ad.locationLabel || ad.address || [ad.mandal, ad.district].filter(Boolean).join(', '),
+        locationLabel: ad.locationLabel || ad.address || ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
         distanceKm: distanceKm ? parseFloat(distanceKm.toFixed(1)) : null,
         viewCount: ad.showViews !== false ? (ad.views || 0) : null,
         clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
@@ -179,4 +213,18 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 function deg2rad(deg) {
   return deg * (Math.PI / 180);
+}
+
+function getVendorCoordinates(vendor) {
+  const latitude = vendor?.locationCoordinates?.coordinates?.[1]
+    ?? vendor?.location?.coordinates?.[1]
+    ?? null;
+  const longitude = vendor?.locationCoordinates?.coordinates?.[0]
+    ?? vendor?.location?.coordinates?.[0]
+    ?? null;
+
+  return {
+    latitude: Number.isFinite(latitude) ? latitude : null,
+    longitude: Number.isFinite(longitude) ? longitude : null,
+  };
 }

@@ -100,13 +100,30 @@ export class StoreService {
 
       return {
         offerId: ad._id,
+        _id: ad._id,
         title: ad.title,
         description: ad.description,
         image: primaryImage,
         category: ad.category || 'General',
         price: ad.price || 0,
         shareUrl,
-        isActive
+        isActive,
+        locationLabel: vendor?.fullAddress || '',
+        latitude: hasValidCoordinates ? latitude : null,
+        longitude: hasValidCoordinates ? longitude : null,
+        lat: hasValidCoordinates ? latitude : null,
+        lng: hasValidCoordinates ? longitude : null,
+        store: {
+          storeName: vendor?.storeName || '',
+          location: {
+            lat: hasValidCoordinates ? latitude : null,
+            lng: hasValidCoordinates ? longitude : null
+          },
+          locationCoordinates: {
+            lat: hasValidCoordinates ? latitude : null,
+            lng: hasValidCoordinates ? longitude : null
+          }
+        }
       };
     });
 

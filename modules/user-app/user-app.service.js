@@ -35,6 +35,20 @@ function locationMatches(doc, filters) {
   return stateOk && districtOk && mandalOk;
 }
 
+function getVendorCoordinates(vendor) {
+  const lat = vendor?.locationCoordinates?.coordinates?.[1]
+    ?? vendor?.location?.coordinates?.[1]
+    ?? null;
+  const lng = vendor?.locationCoordinates?.coordinates?.[0]
+    ?? vendor?.location?.coordinates?.[0]
+    ?? null;
+
+  return {
+    latitude: Number.isFinite(lat) ? lat : null,
+    longitude: Number.isFinite(lng) ? lng : null,
+  };
+}
+
 function mapBanner(banner) {
   const imageUrl = banner.image?.url || '';
   return {
@@ -59,6 +73,7 @@ function mapBanner(banner) {
 
 function mapAd(ad) {
   const imageUrl = ad.primaryImage || ad.images?.[0]?.url || '';
+  const { latitude, longitude } = getVendorCoordinates(ad.vendor);
   return {
     id: ad._id,
     _id: ad._id,
@@ -69,11 +84,44 @@ function mapAd(ad) {
     imageUrl,
     storeId: ad.vendor?._id || null,
     storeName: ad.vendor?.storeName || '',
+    latitude,
+    longitude,
+    lat: latitude,
+    lng: longitude,
     storeSummary: {
       businessName: ad.vendor?.storeName || '',
       logoImage: ad.vendor?.media?.thumbnailUrl || '',
       fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
     },
+    store: {
+      storeName: ad.vendor?.storeName || '',
+      location: {
+        lat: latitude,
+        lng: longitude,
+      },
+      locationCoordinates: {
+        lat: latitude,
+        lng: longitude,
+      },
+    },
+    storeDetails: {
+      location: {
+        lat: latitude,
+        lng: longitude,
+      },
+      locationCoordinates: {
+        lat: latitude,
+        lng: longitude,
+      },
+    },
+    vendor: ad.vendor ? {
+      ...ad.vendor,
+      locationCoordinates: {
+        ...(ad.vendor.locationCoordinates || {}),
+        lat: latitude,
+        lng: longitude,
+      },
+    } : null,
     locationLabel: [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
     distanceKm: num(ad.distanceKm, null),
     // viewCount: null means vendor disabled view counter — hide the widget in the UI
