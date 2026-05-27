@@ -26,18 +26,26 @@ export const BannerService = {
    * Create new banner
    */
   createBanner: async (data) => {
-    VisibilityService.validateVisibilityPayload({
+    const visibility = VisibilityService.normalizeVisibilityPayload({
       visibilityLevel: data.visibilityLevel,
-      stateId: data.visibilityStateId,
-      districtId: data.visibilityDistrictId,
-      mandalId: data.visibilityMandalId,
+      visibilityStateId: data.visibilityStateId,
+      visibilityDistrictId: data.visibilityDistrictId,
+      visibilityMandalId: data.visibilityMandalId,
+      visibilityEnabled: data.visibilityEnabled,
     });
-    await LocationMasterService.validateHierarchy({
-      stateId: data.visibilityStateId,
-      districtId: data.visibilityDistrictId,
-      mandalId: data.visibilityMandalId,
+
+    if (visibility.visibilityStateId) {
+      await LocationMasterService.validateHierarchy({
+        stateId: visibility.visibilityStateId,
+        districtId: visibility.visibilityDistrictId,
+        mandalId: visibility.visibilityMandalId,
+      });
+    }
+
+    const banner = new Banner({
+      ...data,
+      ...visibility,
     });
-    const banner = new Banner(data);
     await banner.save();
     await banner.populate('section', 'name');
     return banner;
@@ -47,18 +55,36 @@ export const BannerService = {
    * Update banner
    */
   updateBanner: async (id, data) => {
-    if (data.visibilityLevel) {
-      VisibilityService.validateVisibilityPayload({
+    const hasVisibilityUpdate = [
+      'visibilityLevel',
+      'visibilityStateId',
+      'visibilityDistrictId',
+      'visibilityMandalId',
+      'visibilityEnabled',
+    ].some((key) => Object.prototype.hasOwnProperty.call(data, key));
+
+    if (hasVisibilityUpdate) {
+      const visibility = VisibilityService.normalizeVisibilityPayload({
         visibilityLevel: data.visibilityLevel,
-        stateId: data.visibilityStateId,
-        districtId: data.visibilityDistrictId,
-        mandalId: data.visibilityMandalId,
+        visibilityStateId: data.visibilityStateId,
+        visibilityDistrictId: data.visibilityDistrictId,
+        visibilityMandalId: data.visibilityMandalId,
+        visibilityEnabled: data.visibilityEnabled,
       });
-      await LocationMasterService.validateHierarchy({
-        stateId: data.visibilityStateId,
-        districtId: data.visibilityDistrictId,
-        mandalId: data.visibilityMandalId,
-      });
+
+      if (visibility.visibilityStateId) {
+        await LocationMasterService.validateHierarchy({
+          stateId: visibility.visibilityStateId,
+          districtId: visibility.visibilityDistrictId,
+          mandalId: visibility.visibilityMandalId,
+        });
+      }
+
+      data.visibilityLevel = visibility.visibilityLevel;
+      data.visibilityStateId = visibility.visibilityStateId;
+      data.visibilityDistrictId = visibility.visibilityDistrictId;
+      data.visibilityMandalId = visibility.visibilityMandalId;
+      data.visibilityEnabled = visibility.visibilityEnabled;
     }
     const banner = await Banner.findByIdAndUpdate(id, data, { returnDocument: 'after' });
     if (!banner) throw new Error('Banner not found');

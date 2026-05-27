@@ -2,6 +2,9 @@ import Section from '@/models/section.model.js';
 import Ad from '@/models/ad.model.js';
 import Banner from '@/models/banner.model.js';
 import { dbConnect } from '@/config/database.js';
+import { authenticate } from '@/middleware/auth.middleware.js';
+import User from '@/models/user.model.js';
+import { VisibilityService } from '@/services/visibility.service.js';
 
 export class SectionController {
   /**
@@ -27,6 +30,19 @@ export class SectionController {
       await dbConnect();
       const { slug } = await params;
       const { searchParams } = new URL(req.url);
+      const authHeader = req.headers.get('authorization');
+      const auth = authHeader ? await authenticate(req) : { user: null, error: null };
+      if (auth?.error && authHeader) return auth.error;
+      const authUser = auth?.user?.id
+        ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
+        : null;
+      const userLocation = authUser?.stateId && authUser?.districtId && authUser?.mandalId
+        ? {
+            stateId: authUser.stateId,
+            districtId: authUser.districtId,
+            mandalId: authUser.mandalId,
+          }
+        : null;
       const page = parseInt(searchParams.get('page')) || 1;
       const limit = parseInt(searchParams.get('limit')) || 20;
       const skip = (page - 1) * limit;
@@ -39,12 +55,12 @@ export class SectionController {
       }
 
       const [banners, ads, total] = await Promise.all([
-        Banner.find({ section: section._id, isActive: true })
+        Banner.find(VisibilityService.buildMatchQuery(userLocation, { section: section._id, isActive: true }))
           .select('_id section title image viewUrl whatsappLink storeLink order isActive')
           .sort({ order: 1 })
           .lean(),
 
-        Ad.find({ section: section._id, status: 'approved' })
+        Ad.find(VisibilityService.buildMatchQuery(userLocation, { section: section._id, status: 'approved' }))
           .select('_id section title category images status vendor')
           .populate('vendor', 'storeName location state district mandal locationCoordinates media fullAddress _id')
           .sort({ isFeatured: -1, priority: -1, createdAt: -1 })
@@ -52,7 +68,7 @@ export class SectionController {
           .limit(limit)
           .lean(),
 
-        Ad.countDocuments({ section: section._id, status: 'approved' }),
+        Ad.countDocuments(VisibilityService.buildMatchQuery(userLocation, { section: section._id, status: 'approved' })),
       ]);
 
       const mappedBanners = banners.map((banner) => {

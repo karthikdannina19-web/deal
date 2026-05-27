@@ -38,7 +38,7 @@ export default function AdsPage() {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
-  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("mandal");
+  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("");
   const [locationTree, setLocationTree] = useState([]);
   const [visibilityLocation, setVisibilityLocation] = useState({
     stateId: '',
@@ -108,7 +108,7 @@ export default function AdsPage() {
     setSelectedAd(ad);
     setSelectedSection(normalizeId(ad.section?._id || ad.section));
     setSelectedCategory(ad.category || '');
-    setSelectedVisibilityLevel(ad.visibilityLevel || 'mandal');
+    setSelectedVisibilityLevel(ad.visibilityLevel || '');
     setVisibilityLocation({
       stateId: normalizeId(ad.visibilityStateId || ad.vendor?.storeStateId),
       districtId: normalizeId(ad.visibilityDistrictId || ad.vendor?.storeDistrictId),
@@ -625,12 +625,14 @@ export default function AdsPage() {
               <div>
                 <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Visibility Target</label>
                 <div className="grid grid-cols-1 gap-3">
-                  {['state', 'district', 'mandal'].map((level) => (
+                  {['', 'state', 'district', 'mandal'].map((level) => (
                     <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-3 cursor-pointer">
                       <div>
-                        <p className="font-bold text-zinc-900 dark:text-white capitalize">{level} Visibility</p>
+                        <p className="font-bold text-zinc-900 dark:text-white capitalize">{level ? `${level} Visibility` : 'All Users'}</p>
                         <p className="text-xs text-zinc-500">
-                          {level === 'state'
+                          {level === ''
+                            ? 'Visible in every location'
+                            : level === 'state'
                             ? selectedAd.vendor?.location?.state || 'Store state'
                             : level === 'district'
                               ? selectedAd.vendor?.location?.district || 'Store district'
@@ -647,6 +649,7 @@ export default function AdsPage() {
                     </label>
                   ))}
                 </div>
+                {selectedVisibilityLevel && (
                 <div className="mt-4 grid grid-cols-1 gap-3">
                   <select
                     value={visibilityLocation.stateId}
@@ -685,6 +688,7 @@ export default function AdsPage() {
                     </select>
                   )}
                 </div>
+                )}
               </div>
 
               <div className="pt-4 flex gap-4">
@@ -702,9 +706,9 @@ export default function AdsPage() {
                     selectedSection,
                     reviewNotes,
                     selectedCategory,
-                    selectedVisibilityLevel,
-                    visibilityLocation.stateId,
-                    selectedVisibilityLevel === 'state' ? null : visibilityLocation.districtId,
+                    selectedVisibilityLevel || null,
+                    selectedVisibilityLevel ? visibilityLocation.stateId : null,
+                    selectedVisibilityLevel === 'state' ? null : (selectedVisibilityLevel ? visibilityLocation.districtId : null),
                     selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null
                   )}
                   disabled={!!processingId}

@@ -182,38 +182,10 @@ export class StoreController {
    */
   static async getNearby(req) {
     try {
-      await dbConnect();
-
-      const { searchParams } = new URL(req.url);
-      const latitude = searchParams.get('lat') || searchParams.get('latitude');
-      const longitude = searchParams.get('lng') || searchParams.get('longitude');
-      const radius = parseFloat(searchParams.get('radius')) || 10;
-      const limit = parseInt(searchParams.get('limit')) || 10;
-
-      if (!latitude || !longitude) {
-        return Response.json({ 
-          success: false, 
-          message: 'Latitude and Longitude are required for nearby discovery' 
-        }, { status: 400 });
-      }
-
-      const lat = parseFloat(latitude);
-      const lng = parseFloat(longitude);
-
-      if (isNaN(lat) || isNaN(lng)) {
-        return Response.json({ success: false, message: 'Invalid coordinates' }, { status: 400 });
-      }
-
-      const result = await StoreService.getNearbyDiscovery({
-        latitude: lat,
-        longitude: lng,
-        radius,
-        limit
-      });
-
       return Response.json({
         success: true,
-        stores: result
+        stores: [],
+        message: 'Nearby discovery is disabled. Use section and category listings.'
       }, { status: 200 });
 
     } catch (error) {

@@ -405,13 +405,22 @@ export class UserController {
       }
 
       const { latitude, longitude, accuracy, label, addressLine, area, city, district, state, mandal, pincode, stateId, districtId, mandalId } = body;
+      const hasCoordinates = latitude !== undefined && longitude !== undefined;
+      const hasLocationIds = !!(stateId && districtId && mandalId);
+      const hasLocationNames = !!(state && district && mandal);
 
-      // Basic Validation
-      if (latitude === undefined || longitude === undefined) {
-        return Response.json({ success: false, message: 'Latitude and Longitude are required' }, { status: 400 });
+      if (!hasCoordinates && !hasLocationIds && !hasLocationNames) {
+        return Response.json({
+          success: false,
+          message: 'Provide either latitude/longitude or state, district, and mandal'
+        }, { status: 400 });
       }
 
-      const shouldResolve = !stateId || !districtId || !mandalId || !state || !district || !mandal;
+      if ((latitude !== undefined && !Number.isFinite(Number(latitude))) || (longitude !== undefined && !Number.isFinite(Number(longitude)))) {
+        return Response.json({ success: false, message: 'Latitude and longitude must be valid numbers' }, { status: 400 });
+      }
+
+      const shouldResolve = hasCoordinates && (!hasLocationIds || !hasLocationNames);
       let savedLocation;
       let resolvedLocation = null;
 
@@ -427,22 +436,30 @@ export class UserController {
         savedLocation = refreshed?.location || null;
       } else {
         const locationData = {
-          latitude,
-          longitude,
+          latitude: hasCoordinates ? Number(latitude) : undefined,
+          longitude: hasCoordinates ? Number(longitude) : undefined,
           accuracy,
           label,
           addressLine,
           area,
           city,
-          district,
-          state,
-          mandal,
           pincode,
+        };
+        const normalizedLocation = await UserService.normalizeLocationSelection({
+          state,
+          district,
+          mandal,
           stateId,
           districtId,
           mandalId,
-        };
+        });
+        Object.assign(locationData, normalizedLocation);
         savedLocation = await UserService.saveLocation(authUser.id, locationData);
+        resolvedLocation = {
+          state: { id: normalizedLocation.stateId, name: normalizedLocation.state },
+          district: { id: normalizedLocation.districtId, name: normalizedLocation.district },
+          mandal: { id: normalizedLocation.mandalId, name: normalizedLocation.mandal },
+        };
       }
 
       return Response.json({

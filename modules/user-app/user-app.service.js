@@ -90,9 +90,7 @@ export class UserAppService {
   }
 
   static async listBanners({ section, state, district, mandal, lat, lng, topOnly = false, userLocation = null }) {
-    const query = userLocation
-      ? VisibilityService.buildMatchQuery(userLocation, { isActive: true })
-      : { isActive: true };
+    const query = VisibilityService.buildMatchQuery(userLocation, { isActive: true });
     if (section) query.section = section;
     if (topOnly) query.isTopBanner = true;
     const banners = await Banner.find(query).populate('section', '_id name order').sort({ order: 1 }).lean();
@@ -105,18 +103,11 @@ export class UserAppService {
         ...b,
         distanceKm: distanceKm(Number(lat), Number(lng), b.locationCoordinates?.lat, b.locationCoordinates?.lng),
       }))
-      .sort((a, b) => {
-        const d = num(a.distanceKm) - num(b.distanceKm);
-        if (d !== 0) return d;
-        return (b.clicks || 0) - (a.clicks || 0);
-      })
       .map(mapBanner);
   }
 
   static async listAds({ section, category, state, district, mandal, lat, lng, savedOnly, userId, userLocation = null }) {
-    const query = userLocation
-      ? VisibilityService.buildMatchQuery(userLocation, { status: 'approved' })
-      : { status: 'approved' };
+    const query = VisibilityService.buildMatchQuery(userLocation, { status: 'approved' });
     if (section) query.section = section;
     if (category) query.category = category;
     if (savedOnly && userId) {
@@ -147,12 +138,7 @@ export class UserAppService {
           ad.vendor?.locationCoordinates?.coordinates?.[1],
           ad.vendor?.locationCoordinates?.coordinates?.[0]
         ),
-      }))
-      .sort((a, b) => {
-        const d = num(a.distanceKm) - num(b.distanceKm);
-        if (d !== 0) return d;
-        return (b.views || 0) - (a.views || 0);
-      });
+      }));
     return filtered.map(mapAd);
   }
 

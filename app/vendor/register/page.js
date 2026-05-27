@@ -8,7 +8,6 @@ import {
   Loader2, Map, Navigation, ShieldCheck, LocateFixed, Pin
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getStates, getDistricts, getMandals } from '../../../utils/locationData';
 import dynamic from 'next/dynamic';
 
 const VendorMap = dynamic(() => import('../../../components/VendorMap'), { 
@@ -33,6 +32,7 @@ function RegistrationForm() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [locationTree, setLocationTree] = useState([]);
   const [vendorId, setVendorId] = useState(null);
   const [uploading, setUploading] = useState({ thumbnail: false, banner: false });
 
@@ -65,6 +65,7 @@ function RegistrationForm() {
 
   useEffect(() => {
     fetchCategories();
+    fetchLocations();
   }, []);
 
   const fetchCategories = async () => {
@@ -74,6 +75,18 @@ function RegistrationForm() {
       if (res.ok) setCategories(data.data || []);
     } catch (err) {
       console.error('Failed to fetch categories');
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/locations/tree');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setLocationTree(data.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch locations');
     }
   };
 
@@ -259,6 +272,9 @@ function RegistrationForm() {
     reverseGeocode(lat, lng);
   };
 
+  const selectedState = locationTree.find((state) => state.name === formData.state);
+  const selectedDistrict = selectedState?.districts?.find((district) => district.name === formData.district);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* Header */}
@@ -415,7 +431,7 @@ function RegistrationForm() {
                       className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none"
                     >
                       <option value="">Select state</option>
-                      {getStates().map(s => <option key={s} value={s}>{s}</option>)}
+                      {locationTree.map((state) => <option key={state.id} value={state.name}>{state.name}</option>)}
                     </select>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
@@ -426,7 +442,7 @@ function RegistrationForm() {
                         className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none"
                       >
                         <option value="">Select district</option>
-                        {getDistricts(formData.state).map(d => <option key={d} value={d}>{d}</option>)}
+                        {(selectedState?.districts || []).map((district) => <option key={district.id} value={district.name}>{district.name}</option>)}
                       </select>
                     </div>
                     <div>
@@ -436,7 +452,7 @@ function RegistrationForm() {
                         className="w-full p-4 bg-white border border-slate-200 rounded-2xl outline-none"
                       >
                         <option value="">Select mandal</option>
-                        {getMandals(formData.state, formData.district).map(m => <option key={m} value={m}>{m}</option>)}
+                        {(selectedDistrict?.mandals || []).map((mandal) => <option key={mandal.id} value={mandal.name}>{mandal.name}</option>)}
                       </select>
                     </div>
                   </div>

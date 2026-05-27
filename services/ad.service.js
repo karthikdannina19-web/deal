@@ -774,7 +774,14 @@ export async function moderateAd(
   ad.reviewedBy = adminId;
   ad.reviewedAt = new Date();
 
-  if (action === 'approve' && visibilityLevel) {
+  const hasVisibilityUpdate = action === 'approve' && (
+    visibilityLevel !== undefined ||
+    visibilityStateId !== undefined ||
+    visibilityDistrictId !== undefined ||
+    visibilityMandalId !== undefined
+  );
+
+  if (hasVisibilityUpdate) {
     const vendor = await Vendor.findById(ad.vendor);
     if (!vendor) {
       throw {
@@ -788,27 +795,28 @@ export async function moderateAd(
     await vendor.save();
 
     let visibility;
-    if (visibilityStateId) {
-      VisibilityService.validateVisibilityPayload({
-        visibilityLevel,
-        stateId: visibilityStateId,
-        districtId: visibilityDistrictId,
-        mandalId: visibilityMandalId,
-      });
-      await LocationMasterService.validateHierarchy({
-        stateId: visibilityStateId,
-        districtId: visibilityDistrictId,
-        mandalId: visibilityMandalId,
-      });
-      visibility = {
-        visibilityLevel,
-        visibilityStateId,
-        visibilityDistrictId: visibilityLevel === 'state' ? null : visibilityDistrictId,
-        visibilityMandalId: visibilityLevel === 'mandal' ? visibilityMandalId : null,
-        visibilityEnabled: true,
-      };
+    if (visibilityLevel) {
+      if (visibilityStateId) {
+        visibility = VisibilityService.normalizeVisibilityPayload({
+          visibilityLevel,
+          visibilityStateId,
+          visibilityDistrictId,
+          visibilityMandalId,
+          visibilityEnabled: true,
+        });
+        await LocationMasterService.validateHierarchy({
+          stateId: visibility.visibilityStateId,
+          districtId: visibility.visibilityDistrictId,
+          mandalId: visibility.visibilityMandalId,
+        });
+      } else {
+        visibility = VisibilityService.deriveFromStore(vendor, visibilityLevel);
+      }
     } else {
-      visibility = VisibilityService.deriveFromStore(vendor, visibilityLevel);
+      visibility = VisibilityService.normalizeVisibilityPayload({
+        visibilityLevel: null,
+        visibilityEnabled: true,
+      });
     }
 
     ad.visibilityLevel = visibility.visibilityLevel;

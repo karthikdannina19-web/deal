@@ -51,10 +51,6 @@ export class BannerController {
       if (!section || !imageFile) {
         return Response.json({ success: false, message: 'Section and Image are required' }, { status: 400 });
       }
-      if (!visibilityLevel || !visibilityStateId) {
-        return Response.json({ success: false, message: 'Visibility level and target location are required' }, { status: 400 });
-      }
-
       const buffer = Buffer.from(await imageFile.arrayBuffer());
       const image = await BannerService.uploadBannerImage(
         buffer,
@@ -71,8 +67,8 @@ export class BannerController {
         state,
         district,
         mandal,
-        visibilityLevel,
-        visibilityStateId,
+        visibilityLevel: visibilityLevel || null,
+        visibilityStateId: visibilityStateId || null,
         visibilityDistrictId: visibilityDistrictId || null,
         visibilityMandalId: visibilityMandalId || null,
         isTopBanner,
@@ -105,7 +101,9 @@ export class BannerController {
           let value = formData.get(field);
           if (field === 'order') value = parseInt(value);
           if (field === 'isActive') value = value === 'true';
-          if ((field === 'visibilityDistrictId' || field === 'visibilityMandalId') && !value) value = null;
+          if (['visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId'].includes(field) && !value) {
+            value = null;
+          }
           updateData[field] = value;
         }
       });

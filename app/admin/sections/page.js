@@ -64,7 +64,7 @@ export default function SectionsDashboard() {
     title: '',
     location: '',
     locationLabel: '',
-    visibilityLevel: 'state',
+    visibilityLevel: '',
     visibilityStateId: '',
     visibilityDistrictId: '',
     visibilityMandalId: '',
@@ -148,7 +148,7 @@ export default function SectionsDashboard() {
         title: banner.title || '',
         location: banner.location || '', 
         locationLabel: banner.locationLabel || '',
-        visibilityLevel: banner.visibilityLevel || 'state',
+        visibilityLevel: banner.visibilityLevel || '',
         visibilityStateId: normalizeId(banner.visibilityStateId),
         visibilityDistrictId: normalizeId(banner.visibilityDistrictId),
         visibilityMandalId: normalizeId(banner.visibilityMandalId),
@@ -166,8 +166,8 @@ export default function SectionsDashboard() {
         title: '',
         location: '',
         locationLabel: '',
-        visibilityLevel: 'state',
-        visibilityStateId: locationTree[0]?.id || '',
+        visibilityLevel: '',
+        visibilityStateId: '',
         visibilityDistrictId: '',
         visibilityMandalId: '',
         viewUrl: '',
@@ -391,7 +391,7 @@ export default function SectionsDashboard() {
                                   <MapPin size={16} className="text-zinc-400" />
                                </h4>
                                <p className="mt-1 text-xs text-zinc-500 capitalize">
-                                 {banner.visibilityLevel || 'state'} visibility
+                                 {banner.visibilityLevel || 'all users'} visibility
                                </p>
                             </div>
                             <div className={cn("px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest", banner.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400")}>
@@ -619,16 +619,19 @@ export default function SectionsDashboard() {
                           onChange={e => setBannerForm({
                             ...bannerForm,
                             visibilityLevel: e.target.value,
+                            visibilityStateId: e.target.value ? bannerForm.visibilityStateId : '',
                             visibilityDistrictId: e.target.value === 'state' ? '' : bannerForm.visibilityDistrictId,
                             visibilityMandalId: e.target.value === 'mandal' ? bannerForm.visibilityMandalId : ''
                           })}
                           className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
                         >
+                          <option value="">All Users</option>
                           <option value="state">State</option>
                           <option value="district">District</option>
                           <option value="mandal">Mandal</option>
                         </select>
                      </div>
+                     {bannerForm.visibilityLevel && (
                      <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">State</label>
                         <select
@@ -645,9 +648,10 @@ export default function SectionsDashboard() {
                           {locationTree.map(state => <option key={state.id} value={state.id}>{state.name}</option>)}
                         </select>
                      </div>
+                     )}
                   </div>
 
-                  {bannerForm.visibilityLevel !== 'state' && (
+                  {bannerForm.visibilityLevel && bannerForm.visibilityLevel !== 'state' && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">District</label>

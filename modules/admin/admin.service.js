@@ -112,14 +112,15 @@ export class AdminService {
 
       await LocationMasterService.syncLegacyLocation(vendor);
 
-      if (visibilityLevel) {
-        const visibility = VisibilityService.deriveFromStore(vendor, visibilityLevel);
-        vendor.visibilityLevel = visibility.visibilityLevel;
-        vendor.visibilityStateId = visibility.visibilityStateId;
-        vendor.visibilityDistrictId = visibility.visibilityDistrictId;
-        vendor.visibilityMandalId = visibility.visibilityMandalId;
-        vendor.visibilityEnabled = visibility.visibilityEnabled;
-      }
+      const visibility = visibilityLevel
+        ? VisibilityService.deriveFromStore(vendor, visibilityLevel)
+        : VisibilityService.normalizeVisibilityPayload();
+
+      vendor.visibilityLevel = visibility.visibilityLevel;
+      vendor.visibilityStateId = visibility.visibilityStateId;
+      vendor.visibilityDistrictId = visibility.visibilityDistrictId;
+      vendor.visibilityMandalId = visibility.visibilityMandalId;
+      vendor.visibilityEnabled = visibility.visibilityEnabled;
     }
 
     vendor.status = status;
@@ -165,24 +166,27 @@ export class AdminService {
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) throw new Error('Vendor not found');
 
-    VisibilityService.validateVisibilityPayload({
+    const visibility = VisibilityService.normalizeVisibilityPayload({
       visibilityLevel,
-      stateId: visibilityStateId,
-      districtId: visibilityDistrictId,
-      mandalId: visibilityMandalId,
+      visibilityStateId,
+      visibilityDistrictId,
+      visibilityMandalId,
+      visibilityEnabled,
     });
 
-    await LocationMasterService.validateHierarchy({
-      stateId: visibilityStateId,
-      districtId: visibilityDistrictId,
-      mandalId: visibilityMandalId,
-    });
+    if (visibility.visibilityStateId) {
+      await LocationMasterService.validateHierarchy({
+        stateId: visibility.visibilityStateId,
+        districtId: visibility.visibilityDistrictId,
+        mandalId: visibility.visibilityMandalId,
+      });
+    }
 
-    vendor.visibilityLevel = visibilityLevel;
-    vendor.visibilityStateId = visibilityStateId;
-    vendor.visibilityDistrictId = visibilityLevel === 'state' ? null : visibilityDistrictId;
-    vendor.visibilityMandalId = visibilityLevel === 'mandal' ? visibilityMandalId : null;
-    vendor.visibilityEnabled = visibilityEnabled !== false;
+    vendor.visibilityLevel = visibility.visibilityLevel;
+    vendor.visibilityStateId = visibility.visibilityStateId;
+    vendor.visibilityDistrictId = visibility.visibilityDistrictId;
+    vendor.visibilityMandalId = visibility.visibilityMandalId;
+    vendor.visibilityEnabled = visibility.visibilityEnabled;
     await vendor.save();
 
     return vendor;

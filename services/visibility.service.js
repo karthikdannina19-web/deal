@@ -9,6 +9,14 @@ function objectIdOrNull(value) {
 
 export class VisibilityService {
   static validateVisibilityPayload({ visibilityLevel, stateId, districtId, mandalId }) {
+    if (!visibilityLevel && !stateId && !districtId && !mandalId) {
+      return;
+    }
+
+    if (!visibilityLevel) {
+      throw new Error('Visibility level is required when a target location is selected');
+    }
+
     if (!VISIBILITY_LEVELS.includes(visibilityLevel)) {
       throw new Error('Invalid visibility level');
     }
@@ -25,6 +33,44 @@ export class VisibilityService {
     if (visibilityLevel === 'mandal' && !mandalId) {
       throw new Error('Mandal is required for mandal visibility');
     }
+  }
+
+  static normalizeVisibilityPayload({
+    visibilityLevel = null,
+    visibilityStateId = null,
+    visibilityDistrictId = null,
+    visibilityMandalId = null,
+    visibilityEnabled = true,
+  } = {}) {
+    const normalizedLevel = visibilityLevel || null;
+    const normalizedStateId = visibilityStateId || null;
+    const normalizedDistrictId = visibilityDistrictId || null;
+    const normalizedMandalId = visibilityMandalId || null;
+
+    this.validateVisibilityPayload({
+      visibilityLevel: normalizedLevel,
+      stateId: normalizedStateId,
+      districtId: normalizedDistrictId,
+      mandalId: normalizedMandalId,
+    });
+
+    if (!normalizedLevel) {
+      return {
+        visibilityLevel: null,
+        visibilityStateId: null,
+        visibilityDistrictId: null,
+        visibilityMandalId: null,
+        visibilityEnabled: visibilityEnabled !== false,
+      };
+    }
+
+    return {
+      visibilityLevel: normalizedLevel,
+      visibilityStateId: normalizedStateId,
+      visibilityDistrictId: normalizedLevel === 'state' ? null : normalizedDistrictId,
+      visibilityMandalId: normalizedLevel === 'mandal' ? normalizedMandalId : null,
+      visibilityEnabled: visibilityEnabled !== false,
+    };
   }
 
   static deriveFromStore(entity, visibilityLevel) {
@@ -44,14 +90,20 @@ export class VisibilityService {
   }
 
   static buildMatchQuery(location, extraFilters = {}) {
-    if (!location?.stateId || !location?.districtId || !location?.mandalId) {
-      throw new Error('User location is incomplete');
-    }
+    const locationComplete = !!(location?.stateId && location?.districtId && location?.mandalId);
+    const matchers = [
+      {
+        $or: [
+          { visibilityLevel: { $exists: false } },
+          { visibilityLevel: null },
+          { visibilityStateId: { $exists: false } },
+          { visibilityStateId: null },
+        ],
+      },
+    ];
 
-    return {
-      ...extraFilters,
-      visibilityEnabled: true,
-      $or: [
+    if (locationComplete) {
+      matchers.push(
         {
           visibilityLevel: 'state',
           visibilityStateId: objectIdOrNull(location.stateId),
@@ -66,8 +118,14 @@ export class VisibilityService {
           visibilityStateId: objectIdOrNull(location.stateId),
           visibilityDistrictId: objectIdOrNull(location.districtId),
           visibilityMandalId: objectIdOrNull(location.mandalId),
-        },
-      ],
+        }
+      );
+    }
+
+    return {
+      ...extraFilters,
+      visibilityEnabled: { $ne: false },
+      $or: matchers,
     };
   }
 }

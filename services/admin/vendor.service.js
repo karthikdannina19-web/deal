@@ -19,7 +19,7 @@ export const vendorService = {
   /**
    * Approve a vendor
    */
-  approveVendor: async (id, visibilityLevel) => {
+  approveVendor: async (id, visibilityLevel = null) => {
     try {
       const response = await api.post(`/api/admin/vendors/${id}/approve`, { visibility_level: visibilityLevel });
       return response.data;

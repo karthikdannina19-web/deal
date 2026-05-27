@@ -8,7 +8,6 @@ import {
   ChevronRight, Globe, Info, Edit3, Camera
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { getStates, getDistricts, getMandals } from '../../../utils/locationData';
 import dynamic from 'next/dynamic';
 
 const VendorMap = dynamic(() => import('../../../components/VendorMap'), { 
@@ -38,6 +37,7 @@ function VendorProfilePage() {
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [locationTree, setLocationTree] = useState([]);
   const [mapCenter, setMapCenter] = useState({ lat: 17.3850, lng: 78.4867 });
   const [activeTab, setActiveTab] = useState('basic');
 
@@ -60,6 +60,7 @@ function VendorProfilePage() {
   useEffect(() => {
     fetchProfile();
     fetchCategories();
+    fetchLocations();
   }, []);
 
   const fetchProfile = async () => {
@@ -108,6 +109,16 @@ function VendorProfilePage() {
       const res = await fetch('/api/categories');
       const data = await res.json();
       if (data.success) setCategories(data.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/locations/tree');
+      const data = await res.json();
+      if (data.success) setLocationTree(data.data || []);
     } catch (err) {
       console.error(err);
     }
@@ -200,6 +211,9 @@ function VendorProfilePage() {
       setSaving(false);
     }
   };
+
+  const selectedState = locationTree.find((state) => state.name === formData.state);
+  const selectedDistrict = selectedState?.districts?.find((district) => district.name === formData.district);
 
   if (loading) return <LoadingState />;
 
@@ -369,7 +383,7 @@ function VendorProfilePage() {
                       className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-blue-100 font-medium"
                     >
                       <option value="">Select State</option>
-                      {getStates().map(s => <option key={s} value={s}>{s}</option>)}
+                      {locationTree.map((state) => <option key={state.id} value={state.name}>{state.name}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -379,7 +393,7 @@ function VendorProfilePage() {
                       className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-blue-100 font-medium"
                     >
                       <option value="">Select District</option>
-                      {getDistricts(formData.state).map(d => <option key={d} value={d}>{d}</option>)}
+                      {(selectedState?.districts || []).map((district) => <option key={district.id} value={district.name}>{district.name}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -389,7 +403,7 @@ function VendorProfilePage() {
                       className="w-full px-6 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-blue-100 font-medium"
                     >
                       <option value="">Select Mandal</option>
-                      {getMandals(formData.state, formData.district).map(m => <option key={m} value={m}>{m}</option>)}
+                      {(selectedDistrict?.mandals || []).map((mandal) => <option key={mandal.id} value={mandal.name}>{mandal.name}</option>)}
                     </select>
                   </div>
                 </div>

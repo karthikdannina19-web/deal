@@ -110,13 +110,25 @@ export class AdminController {
       const { id } = await params;
       const body = await req.json();
       const { status, reason, visibility_level, visibilityLevel } = body; // 'active' or 'rejected'
+      const hasVisibilityPayload = [
+        'visibility_level',
+        'visibilityLevel',
+        'visibility_state_id',
+        'visibilityStateId',
+        'visibility_district_id',
+        'visibilityDistrictId',
+        'visibility_mandal_id',
+        'visibilityMandalId',
+        'visibility_enabled',
+        'visibilityEnabled',
+      ].some((key) => Object.prototype.hasOwnProperty.call(body, key));
 
-      if (!status && (visibility_level || visibilityLevel)) {
+      if (!status && hasVisibilityPayload) {
         const vendor = await AdminService.updateVendorVisibility(id, {
-          visibilityLevel: visibility_level || visibilityLevel,
-          visibilityStateId: body.visibility_state_id || body.visibilityStateId,
-          visibilityDistrictId: body.visibility_district_id || body.visibilityDistrictId || null,
-          visibilityMandalId: body.visibility_mandal_id || body.visibilityMandalId || null,
+          visibilityLevel: visibility_level ?? visibilityLevel ?? null,
+          visibilityStateId: body.visibility_state_id ?? body.visibilityStateId ?? null,
+          visibilityDistrictId: body.visibility_district_id ?? body.visibilityDistrictId ?? null,
+          visibilityMandalId: body.visibility_mandal_id ?? body.visibilityMandalId ?? null,
           visibilityEnabled: body.visibility_enabled ?? body.visibilityEnabled ?? true,
         });
 
@@ -131,7 +143,7 @@ export class AdminController {
         return Response.json({ success: false, message: 'Invalid status' }, { status: 400 });
       }
 
-      const vendor = await AdminService.updateVendorStatus(id, status, reason, visibility_level || visibilityLevel || null);
+      const vendor = await AdminService.updateVendorStatus(id, status, reason, visibility_level ?? visibilityLevel ?? null);
       return Response.json({ 
         success: true, 
         message: `Vendor ${status === 'active' ? 'approved' : status} successfully`,
@@ -292,7 +304,26 @@ export class AdminController {
       const notes = body.notes || 'Admin moderation';
       const sectionId = body.hasOwnProperty('sectionId') ? body.sectionId : undefined;
       const category = body.hasOwnProperty('category') ? body.category : undefined;
-      const visibilityLevel = body.visibility_level || body.visibilityLevel;
+      const visibilityLevel = Object.prototype.hasOwnProperty.call(body, 'visibility_level')
+        ? body.visibility_level
+        : Object.prototype.hasOwnProperty.call(body, 'visibilityLevel')
+          ? body.visibilityLevel
+          : undefined;
+      const visibilityStateId = Object.prototype.hasOwnProperty.call(body, 'visibility_state_id')
+        ? body.visibility_state_id
+        : Object.prototype.hasOwnProperty.call(body, 'visibilityStateId')
+          ? body.visibilityStateId
+          : undefined;
+      const visibilityDistrictId = Object.prototype.hasOwnProperty.call(body, 'visibility_district_id')
+        ? body.visibility_district_id
+        : Object.prototype.hasOwnProperty.call(body, 'visibilityDistrictId')
+          ? body.visibilityDistrictId
+          : undefined;
+      const visibilityMandalId = Object.prototype.hasOwnProperty.call(body, 'visibility_mandal_id')
+        ? body.visibility_mandal_id
+        : Object.prototype.hasOwnProperty.call(body, 'visibilityMandalId')
+          ? body.visibilityMandalId
+          : undefined;
 
       const authHeader = req.headers.get('authorization');
       let adminId = null;
@@ -314,9 +345,9 @@ export class AdminController {
         sectionId,
         category,
         visibilityLevel,
-        body.visibility_state_id || body.visibilityStateId,
-        body.visibility_district_id || body.visibilityDistrictId,
-        body.visibility_mandal_id || body.visibilityMandalId
+        visibilityStateId,
+        visibilityDistrictId,
+        visibilityMandalId
       );
       
       return Response.json({ 

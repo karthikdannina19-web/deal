@@ -15,6 +15,7 @@ import { hashData, compareHash } from '../../utils/hash.js';
 import { generateToken } from '../../utils/jwt.js';
 import { dbConnect } from '../../config/database.js';
 import mongoose from 'mongoose';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 /**
  * Vendor Service
@@ -169,6 +170,10 @@ export class VendorService {
     vendor.media = media;
     vendor.registrationStep = 2;
 
+    if (vendor.location?.state && vendor.location?.district && vendor.location?.mandal) {
+      await LocationMasterService.syncLegacyLocation(vendor);
+    }
+
     await vendor.save();
     return vendor;
   }
@@ -270,6 +275,9 @@ export class VendorService {
       { $set: updateData },
       { returnDocument: 'after', upsert: true, runValidators: true }
     );
+
+    await LocationMasterService.syncLegacyLocation(vendor);
+    await vendor.save();
 
     return vendor;
   }
@@ -433,6 +441,8 @@ export class VendorService {
       images: vendor.media?.images || []
     };
     vendor.registrationStep = 2;
+
+    await LocationMasterService.syncLegacyLocation(vendor);
 
     await vendor.save();
     console.log(`[Vendor Step 2] Updated store details for vendor ${vendorId}`);
@@ -624,6 +634,10 @@ export class VendorService {
     vendor.status = 'pending_approval';
     vendor.rejectionReason = '';
     vendor.registrationStep = Math.max(vendor.registrationStep || 1, 3);
+
+    if (vendor.location?.state && vendor.location?.district && vendor.location?.mandal) {
+      await LocationMasterService.syncLegacyLocation(vendor);
+    }
 
     await vendor.save();
     

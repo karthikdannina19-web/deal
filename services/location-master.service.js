@@ -29,6 +29,11 @@ class LocationMasterService {
   };
 
   static async ensureSeeded() {
+    const existingStateCount = await State.estimatedDocumentCount();
+    if (existingStateCount > 0) {
+      return;
+    }
+
     for (const [stateName, districts] of Object.entries(locationData)) {
       const state = await State.findOneAndUpdate(
         { normalizedName: normalizeName(stateName) },

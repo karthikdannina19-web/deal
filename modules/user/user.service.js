@@ -6,6 +6,7 @@ import ReferralSetting from '../../models/referralSetting.model.js';
 import WalletTransaction from '../../models/walletTransaction.model.js';
 import mongoose from 'mongoose';
 import { LocationResolverService } from '@/services/location-resolver.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 /**
  * User Service
@@ -65,24 +66,27 @@ export class UserService {
    * @param {Object} locationData 
    */
   static async saveLocation(userId, locationData) {
+    const updateFields = {
+      state: locationData.state,
+      district: locationData.district,
+      mandal: locationData.mandal,
+      stateId: locationData.stateId,
+      districtId: locationData.districtId,
+      mandalId: locationData.mandalId,
+      locationUpdatedAt: new Date(),
+      location: {
+        ...locationData,
+        lastUpdated: new Date()
+      }
+    };
+
+    if (locationData.latitude !== undefined) updateFields.latitude = locationData.latitude;
+    if (locationData.longitude !== undefined) updateFields.longitude = locationData.longitude;
+
     const user = await User.findByIdAndUpdate(
       userId,
       { 
-        $set: { 
-          state: locationData.state,
-          district: locationData.district,
-          mandal: locationData.mandal,
-          stateId: locationData.stateId,
-          districtId: locationData.districtId,
-          mandalId: locationData.mandalId,
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          locationUpdatedAt: new Date(),
-          location: {
-            ...locationData,
-            lastUpdated: new Date()
-          }
-        } 
+        $set: updateFields
       },
       { returnDocument: 'after' }
     ).select('location');
@@ -115,6 +119,45 @@ export class UserService {
     await this.saveLocation(userId, locationData);
 
     return resolved;
+  }
+
+  static async normalizeLocationSelection({ state, district, mandal, stateId, districtId, mandalId }) {
+    if (stateId || districtId || mandalId) {
+      if (!stateId || !districtId || !mandalId) {
+        throw new Error('State, district, and mandal IDs are required together');
+      }
+
+      const hierarchy = await LocationMasterService.validateHierarchy({ stateId, districtId, mandalId });
+      return {
+        state: hierarchy.state.name,
+        district: hierarchy.district.name,
+        mandal: hierarchy.mandal.name,
+        stateId: hierarchy.state._id,
+        districtId: hierarchy.district._id,
+        mandalId: hierarchy.mandal._id,
+      };
+    }
+
+    if (!state || !district || !mandal) {
+      throw new Error('State, district, and mandal are required');
+    }
+
+    const resolved = await LocationMasterService.findByNames({
+      state,
+      district,
+      mandal,
+      autoCreateMissingDistrict: true,
+      autoCreateMissingMandal: true,
+    });
+
+    return {
+      state: resolved.state.name,
+      district: resolved.district.name,
+      mandal: resolved.mandal.name,
+      stateId: resolved.state._id,
+      districtId: resolved.district._id,
+      mandalId: resolved.mandal._id,
+    };
   }
 
   /**

@@ -83,7 +83,6 @@ const bannerSchema = new mongoose.Schema(
     visibilityLevel: {
       type: String,
       enum: ['state', 'district', 'mandal'],
-      default: 'state',
       index: true,
     },
     visibilityStateId: {

@@ -57,28 +57,25 @@ function buildBannerPayload(banner) {
 export class HomeFeedService {
   static STALE_LOCATION_MS = 24 * 60 * 60 * 1000;
 
-  static ensureFreshUserLocation(user) {
-    if (!user?.stateId || !user?.districtId || !user?.mandalId) {
-      throw new Error('Location not set');
-    }
-    if (!user.locationUpdatedAt) {
-      throw new Error('Location stale');
+  static getFreshUserLocation(user) {
+    if (!user?.stateId || !user?.districtId || !user?.mandalId || !user?.locationUpdatedAt) {
+      return null;
     }
 
     const age = Date.now() - new Date(user.locationUpdatedAt).getTime();
     if (age > this.STALE_LOCATION_MS) {
-      throw new Error('Location stale');
+      return null;
     }
-  }
 
-  static async getHomeFeed({ user, vendorLimit = 20, adLimit = 20, bannerLimit = 20 }) {
-    this.ensureFreshUserLocation(user);
-
-    const location = {
+    return {
       stateId: user.stateId,
       districtId: user.districtId,
       mandalId: user.mandalId,
     };
+  }
+
+  static async getHomeFeed({ user, vendorLimit = 20, adLimit = 20, bannerLimit = 20 }) {
+    const location = this.getFreshUserLocation(user);
 
     const [vendors, ads, banners] = await Promise.all([
       Vendor.find(

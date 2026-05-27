@@ -60,7 +60,7 @@ export default function VendorsPage() {
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [processingId, setProcessingId] = useState(null);
-  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState('mandal');
+  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState('');
   const [locationTree, setLocationTree] = useState([]);
   const [visibilityLocation, setVisibilityLocation] = useState({
     stateId: '',
@@ -127,7 +127,7 @@ export default function VendorsPage() {
     setProcessingId(id);
     try {
       if (status === 'active') {
-        await vendorService.approveVendor(id, selectedVisibilityLevel);
+        await vendorService.approveVendor(id, selectedVisibilityLevel || null);
       } else if (status === 'rejected') {
         await vendorService.rejectVendor(id, "Admin moderation review");
       }
@@ -136,7 +136,7 @@ export default function VendorsPage() {
       updateVendorStatus(id, status);
       // Update selected vendor in modal if open
       if (selectedVendor && selectedVendor._id === id) {
-        setSelectedVendor({ ...selectedVendor, status, visibilityLevel: selectedVisibilityLevel });
+        setSelectedVendor({ ...selectedVendor, status, visibilityLevel: selectedVisibilityLevel || null });
       }
     } catch (error) {
       alert(error?.message || 'Failed to update vendor status');
@@ -151,9 +151,9 @@ export default function VendorsPage() {
     setProcessingId(selectedVendor._id);
     try {
       const response = await vendorService.updateVendorVisibility(selectedVendor._id, {
-        visibility_level: selectedVisibilityLevel,
-        visibility_state_id: visibilityLocation.stateId,
-        visibility_district_id: selectedVisibilityLevel === 'state' ? null : visibilityLocation.districtId,
+        visibility_level: selectedVisibilityLevel || null,
+        visibility_state_id: selectedVisibilityLevel ? visibilityLocation.stateId : null,
+        visibility_district_id: selectedVisibilityLevel === 'state' ? null : (selectedVisibilityLevel ? visibilityLocation.districtId : null),
         visibility_mandal_id: selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null,
       });
 
@@ -369,7 +369,7 @@ export default function VendorsPage() {
                       <button 
                         onClick={() => {
                           setSelectedVendor(vendor);
-                          setSelectedVisibilityLevel(vendor.visibilityLevel || 'mandal');
+                          setSelectedVisibilityLevel(vendor.visibilityLevel || '');
                           setVisibilityLocation({
                             stateId: normalizeId(vendor.visibilityStateId || vendor.storeStateId),
                             districtId: normalizeId(vendor.visibilityDistrictId || vendor.storeDistrictId),
@@ -581,7 +581,7 @@ export default function VendorsPage() {
                                 </div>
                                 <div>
                                    <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">Visibility</p>
-                                   <p className="font-semibold text-zinc-900 capitalize">{selectedVendor.visibilityLevel || 'Not set'}</p>
+                                   <p className="font-semibold text-zinc-900 capitalize">{selectedVendor.visibilityLevel || 'All Users'}</p>
                                 </div>
                              </div>
                           </div>
@@ -638,12 +638,12 @@ export default function VendorsPage() {
                                   Store belongs to {selectedVendor.location?.mandal || 'Unknown mandal'}, {selectedVendor.location?.district || 'Unknown district'}, {selectedVendor.location?.state || 'Unknown state'}.
                                 </p>
                                 <div className="mt-5 grid grid-cols-1 gap-3">
-                                  {['state', 'district', 'mandal'].map((level) => (
+                                  {['', 'state', 'district', 'mandal'].map((level) => (
                                     <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 cursor-pointer">
                                       <div>
-                                        <p className="text-sm font-semibold text-zinc-900 capitalize">{level} Visibility</p>
+                                        <p className="text-sm font-semibold text-zinc-900 capitalize">{level ? `${level} Visibility` : 'All Users'}</p>
                                         <p className="text-xs text-zinc-500">
-                                          {level === 'state' ? selectedVendor.location?.state : level === 'district' ? selectedVendor.location?.district : selectedVendor.location?.mandal}
+                                          {level === '' ? 'Visible to users in every location' : level === 'state' ? selectedVendor.location?.state : level === 'district' ? selectedVendor.location?.district : selectedVendor.location?.mandal}
                                         </p>
                                       </div>
                                       <input
@@ -656,6 +656,7 @@ export default function VendorsPage() {
                                     </label>
                                   ))}
                                 </div>
+                                {selectedVisibilityLevel && (
                                 <div className="mt-5 grid grid-cols-1 gap-4">
                                   <select
                                     value={visibilityLocation.stateId}
@@ -694,6 +695,7 @@ export default function VendorsPage() {
                                     </select>
                                   )}
                                 </div>
+                                )}
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                <button 
@@ -754,11 +756,11 @@ export default function VendorsPage() {
                                <div className="rounded-[32px] border border-zinc-200 bg-zinc-50 p-6 text-left">
                                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Edit visibility target</p>
                                  <div className="mt-5 grid grid-cols-1 gap-3">
-                                   {['state', 'district', 'mandal'].map((level) => (
+                                   {['', 'state', 'district', 'mandal'].map((level) => (
                                      <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 cursor-pointer">
                                        <div>
-                                         <p className="text-sm font-semibold text-zinc-900 capitalize">{level} Visibility</p>
-                                         <p className="text-xs text-zinc-500">Change who can see this store</p>
+                                         <p className="text-sm font-semibold text-zinc-900 capitalize">{level ? `${level} Visibility` : 'All Users'}</p>
+                                         <p className="text-xs text-zinc-500">{level ? 'Change who can see this store' : 'Show this store to users in every location'}</p>
                                        </div>
                                        <input
                                          type="radio"
@@ -771,6 +773,7 @@ export default function VendorsPage() {
                                    ))}
                                  </div>
 
+                                 {selectedVisibilityLevel && (
                                  <div className="mt-5 grid grid-cols-1 gap-4">
                                    <select
                                      value={visibilityLocation.stateId}
@@ -809,6 +812,7 @@ export default function VendorsPage() {
                                      </select>
                                    )}
                                  </div>
+                                 )}
                                </div>
 
                                <button
