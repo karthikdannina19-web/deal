@@ -36,7 +36,7 @@ export class SectionVisibilityService {
       .lean();
   }
 
-  static async filterAdsBySection({ userLocation = null, sectionId = null, categoryId = null, extraFilters = {} } = {}) {
+  static filterAdsBySection({ userLocation = null, sectionId = null, categoryId = null, extraFilters = {} } = {}) {
     const query = VisibilityService.buildMatchQuery(userLocation, {
       status: 'approved',
       ...extraFilters,
@@ -55,7 +55,7 @@ export class SectionVisibilityService {
     return Ad.find(query);
   }
 
-  static async filterBannersBySection({ userLocation = null, sectionId = null, categoryId = null, extraFilters = {} } = {}) {
+  static filterBannersBySection({ userLocation = null, sectionId = null, categoryId = null, extraFilters = {} } = {}) {
     const query = VisibilityService.buildMatchQuery(userLocation, {
       isActive: true,
       ...extraFilters,
