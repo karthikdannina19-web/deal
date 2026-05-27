@@ -1,5 +1,6 @@
 import { dbConnect } from '@/config/database';
 import Ad from '@/models/ad.model';
+import '@/models/vendor.model.js';
 import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 export async function GET(req) {

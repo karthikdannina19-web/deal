@@ -1,5 +1,6 @@
 import Section from '@/models/section.model.js';
 import Ad from '@/models/ad.model.js';
+import '@/models/vendor.model.js';
 import { dbConnect } from '@/config/database.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import User from '@/models/user.model.js';

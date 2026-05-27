@@ -1,4 +1,5 @@
 import Ad from '../../models/ad.model.js';
+import '../../models/vendor.model.js';
 import { dbConnect } from '../../config/database.js';
 import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '../../utils/offer-location.js';
 
