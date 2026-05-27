@@ -304,6 +304,7 @@ export class AdminController {
       const notes = body.notes || 'Admin moderation';
       const sectionId = body.hasOwnProperty('sectionId') ? body.sectionId : undefined;
       const category = body.hasOwnProperty('category') ? body.category : undefined;
+      const categoryId = body.hasOwnProperty('categoryId') ? body.categoryId : undefined;
       const visibilityLevel = Object.prototype.hasOwnProperty.call(body, 'visibility_level')
         ? body.visibility_level
         : Object.prototype.hasOwnProperty.call(body, 'visibilityLevel')
@@ -344,6 +345,7 @@ export class AdminController {
         notes,
         sectionId,
         category,
+        categoryId,
         visibilityLevel,
         visibilityStateId,
         visibilityDistrictId,

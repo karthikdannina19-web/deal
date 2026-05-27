@@ -626,6 +626,8 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
     // Standard query
     [ads, total] = await Promise.all([
       Ad.find(filters)
+        .populate('section', 'name slug order')
+        .populate('categoryId', 'name sectionId')
         .populate('vendor', 'fullName storeName email location fullAddress storeStateId storeDistrictId storeMandalId')
         .sort(sortOption)
         .skip(skip)
@@ -736,6 +738,7 @@ export async function moderateAd(
   notes = '',
   sectionId = undefined,
   category = undefined,
+  categoryId = undefined,
   visibilityLevel = undefined,
   visibilityStateId = undefined,
   visibilityDistrictId = undefined,
@@ -833,14 +836,18 @@ export async function moderateAd(
     await refundCreditsForAd(ad);
   }
 
-  // Assign section if provided (typically during approval)
-  if (action === 'approve' && sectionId !== undefined) {
+  // Assign section if provided (typically during approval or edit)
+  if (sectionId !== undefined) {
     ad.section = sectionId || null;
   }
 
   // Assign category if provided by admin during moderation
   if (category !== undefined) {
     ad.category = category || ad.category;
+  }
+
+  if (categoryId !== undefined) {
+    ad.categoryId = categoryId || null;
   }
 
   await ad.save();
@@ -971,6 +978,8 @@ export async function assignSectionToAd(adId, sectionId) {
   await ad.save();
 
   await ad.populate('vendor', 'fullName storeName email');
+  await ad.populate('section', 'name slug');
+  await ad.populate('categoryId', 'name');
 
   return ad;
 }

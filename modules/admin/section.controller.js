@@ -26,14 +26,22 @@ export class SectionController {
       const description = formData.get('description');
       const order = parseInt(formData.get('order')) || 0;
       const isActive = formData.get('isActive') === 'true';
+      const visibilityLevel = formData.get('visibilityLevel') || 'global';
+      const visibilityStateId = formData.get('visibilityStateId') || null;
+      const visibilityDistrictId = formData.get('visibilityDistrictId') || null;
+      const visibilityMandalId = formData.get('visibilityMandalId') || null;
       
-      console.log('Creating Section:', { name, description, order, isActive });
+      console.log('Creating Section:', { name, description, order, isActive, visibilityLevel });
 
       const section = await SectionService.createSection({ 
         name, 
         description, 
         order,
-        isActive
+        isActive,
+        visibilityLevel,
+        visibilityStateId,
+        visibilityDistrictId,
+        visibilityMandalId,
       });
 
       // Handle file uploads if present
@@ -85,6 +93,10 @@ export class SectionController {
       if (formData.has('description')) updateData.description = formData.get('description');
       if (formData.has('order')) updateData.order = parseInt(formData.get('order'));
       if (formData.has('isActive')) updateData.isActive = formData.get('isActive') === 'true';
+      if (formData.has('visibilityLevel')) updateData.visibilityLevel = formData.get('visibilityLevel') || 'global';
+      if (formData.has('visibilityStateId')) updateData.visibilityStateId = formData.get('visibilityStateId') || null;
+      if (formData.has('visibilityDistrictId')) updateData.visibilityDistrictId = formData.get('visibilityDistrictId') || null;
+      if (formData.has('visibilityMandalId')) updateData.visibilityMandalId = formData.get('visibilityMandalId') || null;
 
       console.log('Updating Section:', id, updateData);
 

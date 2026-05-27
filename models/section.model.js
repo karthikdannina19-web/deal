@@ -45,6 +45,32 @@ const sectionSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    visibilityLevel: {
+      type: String,
+      enum: ['global', 'state', 'district', 'mandal'],
+      default: 'global',
+      index: true,
+    },
+    visibilityStateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    visibilityDistrictId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    visibilityMandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    visibilityEnabled: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
     // Statistics (cached for performance)
     adCount: {
       type: Number,
@@ -59,6 +85,7 @@ const sectionSchema = new mongoose.Schema(
 // Indexes
 sectionSchema.index({ order: 1 });
 sectionSchema.index({ isActive: 1 });
+sectionSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, isActive: 1 });
 
 // Pre-validate hook to ensure slug exists before validation
 sectionSchema.pre('validate', function () {
@@ -72,6 +99,9 @@ sectionSchema.pre('validate', function () {
   }
 });
 
-const Section = mongoose.models.Section || mongoose.model('Section', sectionSchema);
+if (mongoose.models.Section) {
+  delete mongoose.models.Section;
+}
+const Section = mongoose.model('Section', sectionSchema);
 
 export default Section;

@@ -1,61 +1,48 @@
-# User App Integration Note
+# User App Location Visibility Note
 
 ## Purpose
 
 This note is for the user app team.
 
-The user app must:
+The app must:
 
-- collect device GPS
-- send latitude and longitude to backend
-- let backend resolve `state`, `district`, and `mandal`
-- use backend feed APIs only
-- never apply location visibility filtering inside the app
+- get user GPS or let user finish manual location setup
+- send location data to backend
+- render only backend-filtered sections, categories, ads, banners, and vendors
+- never apply visibility logic locally
 
-## Important Rule
+## Core Rules
 
-Visibility depends on the authenticated user location saved on backend.
+- Visibility depends on saved user location on backend.
+- Supported visibility levels are `global`, `state`, `district`, and `mandal`.
+- `global` means visible to every user in every location.
+- Ads, banners, and categories must render only inside their assigned section and optional assigned category.
+- The app must not create "nearby deals", "random banners", or "recommended ad blocks" from raw ad/banner APIs unless the backend response explicitly provides them.
 
-Frontend must not decide:
+## Required Startup Flow
 
-- which vendors are visible
-- which ads are visible
-- which banners are visible
-
-Frontend only:
-
-- requests permission
-- gets GPS
-- calls location APIs
-- displays backend response
-
-## Required User App Flow
-
-### App Startup Flow
-
-1. Check if user is logged in.
+1. Check auth token.
 2. Check location permission.
-3. If permission granted, get GPS coordinates.
+3. If granted, get GPS.
 4. Call `POST /api/location/resolve`.
 5. After success, call `GET /api/home-feed`.
-6. Render returned `vendors`, `ads`, and `banners`.
+6. Render returned `sections`, `categories`, `vendors`, `ads`, and `banners`.
+7. For section pages, call `GET /api/sections/[slug]/ads`.
 
-### If Permission Is Denied
+## Permission Denied Flow
 
-Show a blocking or semi-blocking state:
+Show:
 
 - title: `Location Required`
-- reason: `We use your current location to show stores, ads, and banners available in your area.`
+- message: `Allow location to load stores and offers available for your area.`
 - actions:
   - `Allow Location`
   - `Retry`
   - `Open Settings`
 
-Do not show location-targeted content until backend location is resolved.
+Do not guess visibility on device.
 
 ## Authentication
-
-Use bearer token:
 
 ```http
 Authorization: Bearer <user_token>
@@ -63,18 +50,16 @@ Authorization: Bearer <user_token>
 
 ## API 1: Resolve User Location
 
-### Endpoint
-
 `POST /api/location/resolve`
 
-### Headers
+Headers:
 
 ```http
 Content-Type: application/json
 Authorization: Bearer <user_token>
 ```
 
-### Request Body
+Request:
 
 ```json
 {
@@ -84,7 +69,7 @@ Authorization: Bearer <user_token>
 }
 ```
 
-### Success Response
+Success:
 
 ```json
 {
@@ -96,30 +81,23 @@ Authorization: Bearer <user_token>
     },
     "district": {
       "id": "68342d5a0a5e4b2d8f1e0002",
-      "name": "Anantapur"
+      "name": "Visakhapatnam"
     },
     "mandal": {
       "id": "68342d5a0a5e4b2d8f1e0003",
-      "name": "Hindupur"
+      "name": "Gajuwaka"
     },
     "latitude": 17.385,
     "longitude": 78.4867,
     "addressLine": "Resolved address",
     "area": "Example Area",
-    "city": "Example City",
-    "pincode": "515201"
+    "city": "Visakhapatnam",
+    "pincode": "530026"
   }
 }
 ```
 
-### Error Response Examples
-
-```json
-{
-  "success": false,
-  "message": "Latitude and longitude are required"
-}
-```
+Error:
 
 ```json
 {
@@ -128,41 +106,26 @@ Authorization: Bearer <user_token>
 }
 ```
 
-```json
-{
-  "success": false,
-  "message": "Unsupported district for state Andhra Pradesh: Example"
-}
-```
-
-### App Behavior
-
-On success:
-
-- store the resolved hierarchy locally for UI only if needed
-- immediately request home feed
-
-On failure:
-
-- show retry state
-- do not try to locally guess visibility
-
 ## API 2: Save or Refresh User Location
-
-### Endpoint
 
 `PUT /api/user/location`
 
-This is a compatibility endpoint. You can use it if you want the backend to both resolve and store location in one place for the user profile flow.
+Use this when the app supports manual selection using the same hierarchy flow as vendor registration.
 
-### Headers
+Manual request:
 
-```http
-Content-Type: application/json
-Authorization: Bearer <user_token>
+```json
+{
+  "stateId": "68342d5a0a5e4b2d8f1e0001",
+  "districtId": "68342d5a0a5e4b2d8f1e0002",
+  "mandalId": "68342d5a0a5e4b2d8f1e0003",
+  "state": "Andhra Pradesh",
+  "district": "Visakhapatnam",
+  "mandal": "Gajuwaka"
+}
 ```
 
-### Recommended Request Body
+GPS request:
 
 ```json
 {
@@ -172,25 +135,7 @@ Authorization: Bearer <user_token>
 }
 ```
 
-### Optional Direct-Save Body
-
-Use only if you already have server-resolved IDs and names.
-
-```json
-{
-  "latitude": 17.385,
-  "longitude": 78.4867,
-  "accuracy": 25,
-  "state": "Andhra Pradesh",
-  "district": "Anantapur",
-  "mandal": "Hindupur",
-  "stateId": "68342d5a0a5e4b2d8f1e0001",
-  "districtId": "68342d5a0a5e4b2d8f1e0002",
-  "mandalId": "68342d5a0a5e4b2d8f1e0003"
-}
-```
-
-### Success Response
+Success:
 
 ```json
 {
@@ -201,285 +146,287 @@ Use only if you already have server-resolved IDs and names.
     "longitude": 78.4867,
     "accuracy": 25,
     "state": "Andhra Pradesh",
-    "district": "Anantapur",
-    "mandal": "Hindupur",
+    "district": "Visakhapatnam",
+    "mandal": "Gajuwaka",
     "stateId": "68342d5a0a5e4b2d8f1e0001",
     "districtId": "68342d5a0a5e4b2d8f1e0002",
     "mandalId": "68342d5a0a5e4b2d8f1e0003"
-  },
-  "resolvedLocation": {
-    "state": {
-      "id": "68342d5a0a5e4b2d8f1e0001",
-      "name": "Andhra Pradesh"
-    },
-    "district": {
-      "id": "68342d5a0a5e4b2d8f1e0002",
-      "name": "Anantapur"
-    },
-    "mandal": {
-      "id": "68342d5a0a5e4b2d8f1e0003",
-      "name": "Hindupur"
-    }
   }
 }
 ```
 
 ## API 3: Get Saved User Location
 
-### Endpoint
-
 `GET /api/user/location`
 
-### Headers
-
-```http
-Authorization: Bearer <user_token>
-```
-
-### Success Response
+Success:
 
 ```json
 {
   "success": true,
   "location": {
+    "state": "Andhra Pradesh",
+    "district": "Visakhapatnam",
+    "mandal": "Gajuwaka",
+    "stateId": "68342d5a0a5e4b2d8f1e0001",
+    "districtId": "68342d5a0a5e4b2d8f1e0002",
+    "mandalId": "68342d5a0a5e4b2d8f1e0003",
     "latitude": 17.385,
     "longitude": 78.4867,
-    "state": "Andhra Pradesh",
-    "district": "Anantapur",
-    "mandal": "Hindupur",
-    "stateId": "68342d5a0a5e4b2d8f1e0001",
-    "districtId": "68342d5a0a5e4b2d8f1e0002",
-    "mandalId": "68342d5a0a5e4b2d8f1e0003"
-  },
-  "locationIds": {
-    "stateId": "68342d5a0a5e4b2d8f1e0001",
-    "districtId": "68342d5a0a5e4b2d8f1e0002",
-    "mandalId": "68342d5a0a5e4b2d8f1e0003"
+    "locationUpdatedAt": "2026-05-27T09:10:00.000Z"
   }
 }
 ```
 
 ## API 4: Home Feed
 
-### Endpoint
-
 `GET /api/home-feed`
 
-### Headers
+Optional query:
 
-```http
-Authorization: Bearer <user_token>
-```
+- `vendorLimit`
+- `adLimit`
+- `bannerLimit`
+- `categoryLimit`
+- `sectionLimit`
 
-### Optional Query Params
-
-```text
-vendorLimit=20
-adLimit=20
-bannerLimit=20
-```
-
-### Example Request
-
-```http
-GET /api/home-feed?vendorLimit=20&adLimit=20&bannerLimit=10
-Authorization: Bearer <user_token>
-```
-
-### Success Response
+Success:
 
 ```json
 {
   "success": true,
   "data": {
+    "sections": [
+      {
+        "id": "sectionId",
+        "name": "Electronics Offers",
+        "slug": "electronics-offers",
+        "description": "Latest curated offers",
+        "image": {
+          "url": "https://..."
+        },
+        "banner": {
+          "url": "https://..."
+        },
+        "order": 1,
+        "visibilityLevel": "global"
+      }
+    ],
+    "categories": [
+      {
+        "id": "categoryId",
+        "name": "Mobiles",
+        "iconUrl": "https://...",
+        "imageUrl": "https://...",
+        "section": {
+          "id": "sectionId",
+          "name": "Electronics Offers",
+          "slug": "electronics-offers"
+        },
+        "visibilityLevel": "district"
+      }
+    ],
     "vendors": [
       {
         "id": "vendorId",
         "storeName": "Digitweets",
-        "storeAbout": "Store description",
-        "fullAddress": "Purna Market, Maharani Peta, Visakhapatnam, Andhra Pradesh",
-        "location": {
-          "state": "Andhra Pradesh",
-          "district": "Visakhapatnam",
-          "mandal": "Gajuwaka"
-        },
-        "media": {
-          "thumbnailUrl": "https://...",
-          "bannerUrl": "https://..."
-        },
-        "visibilityLevel": "district"
+        "storeAbout": "Fashion and electronics",
+        "fullAddress": "Visakhapatnam",
+        "location": {},
+        "media": {},
+        "visibilityLevel": "state"
       }
     ],
     "ads": [
       {
         "id": "adId",
-        "title": "Festival Offer",
+        "title": "Big Mobile Offer",
         "description": "Discount details",
-        "category": "Fashion",
-        "images": [
-          {
-            "url": "https://..."
-          }
-        ],
-        "url": "https://example.com",
-        "price": 199,
+        "category": "Mobiles",
+        "images": [],
+        "url": "https://...",
+        "price": 9999,
         "priceType": "fixed",
-        "views": 12,
-        "clicks": 4,
-        "visibilityLevel": "mandal",
+        "views": 120,
+        "clicks": 25,
+        "visibilityLevel": "global",
         "vendor": {
           "id": "vendorId",
           "storeName": "Digitweets",
-          "fullAddress": "Purna Market, Maharani Peta, Visakhapatnam, Andhra Pradesh",
-          "location": {
-            "state": "Andhra Pradesh",
-            "district": "Visakhapatnam",
-            "mandal": "Gajuwaka"
-          },
-          "media": {
-            "thumbnailUrl": "https://..."
-          }
+          "fullAddress": "Visakhapatnam",
+          "location": {},
+          "media": {}
         }
       }
     ],
     "banners": [
       {
         "id": "bannerId",
-        "title": "Big Sale",
+        "title": "Festival Banner",
         "image": {
           "url": "https://..."
         },
         "section": {
           "id": "sectionId",
-          "name": "Trending Stores"
+          "name": "Electronics Offers"
         },
-        "viewUrl": "https://example.com",
-        "whatsappLink": "https://wa.me/919999999999",
-        "storeLink": "app://store/vendorId",
-        "visibilityLevel": "state"
+        "viewUrl": "https://...",
+        "whatsappLink": "",
+        "storeLink": "",
+        "visibilityLevel": "global"
       }
     ]
   }
 }
 ```
 
-### Error Response: Location Missing
+## API 5: Visible Sections
+
+`GET /api/sections`
+
+Success:
 
 ```json
 {
-  "success": false,
-  "message": "Location not set",
+  "success": true,
+  "data": [
+    {
+      "id": "sectionId",
+      "name": "Electronics Offers",
+      "slug": "electronics-offers",
+      "imageUrl": "https://...",
+      "bannerUrl": "https://..."
+    }
+  ]
+}
+```
+
+## API 6: Visible Categories
+
+`GET /api/categories?sectionId=<sectionId>`
+
+If `sectionId` is omitted, backend returns only categories that are assigned to some section and visible to the user.
+
+Success:
+
+```json
+{
+  "success": true,
+  "categories": [
+    {
+      "id": "categoryId",
+      "name": "Mobiles",
+      "iconUrl": "https://...",
+      "imageUrl": "https://...",
+      "section": {
+        "id": "sectionId",
+        "name": "Electronics Offers",
+        "slug": "electronics-offers"
+      }
+    }
+  ]
+}
+```
+
+## API 7: Section Page Data
+
+`GET /api/sections/[slug]/ads?page=1&limit=20&categoryId=<categoryId>`
+
+This is the main API for rendering a section screen.
+
+Success:
+
+```json
+{
+  "success": true,
   "data": {
-    "vendors": [],
-    "ads": [],
-    "banners": []
+    "section": {
+      "_id": "sectionId",
+      "name": "Electronics Offers",
+      "slug": "electronics-offers"
+    },
+    "categories": [
+      {
+        "_id": "categoryId",
+        "name": "Mobiles"
+      }
+    ],
+    "banners": [
+      {
+        "id": "bannerId",
+        "title": "Festival Banner",
+        "imageUrl": "https://..."
+      }
+    ],
+    "ads": [
+      {
+        "id": "adId",
+        "title": "Big Mobile Offer",
+        "category": "Mobiles",
+        "storeId": "vendorId",
+        "storeName": "Digitweets",
+        "image": {
+          "url": "https://..."
+        },
+        "viewCount": 120,
+        "clickCount": 25,
+        "status": "approved"
+      }
+    ]
+  },
+  "pagination": {
+    "total": 24,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 2
   }
 }
 ```
 
-### Error Response: Location Stale
+## Rendering Rules
 
-```json
-{
-  "success": false,
-  "message": "Location stale",
-  "data": {
-    "vendors": [],
-    "ads": [],
-    "banners": []
-  }
-}
-```
+- Render section cards from `GET /api/sections` or `GET /api/home-feed`.
+- Render section categories from `GET /api/sections/[slug]/ads` or `GET /api/categories?sectionId=...`.
+- Render ads only from the section API or filtered ad API using a section/category query.
+- Render banners only from the section API or filtered banner API using a section query.
+- Do not inject ads or banners into unrelated sections.
 
-## API 5: Public Banners and Ads Endpoints
+## Global Visibility Flow
 
-These existing endpoints can still be used, but when the user is authenticated and has location IDs saved, backend will apply visibility rules:
+- If admin skips target location, backend stores `visibilityLevel = global`.
+- Global records must render without checking user state/district/mandal.
+- The app does not need a special client branch; just render backend response.
 
-- `GET /api/banners`
-- `GET /api/banners/top`
-- `GET /api/ads`
+## Error Handling
 
-### Recommendation
+Handle:
 
-For the new app home screen, prefer `GET /api/home-feed`.
+- `400` invalid GPS or invalid hierarchy
+- `401` auth expired
+- `404` section not found
+- `500` retry state
+- empty arrays as valid success
 
-Use legacy list endpoints only for:
+UI states:
 
-- section pages
-- dedicated ad pages
-- special browsing screens
-
-## Location Permission UX
-
-### Recommended Copy
-
-`We need your location to show stores, ads, and banners available in your area.`
-
-### Recommended Permission Handling
-
-If OS permission is:
-
-- `granted`
-  continue with GPS
-
-- `denied`
-  show retry + settings CTA
-
-- `blocked/permanently denied`
-  show `Open Settings`
-
-## Refresh Rules
-
-Refresh location when:
-
-- app launches
-- app returns from background after long time
-- user pulls to refresh home
-- backend says `Location stale`
-- OS location changes significantly
-
-## Offline Handling
-
-If offline:
-
-- show last loaded feed if available
-- mark it as cached content
-- do not assume it matches current location
-- retry `POST /api/location/resolve` when online again
-
-## UI States Required
-
-- loading GPS
+- loading location
 - resolving location
 - loading feed
+- empty section
+- empty category
 - permission denied
-- unsupported area
-- stale location
-- empty feed
-- retry state
+- offline retry
 
-## Error Mapping
+## Refresh Strategy
 
-### `401 Token required`
+- Resolve location on first app open after login.
+- Refresh location when app opens after long inactivity.
+- Refresh home feed after successful location update.
+- Refresh section data on pull-to-refresh and when category tab changes.
 
-- send user to login
+## Offline Flow
 
-### `400 Location not set`
-
-- restart location flow
-
-### `409 Location stale`
-
-- refresh coordinates and call location resolve again
-
-### `400 Unsupported state/district/mandal`
-
-- show unsupported coverage message
-
-## Minimum App Changes Summary
-
-1. Add location permission flow.
-2. Call `POST /api/location/resolve` after GPS fetch.
-3. Call `GET /api/home-feed` after successful resolve.
-4. Handle `Location stale` and `Location not set`.
-5. Never filter vendors, ads, or banners in frontend.
+- cache last rendered section/category/feed response for temporary UI
+- mark cached state as stale
+- retry location resolve and feed refresh when connectivity returns
+- never locally recalculate visibility

@@ -13,6 +13,16 @@ const bannerSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    tagId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      index: true,
+    },
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      index: true,
+    },
     image: {
       url: { type: String, required: true },
       key: { type: String, required: true }, // S3 key
@@ -82,7 +92,8 @@ const bannerSchema = new mongoose.Schema(
     },
     visibilityLevel: {
       type: String,
-      enum: ['state', 'district', 'mandal'],
+      enum: ['global', 'state', 'district', 'mandal'],
+      default: 'global',
       index: true,
     },
     visibilityStateId: {
@@ -114,7 +125,7 @@ const bannerSchema = new mongoose.Schema(
 // Indexes
 bannerSchema.index({ section: 1, order: 1 });
 bannerSchema.index({ isActive: 1 });
-bannerSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, isActive: 1 });
+bannerSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, section: 1, tagId: 1, categoryId: 1, isActive: 1 });
 
 if (mongoose.models.Banner) {
   delete mongoose.models.Banner;

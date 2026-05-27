@@ -13,12 +13,14 @@ export const BannerService = {
   listBanners: async (filters = {}) => {
     const query = {};
     if (filters.sectionId) query.section = filters.sectionId;
+    if (filters.categoryId) query.categoryId = filters.categoryId;
     if (filters.visibilityLevel) query.visibilityLevel = filters.visibilityLevel;
     if (filters.stateId) query.visibilityStateId = filters.stateId;
     if (filters.districtId) query.visibilityDistrictId = filters.districtId;
     if (filters.mandalId) query.visibilityMandalId = filters.mandalId;
     return await Banner.find(query)
       .populate('section', 'name')
+      .populate('categoryId', 'name sectionId')
       .sort({ section: 1, order: 1 });
   },
 
@@ -48,6 +50,7 @@ export const BannerService = {
     });
     await banner.save();
     await banner.populate('section', 'name');
+    await banner.populate('categoryId', 'name sectionId');
     return banner;
   },
 
@@ -89,6 +92,7 @@ export const BannerService = {
     const banner = await Banner.findByIdAndUpdate(id, data, { returnDocument: 'after' });
     if (!banner) throw new Error('Banner not found');
     await banner.populate('section', 'name');
+    await banner.populate('categoryId', 'name sectionId');
     return banner;
   },
 

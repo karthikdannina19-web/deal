@@ -300,29 +300,58 @@ Auth:
 Purpose:
 
 - compact dashboard endpoint for referral summary and activity
+- returns data for logged-in user only
+- used by the Referrals & Coins screen
 
 Success response:
 
 ```json
 {
   "success": true,
-  "message": "Referrals dashboard fetched successfully",
   "data": {
-    "referralCode": "USR-ABCDE",
-    "availableCoins": 120,
-    "totalReferrals": 3,
-    "totalReferralCoins": 75,
+    "referralCode": "USER1CODE",
+    "availableCoins": 500,
+    "totalReferrals": 1,
+    "totalReferralCoins": 500,
+    "coinsForReferrer": 500,
+    "coinsForReferred": 0,
+    "shareMessage": "Use my referral code USER1CODE to join Rhock Deals",
+    "shareUrl": "https://example.com/register?ref=USER1CODE",
+    "infoText": "Coins are digital rewards you can redeem at any partner vendor during your purchase.",
     "activity": [
       {
-        "referredUserName": "Anu R",
-        "amount": 25,
+        "id": "referral_transaction_id",
         "type": "referral_reward",
+        "referredUserName": "vamshi",
+        "title": "vamshi",
+        "subtitle": "Joined on 27 May 2026, 10:30 AM",
+        "amount": 500,
+        "isPositive": true,
         "createdAt": "2026-05-26T10:00:00.000Z"
       }
     ]
   }
 }
 ```
+
+Screen mapping:
+
+- `availableCoins` -> `Your Balance`
+- `totalReferrals` -> `Total Referrals`
+- `totalReferralCoins` -> `Referral Coins`
+- `activity[].title` -> left title
+- `activity[].subtitle` -> joined date/time line
+- `activity[].amount` + `activity[].isPositive` -> right-side `+500` UI
+
+Backend reward flow:
+
+1. User A shares referral code.
+2. User B registers with `POST /api/auth/register`.
+3. User B verifies OTP using `POST /api/auth/verify-otp`.
+4. Backend maps User B to the referral code owner.
+5. Backend credits 500 coins to the referrer after successful verification.
+6. Backend stores referral activity.
+7. `GET /api/referrals/dashboard` returns updated balance, totals, and activity.
 
 ### 8. Wallet Balance
 
@@ -901,4 +930,3 @@ Load these together:
 - After vendor redeem request:
   - refresh vendor wallet
   - refresh vendor redemption history
-

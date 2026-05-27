@@ -73,7 +73,8 @@ const vendorSchema = new mongoose.Schema(
     },
     visibilityLevel: {
       type: String,
-      enum: ['state', 'district', 'mandal'],
+      enum: ['global', 'state', 'district', 'mandal'],
+      default: 'global',
       index: true,
     },
     visibilityStateId: {

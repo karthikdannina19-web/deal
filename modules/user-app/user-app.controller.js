@@ -4,9 +4,21 @@ import { UserAppService } from './user-app.service.js';
 import User from '@/models/user.model.js';
 
 export class UserAppController {
-  static async sections() {
+  static async sections(req) {
     await dbConnect();
-    const sections = await UserAppService.listSections();
+    const authHeader = req.headers.get('authorization');
+    const auth = authHeader ? await authenticate(arguments[0]) : { user: null, error: null };
+    if (auth?.error && authHeader) return auth.error;
+    const authUser = auth?.user?.id
+      ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
+      : null;
+    const sections = await UserAppService.listSections({
+      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
+        stateId: authUser.stateId,
+        districtId: authUser.districtId,
+        mandalId: authUser.mandalId,
+      } : null,
+    });
     const data = sections.map((section) => {
       const imageUrl = section.image?.url || '';
       const bannerUrl = section.banner?.url || imageUrl;
@@ -111,9 +123,23 @@ export class UserAppController {
     }, { status: 200 });
   }
 
-  static async categories() {
+  static async categories(req) {
     await dbConnect();
-    const categories = await UserAppService.listCategories();
+    const authHeader = req.headers.get('authorization');
+    const auth = authHeader ? await authenticate(req) : { user: null, error: null };
+    if (auth?.error && authHeader) return auth.error;
+    const authUser = auth?.user?.id
+      ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
+      : null;
+    const { searchParams } = new URL(req.url);
+    const categories = await UserAppService.listCategories({
+      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
+        stateId: authUser.stateId,
+        districtId: authUser.districtId,
+        mandalId: authUser.mandalId,
+      } : null,
+      sectionId: searchParams.get('sectionId') || searchParams.get('section'),
+    });
     const data = categories.map((c) => ({
       ...c,
       id: c._id,
@@ -123,6 +149,11 @@ export class UserAppController {
       imageUrl: c.imageUrl || c.iconUrl || '',
       iconUrl: c.iconUrl || c.imageUrl || '',
       bannerUrl: c.imageUrl || '',
+      section: c.sectionId ? {
+        id: c.sectionId._id,
+        name: c.sectionId.name,
+        slug: c.sectionId.slug,
+      } : null,
     }));
     return Response.json({ success: true, categories: data }, { status: 200 });
   }

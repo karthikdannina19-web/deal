@@ -37,8 +37,9 @@ export default function AdsPage() {
   const [selectedSection, setSelectedSection] = useState("");
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
-  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("");
+  const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("global");
   const [locationTree, setLocationTree] = useState([]);
   const [visibilityLocation, setVisibilityLocation] = useState({
     stateId: '',
@@ -76,9 +77,8 @@ export default function AdsPage() {
 
   const fetchCategories = async () => {
     try {
-      const res = await fetch('/api/categories');
+      const res = await fetch('/api/admin/categories');
       const result = await res.json();
-      // API returns { success: true, categories: [...] }
       if (result && result.success) {
         setCategories(result.categories || result.data || []);
       }
@@ -108,7 +108,8 @@ export default function AdsPage() {
     setSelectedAd(ad);
     setSelectedSection(normalizeId(ad.section?._id || ad.section));
     setSelectedCategory(ad.category || '');
-    setSelectedVisibilityLevel(ad.visibilityLevel || '');
+    setSelectedCategoryId(normalizeId(ad.categoryId?._id || ad.categoryId));
+    setSelectedVisibilityLevel(ad.visibilityLevel || 'global');
     setVisibilityLocation({
       stateId: normalizeId(ad.visibilityStateId || ad.vendor?.storeStateId),
       districtId: normalizeId(ad.visibilityDistrictId || ad.vendor?.storeDistrictId),
@@ -124,6 +125,7 @@ export default function AdsPage() {
     sectionId = null,
     notes = "Admin moderation",
     category = undefined,
+    categoryId = undefined,
     visibilityLevel = undefined,
     visibilityStateId = undefined,
     visibilityDistrictId = undefined,
@@ -137,6 +139,7 @@ export default function AdsPage() {
         notes,
         sectionId,
         category,
+        categoryId,
         visibilityLevel,
         visibilityStateId,
         visibilityDistrictId,
@@ -154,6 +157,7 @@ export default function AdsPage() {
 
   const selectedState = locationTree.find((state) => state.id === visibilityLocation.stateId);
   const selectedDistrict = selectedState?.districts?.find((district) => district.id === visibilityLocation.districtId);
+  const sectionCategories = categories.filter((category) => normalizeId(category.sectionId?._id || category.sectionId) === selectedSection);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -581,7 +585,10 @@ export default function AdsPage() {
                 <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Assign to Section</label>
                 <select 
                   value={selectedSection}
-                  onChange={e => setSelectedSection(e.target.value)}
+                  onChange={e => {
+                    setSelectedSection(e.target.value);
+                    setSelectedCategoryId('');
+                  }}
                   className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold text-zinc-900 dark:text-white"
                 >
                   <option value="">No Section (Standard Listing)</option>
@@ -595,19 +602,24 @@ export default function AdsPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Category (Optional)</label>
+                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Assigned Category</label>
                 <select
-                  value={selectedCategory}
-                  onChange={e => setSelectedCategory(e.target.value)}
+                  value={selectedCategoryId}
+                  onChange={e => {
+                    const nextId = e.target.value;
+                    const nextCategory = sectionCategories.find((cat) => cat._id === nextId);
+                    setSelectedCategoryId(nextId);
+                    setSelectedCategory(nextCategory?.name || '');
+                  }}
                   className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold text-zinc-900 dark:text-white"
                 >
-                  <option value="">Keep existing</option>
-                  {categories.map(cat => (
-                    <option key={cat._id} value={cat.name}>{cat.name}</option>
+                  <option value="">All categories in this section</option>
+                  {sectionCategories.map(cat => (
+                    <option key={cat._id} value={cat._id}>{cat.name}</option>
                   ))}
                 </select>
                 <p className="mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-                  Set or override the ad category when approving or editing.
+                  Ads only appear inside the mapped section and category.
                 </p>
               </div>
 
@@ -625,12 +637,12 @@ export default function AdsPage() {
               <div>
                 <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Visibility Target</label>
                 <div className="grid grid-cols-1 gap-3">
-                  {['', 'state', 'district', 'mandal'].map((level) => (
+                  {['global', 'state', 'district', 'mandal'].map((level) => (
                     <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-3 cursor-pointer">
                       <div>
-                        <p className="font-bold text-zinc-900 dark:text-white capitalize">{level ? `${level} Visibility` : 'All Users'}</p>
+                        <p className="font-bold text-zinc-900 dark:text-white capitalize">{level === 'global' ? 'All Users' : `${level} Visibility`}</p>
                         <p className="text-xs text-zinc-500">
-                          {level === ''
+                          {level === 'global'
                             ? 'Visible in every location'
                             : level === 'state'
                             ? selectedAd.vendor?.location?.state || 'Store state'
@@ -649,7 +661,7 @@ export default function AdsPage() {
                     </label>
                   ))}
                 </div>
-                {selectedVisibilityLevel && (
+                {selectedVisibilityLevel !== 'global' && (
                 <div className="mt-4 grid grid-cols-1 gap-3">
                   <select
                     value={visibilityLocation.stateId}
@@ -706,9 +718,10 @@ export default function AdsPage() {
                     selectedSection,
                     reviewNotes,
                     selectedCategory,
-                    selectedVisibilityLevel || null,
-                    selectedVisibilityLevel ? visibilityLocation.stateId : null,
-                    selectedVisibilityLevel === 'state' ? null : (selectedVisibilityLevel ? visibilityLocation.districtId : null),
+                    selectedCategoryId || null,
+                    selectedVisibilityLevel || 'global',
+                    selectedVisibilityLevel === 'global' ? null : visibilityLocation.stateId,
+                    selectedVisibilityLevel === 'state' || selectedVisibilityLevel === 'global' ? null : visibilityLocation.districtId,
                     selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null
                   )}
                   disabled={!!processingId}

@@ -40,6 +40,7 @@ export default function SectionsDashboard() {
   const [sections, setSections] = useState([]);
   const [banners, setBanners] = useState([]);
   const [ads, setAds] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [locationTree, setLocationTree] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -58,9 +59,19 @@ export default function SectionsDashboard() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Form States
-  const [tagForm, setTagForm] = useState({ name: '', description: '', order: 0, isActive: true });
+  const [tagForm, setTagForm] = useState({
+    name: '',
+    description: '',
+    order: 0,
+    isActive: true,
+    visibilityLevel: 'global',
+    visibilityStateId: '',
+    visibilityDistrictId: '',
+    visibilityMandalId: ''
+  });
   const [bannerForm, setBannerForm] = useState({
     section: '',
+    categoryId: '',
     title: '',
     location: '',
     locationLabel: '',
@@ -83,22 +94,25 @@ export default function SectionsDashboard() {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [secRes, banRes, adsRes, locRes] = await Promise.all([
+      const [secRes, banRes, adsRes, locRes, catRes] = await Promise.all([
         fetch('/api/admin/sections'),
         fetch('/api/admin/banners'),
         fetch('/api/admin/ads?status=approved&activeOnly=true'),
-        fetch('/api/locations/tree')
+        fetch('/api/locations/tree'),
+        fetch('/api/admin/categories')
       ]);
       
       const secData = await secRes.json();
       const banData = await banRes.json();
       const adsData = await adsRes.json();
       const locData = await locRes.json();
+      const catData = await catRes.json();
       
       if (secData.success) setSections(secData.data);
       if (banData.success) setBanners(banData.data);
       if (adsData.success) setAds(adsData.ads);
       if (locData.success) setLocationTree(locData.data || []);
+      if (catData.success) setCategories(catData.categories || catData.data || []);
     } catch (err) {
       console.error('Data fetch failed', err);
     } finally {
@@ -114,11 +128,29 @@ export default function SectionsDashboard() {
   const handleOpenTagModal = (tag = null) => {
     if (tag) {
       setEditingTag(tag);
-      setTagForm({ name: tag.name, description: tag.description || '', order: tag.order || 0, isActive: tag.isActive });
+      setTagForm({
+        name: tag.name,
+        description: tag.description || '',
+        order: tag.order || 0,
+        isActive: tag.isActive,
+        visibilityLevel: tag.visibilityLevel || 'global',
+        visibilityStateId: normalizeId(tag.visibilityStateId),
+        visibilityDistrictId: normalizeId(tag.visibilityDistrictId),
+        visibilityMandalId: normalizeId(tag.visibilityMandalId)
+      });
       setTagImagePreview(tag.image?.url || null);
     } else {
       setEditingTag(null);
-      setTagForm({ name: '', description: '', order: sections.length + 1, isActive: true });
+      setTagForm({
+        name: '',
+        description: '',
+        order: sections.length + 1,
+        isActive: true,
+        visibilityLevel: 'global',
+        visibilityStateId: '',
+        visibilityDistrictId: '',
+        visibilityMandalId: ''
+      });
       setTagImagePreview(null);
     }
     setTagImage(null);
@@ -145,10 +177,11 @@ export default function SectionsDashboard() {
       setEditingBanner(banner);
       setBannerForm({ 
         section: normalizeId(banner.section?._id || banner.section), 
+        categoryId: normalizeId(banner.categoryId?._id || banner.categoryId),
         title: banner.title || '',
         location: banner.location || '', 
         locationLabel: banner.locationLabel || '',
-        visibilityLevel: banner.visibilityLevel || '',
+        visibilityLevel: banner.visibilityLevel || 'global',
         visibilityStateId: normalizeId(banner.visibilityStateId),
         visibilityDistrictId: normalizeId(banner.visibilityDistrictId),
         visibilityMandalId: normalizeId(banner.visibilityMandalId),
@@ -163,10 +196,11 @@ export default function SectionsDashboard() {
       setEditingBanner(null);
       setBannerForm({
         section: sections[0]?._id || '',
+        categoryId: '',
         title: '',
         location: '',
         locationLabel: '',
-        visibilityLevel: '',
+        visibilityLevel: 'global',
         visibilityStateId: '',
         visibilityDistrictId: '',
         visibilityMandalId: '',
@@ -204,6 +238,9 @@ export default function SectionsDashboard() {
 
   const selectedState = locationTree.find((state) => state.id === bannerForm.visibilityStateId);
   const selectedDistrict = selectedState?.districts?.find((district) => district.id === bannerForm.visibilityDistrictId);
+  const selectedTagState = locationTree.find((state) => state.id === tagForm.visibilityStateId);
+  const selectedTagDistrict = selectedTagState?.districts?.find((district) => district.id === tagForm.visibilityDistrictId);
+  const sectionCategories = categories.filter((category) => normalizeId(category.sectionId?._id || category.sectionId) === bannerForm.section);
 
   const handleDeleteBanner = async (id) => {
     if (!confirm('Delete this banner?')) return;
@@ -334,8 +371,13 @@ export default function SectionsDashboard() {
                           <div className={cn("w-2 h-2 rounded-full", section.isActive ? "bg-green-500" : "bg-zinc-300")} />
                           <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{section.isActive ? 'Active' : 'Inactive'}</span>
                        </div>
-                       <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[10px] font-black text-zinc-600 dark:text-zinc-400">
-                          {section.adCount || 0} ADS
+                       <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-[10px] font-black text-zinc-600 dark:text-zinc-400">
+                             {section.adCount || 0} ADS
+                          </div>
+                          <div className="flex items-center gap-1.5 px-3 py-1 bg-admin-primary/10 text-admin-primary rounded-lg text-[10px] font-black uppercase tracking-widest">
+                             {section.visibilityLevel || 'global'}
+                          </div>
                        </div>
                     </div>
                   </div>
@@ -391,7 +433,7 @@ export default function SectionsDashboard() {
                                   <MapPin size={16} className="text-zinc-400" />
                                </h4>
                                <p className="mt-1 text-xs text-zinc-500 capitalize">
-                                 {banner.visibilityLevel || 'all users'} visibility
+                                 {(banner.visibilityLevel || 'global')} visibility
                                </p>
                             </div>
                             <div className={cn("px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest", banner.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400")}>
@@ -567,11 +609,86 @@ export default function SectionsDashboard() {
                            <input required value={tagForm.name} onChange={e => setTagForm({...tagForm, name: e.target.value})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 font-bold text-zinc-900 dark:text-white" />
                         </div>
                         <div>
+                           <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Description</label>
+                           <input value={tagForm.description} onChange={e => setTagForm({...tagForm, description: e.target.value})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
+                        </div>
+                        <div>
                            <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Display Order</label>
                            <input type="number" value={tagForm.order} onChange={e => setTagForm({...tagForm, order: e.target.value})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
                         </div>
                      </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Visibility Level</label>
+                        <select
+                          value={tagForm.visibilityLevel}
+                          onChange={e => setTagForm({
+                            ...tagForm,
+                            visibilityLevel: e.target.value,
+                            visibilityStateId: e.target.value === 'global' ? '' : tagForm.visibilityStateId,
+                            visibilityDistrictId: ['district', 'mandal'].includes(e.target.value) ? tagForm.visibilityDistrictId : '',
+                            visibilityMandalId: e.target.value === 'mandal' ? tagForm.visibilityMandalId : ''
+                          })}
+                          className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                        >
+                          <option value="global">All Users</option>
+                          <option value="state">State</option>
+                          <option value="district">District</option>
+                          <option value="mandal">Mandal</option>
+                        </select>
+                     </div>
+                     {tagForm.visibilityLevel !== 'global' && (
+                       <div>
+                          <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">State</label>
+                          <select
+                            value={tagForm.visibilityStateId}
+                            onChange={e => setTagForm({
+                              ...tagForm,
+                              visibilityStateId: e.target.value,
+                              visibilityDistrictId: '',
+                              visibilityMandalId: ''
+                            })}
+                            className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                          >
+                            <option value="">Select state</option>
+                            {locationTree.map(state => <option key={state.id} value={state.id}>{state.name}</option>)}
+                          </select>
+                       </div>
+                     )}
+                  </div>
+                  {['district', 'mandal'].includes(tagForm.visibilityLevel) && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">District</label>
+                        <select
+                          value={tagForm.visibilityDistrictId}
+                          onChange={e => setTagForm({
+                            ...tagForm,
+                            visibilityDistrictId: e.target.value,
+                            visibilityMandalId: ''
+                          })}
+                          className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                        >
+                          <option value="">Select district</option>
+                          {(selectedTagState?.districts || []).map(district => <option key={district.id} value={district.id}>{district.name}</option>)}
+                        </select>
+                      </div>
+                      {tagForm.visibilityLevel === 'mandal' && (
+                        <div>
+                          <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Mandal</label>
+                          <select
+                            value={tagForm.visibilityMandalId}
+                            onChange={e => setTagForm({...tagForm, visibilityMandalId: e.target.value})}
+                            className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                          >
+                            <option value="">Select mandal</option>
+                            {(selectedTagDistrict?.mandals || []).map(mandal => <option key={mandal.id} value={mandal.id}>{mandal.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <button type="submit" className="w-full py-4 bg-admin-primary text-white font-black rounded-[24px] shadow-lg shadow-admin-primary/20">Save Tag</button>
                </form>
             </motion.div>
@@ -601,7 +718,7 @@ export default function SectionsDashboard() {
                   <div className="grid grid-cols-2 gap-4">
                      <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Category Tag</label>
-                        <select value={bannerForm.section} onChange={e => setBannerForm({...bannerForm, section: e.target.value})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white">
+                        <select value={bannerForm.section} onChange={e => setBannerForm({...bannerForm, section: e.target.value, categoryId: ''})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white">
                            {sections.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                         </select>
                      </div>
@@ -609,6 +726,13 @@ export default function SectionsDashboard() {
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Title</label>
                         <input value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} placeholder="Festival Offer" className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
                      </div>
+                  </div>
+                  <div>
+                     <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Assigned Category</label>
+                     <select value={bannerForm.categoryId} onChange={e => setBannerForm({...bannerForm, categoryId: e.target.value})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white">
+                        <option value="">All categories in this section</option>
+                        {sectionCategories.map(category => <option key={category._id} value={category._id}>{category.name}</option>)}
+                     </select>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -619,19 +743,19 @@ export default function SectionsDashboard() {
                           onChange={e => setBannerForm({
                             ...bannerForm,
                             visibilityLevel: e.target.value,
-                            visibilityStateId: e.target.value ? bannerForm.visibilityStateId : '',
-                            visibilityDistrictId: e.target.value === 'state' ? '' : bannerForm.visibilityDistrictId,
+                            visibilityStateId: e.target.value === 'global' ? '' : bannerForm.visibilityStateId,
+                            visibilityDistrictId: ['district', 'mandal'].includes(e.target.value) ? bannerForm.visibilityDistrictId : '',
                             visibilityMandalId: e.target.value === 'mandal' ? bannerForm.visibilityMandalId : ''
                           })}
                           className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
                         >
-                          <option value="">All Users</option>
+                          <option value="global">All Users</option>
                           <option value="state">State</option>
                           <option value="district">District</option>
                           <option value="mandal">Mandal</option>
                         </select>
                      </div>
-                     {bannerForm.visibilityLevel && (
+                     {bannerForm.visibilityLevel !== 'global' && (
                      <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">State</label>
                         <select
@@ -651,7 +775,7 @@ export default function SectionsDashboard() {
                      )}
                   </div>
 
-                  {bannerForm.visibilityLevel && bannerForm.visibilityLevel !== 'state' && (
+                  {bannerForm.visibilityLevel !== 'global' && bannerForm.visibilityLevel !== 'state' && (
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">District</label>

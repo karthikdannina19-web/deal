@@ -25,6 +25,37 @@ const categorySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    sectionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      index: true,
+    },
+    visibilityLevel: {
+      type: String,
+      enum: ['global', 'state', 'district', 'mandal'],
+      default: 'global',
+      index: true,
+    },
+    visibilityStateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'State',
+      index: true,
+    },
+    visibilityDistrictId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'District',
+      index: true,
+    },
+    visibilityMandalId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Mandal',
+      index: true,
+    },
+    visibilityEnabled: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -33,7 +64,11 @@ const categorySchema = new mongoose.Schema(
 
 // Indexes
 categorySchema.index({ isActive: 1 });
+categorySchema.index({ sectionId: 1, visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, isActive: 1 });
 
-const Category = mongoose.models.Category || mongoose.model('Category', categorySchema);
+if (mongoose.models.Category) {
+  delete mongoose.models.Category;
+}
+const Category = mongoose.model('Category', categorySchema);
 
 export default Category;

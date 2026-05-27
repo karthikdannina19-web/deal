@@ -1,6 +1,8 @@
 import Section from '@/models/section.model.js';
 import Ad from '@/models/ad.model.js';
 import { uploadToS3 } from '@/services/s3.service.js';
+import { VisibilityService } from '@/services/visibility.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 const slugify = (value = '') =>
   value
@@ -39,6 +41,23 @@ export const SectionService = {
     try {
       console.log('[SectionService] Creating section with data:', data);
       const payload = { ...data };
+      if (Object.prototype.hasOwnProperty.call(payload, 'visibilityLevel')) {
+        const visibility = VisibilityService.normalizeVisibilityPayload({
+          visibilityLevel: payload.visibilityLevel,
+          visibilityStateId: payload.visibilityStateId,
+          visibilityDistrictId: payload.visibilityDistrictId,
+          visibilityMandalId: payload.visibilityMandalId,
+          visibilityEnabled: payload.visibilityEnabled,
+        });
+        if (visibility.visibilityStateId) {
+          await LocationMasterService.validateHierarchy({
+            stateId: visibility.visibilityStateId,
+            districtId: visibility.visibilityDistrictId,
+            mandalId: visibility.visibilityMandalId,
+          });
+        }
+        Object.assign(payload, visibility);
+      }
       if (!payload.slug && payload.name) {
         payload.slug = slugify(payload.name);
       }
@@ -58,6 +77,23 @@ export const SectionService = {
    */
   updateSection: async (id, data) => {
     const updateData = { ...data };
+    if (Object.prototype.hasOwnProperty.call(updateData, 'visibilityLevel')) {
+      const visibility = VisibilityService.normalizeVisibilityPayload({
+        visibilityLevel: updateData.visibilityLevel,
+        visibilityStateId: updateData.visibilityStateId,
+        visibilityDistrictId: updateData.visibilityDistrictId,
+        visibilityMandalId: updateData.visibilityMandalId,
+        visibilityEnabled: updateData.visibilityEnabled,
+      });
+      if (visibility.visibilityStateId) {
+        await LocationMasterService.validateHierarchy({
+          stateId: visibility.visibilityStateId,
+          districtId: visibility.visibilityDistrictId,
+          mandalId: visibility.visibilityMandalId,
+        });
+      }
+      Object.assign(updateData, visibility);
+    }
     if (!updateData.slug && updateData.name) {
       updateData.slug = slugify(updateData.name);
     }

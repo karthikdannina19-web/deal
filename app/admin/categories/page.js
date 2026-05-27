@@ -18,6 +18,13 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../utils/cn';
 
+function normalizeId(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.toString) return value.toString();
+  return String(value);
+}
+
 /**
  * Admin Categories Management Page
  * Handles visualization and logic for business categories.
@@ -28,10 +35,17 @@ export default function CategoriesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sections, setSections] = useState([]);
+  const [locationTree, setLocationTree] = useState([]);
 
   // Form State
   const [formData, setFormData] = useState({
     name: '',
+    sectionId: '',
+    visibilityLevel: 'global',
+    visibilityStateId: '',
+    visibilityDistrictId: '',
+    visibilityMandalId: '',
     isActive: true,
     icon: null,
     image: null
@@ -57,10 +71,42 @@ export default function CategoriesPage() {
 
   useEffect(() => {
     fetchCategories();
+    fetchSections();
+    fetchLocations();
   }, []);
 
+  const fetchSections = async () => {
+    try {
+      const res = await fetch('/api/admin/sections');
+      const data = await res.json();
+      if (data.success) setSections(data.data || []);
+    } catch (error) {
+      console.error('Failed to load sections', error);
+    }
+  };
+
+  const fetchLocations = async () => {
+    try {
+      const res = await fetch('/api/locations/tree');
+      const data = await res.json();
+      if (data.success) setLocationTree(data.data || []);
+    } catch (error) {
+      console.error('Failed to load locations', error);
+    }
+  };
+
   const resetForm = () => {
-    setFormData({ name: '', isActive: true, icon: null, image: null });
+    setFormData({
+      name: '',
+      sectionId: sections[0]?._id || '',
+      visibilityLevel: 'global',
+      visibilityStateId: '',
+      visibilityDistrictId: '',
+      visibilityMandalId: '',
+      isActive: true,
+      icon: null,
+      image: null
+    });
     setPreviews({ icon: null, image: null });
     setEditingCategory(null);
   };
@@ -70,6 +116,11 @@ export default function CategoriesPage() {
       setEditingCategory(category);
       setFormData({
         name: category.name,
+        sectionId: normalizeId(category.sectionId?._id || category.sectionId),
+        visibilityLevel: category.visibilityLevel || 'global',
+        visibilityStateId: normalizeId(category.visibilityStateId),
+        visibilityDistrictId: normalizeId(category.visibilityDistrictId),
+        visibilityMandalId: normalizeId(category.visibilityMandalId),
         isActive: category.isActive,
         icon: null,
         image: null
@@ -79,7 +130,19 @@ export default function CategoriesPage() {
         image: category.imageUrl
       });
     } else {
-      resetForm();
+      setFormData({
+        name: '',
+        sectionId: sections[0]?._id || '',
+        visibilityLevel: 'global',
+        visibilityStateId: '',
+        visibilityDistrictId: '',
+        visibilityMandalId: '',
+        isActive: true,
+        icon: null,
+        image: null
+      });
+      setPreviews({ icon: null, image: null });
+      setEditingCategory(null);
     }
     setIsModalOpen(true);
   };
@@ -98,6 +161,11 @@ export default function CategoriesPage() {
     try {
       const data = new FormData();
       data.append('name', formData.name);
+      data.append('sectionId', formData.sectionId);
+      data.append('visibilityLevel', formData.visibilityLevel);
+      data.append('visibilityStateId', formData.visibilityLevel === 'global' ? '' : formData.visibilityStateId);
+      data.append('visibilityDistrictId', ['district', 'mandal'].includes(formData.visibilityLevel) ? formData.visibilityDistrictId : '');
+      data.append('visibilityMandalId', formData.visibilityLevel === 'mandal' ? formData.visibilityMandalId : '');
       data.append('isActive', formData.isActive);
       if (formData.icon) data.append('icon', formData.icon);
       if (formData.image) data.append('image', formData.image);
@@ -132,6 +200,8 @@ export default function CategoriesPage() {
   const filteredCategories = categories.filter(cat => 
     cat.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const selectedState = locationTree.find((state) => state.id === formData.visibilityStateId);
+  const selectedDistrict = selectedState?.districts?.find((district) => district.id === formData.visibilityDistrictId);
 
   return (
     <div className="space-y-10 pb-20">
@@ -204,6 +274,9 @@ export default function CategoriesPage() {
                    
                    <div>
                      <h3 className="font-black text-xl text-zinc-900 tracking-tight">{category.name}</h3>
+                     <p className="mt-1 text-[10px] font-black uppercase tracking-widest text-zinc-400">
+                       {(category.sectionId?.name || 'Unassigned Section')} • {category.visibilityLevel || 'global'}
+                     </p>
                      <span className={cn(
                        "mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border",
                        category.isActive ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-700 border-red-100"
@@ -278,6 +351,101 @@ export default function CategoriesPage() {
                       className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl text-sm font-bold text-zinc-900 dark:text-white focus:ring-4 ring-admin-primary/10 outline-none transition-all"
                     />
                   </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-4">Assigned Section</label>
+                    <select
+                      value={formData.sectionId}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, sectionId: e.target.value }))}
+                      className="w-full px-6 py-4 bg-zinc-50 border-none rounded-2xl text-sm font-bold text-zinc-900 focus:ring-4 ring-admin-primary/10 outline-none transition-all"
+                    >
+                      <option value="">Select section</option>
+                      {sections.map((section) => (
+                        <option key={section._id} value={section._id}>{section.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-4">Visibility Level</label>
+                      <select
+                        value={formData.visibilityLevel}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          visibilityLevel: e.target.value,
+                          visibilityStateId: e.target.value === 'global' ? '' : prev.visibilityStateId,
+                          visibilityDistrictId: ['district', 'mandal'].includes(e.target.value) ? prev.visibilityDistrictId : '',
+                          visibilityMandalId: e.target.value === 'mandal' ? prev.visibilityMandalId : '',
+                        }))}
+                        className="w-full px-6 py-4 bg-zinc-50 border-none rounded-2xl text-sm font-bold text-zinc-900 focus:ring-4 ring-admin-primary/10 outline-none transition-all"
+                      >
+                        <option value="global">Global</option>
+                        <option value="state">State</option>
+                        <option value="district">District</option>
+                        <option value="mandal">Mandal</option>
+                      </select>
+                    </div>
+
+                    {formData.visibilityLevel !== 'global' && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-4">State</label>
+                        <select
+                          value={formData.visibilityStateId}
+                          onChange={(e) => setFormData((prev) => ({
+                            ...prev,
+                            visibilityStateId: e.target.value,
+                            visibilityDistrictId: '',
+                            visibilityMandalId: '',
+                          }))}
+                          className="w-full px-6 py-4 bg-zinc-50 border-none rounded-2xl text-sm font-bold text-zinc-900 focus:ring-4 ring-admin-primary/10 outline-none transition-all"
+                        >
+                          <option value="">Select state</option>
+                          {locationTree.map((state) => (
+                            <option key={state.id} value={state.id}>{state.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {['district', 'mandal'].includes(formData.visibilityLevel) && (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-4">District</label>
+                        <select
+                          value={formData.visibilityDistrictId}
+                          onChange={(e) => setFormData((prev) => ({
+                            ...prev,
+                            visibilityDistrictId: e.target.value,
+                            visibilityMandalId: '',
+                          }))}
+                          className="w-full px-6 py-4 bg-zinc-50 border-none rounded-2xl text-sm font-bold text-zinc-900 focus:ring-4 ring-admin-primary/10 outline-none transition-all"
+                        >
+                          <option value="">Select district</option>
+                          {(selectedState?.districts || []).map((district) => (
+                            <option key={district.id} value={district.id}>{district.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {formData.visibilityLevel === 'mandal' && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400 ml-4">Mandal</label>
+                          <select
+                            value={formData.visibilityMandalId}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, visibilityMandalId: e.target.value }))}
+                            className="w-full px-6 py-4 bg-zinc-50 border-none rounded-2xl text-sm font-bold text-zinc-900 focus:ring-4 ring-admin-primary/10 outline-none transition-all"
+                          >
+                            <option value="">Select mandal</option>
+                            {(selectedDistrict?.mandals || []).map((mandal) => (
+                              <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">

@@ -7,6 +7,7 @@ import User from '@/models/user.model.js';
 import '@/models/vendor.model.js';
 import mongoose from 'mongoose';
 import { VisibilityService } from '@/services/visibility.service.js';
+import { SectionVisibilityService } from '@/services/section-visibility.service.js';
 
 function num(v, fallback = 999999) {
   return Number.isFinite(v) ? v : fallback;
@@ -85,15 +86,20 @@ function mapAd(ad) {
 }
 
 export class UserAppService {
-  static async listSections() {
-    return Section.find({ isActive: true }).sort({ order: 1 }).lean();
+  static async listSections({ userLocation = null } = {}) {
+    return SectionVisibilityService.getVisibleSections({ userLocation });
   }
 
   static async listBanners({ section, state, district, mandal, lat, lng, topOnly = false, userLocation = null }) {
-    const query = VisibilityService.buildMatchQuery(userLocation, { isActive: true });
-    if (section) query.section = section;
-    if (topOnly) query.isTopBanner = true;
-    const banners = await Banner.find(query).populate('section', '_id name order').sort({ order: 1 }).lean();
+    const banners = await SectionVisibilityService.filterBannersBySection({
+      userLocation,
+      sectionId: section || null,
+      extraFilters: topOnly ? { isTopBanner: true } : {},
+    })
+      .populate('section', '_id name order')
+      .populate('categoryId', '_id name sectionId')
+      .sort({ order: 1 })
+      .lean();
     const filteredBanners = userLocation
       ? banners
       : banners.filter((b) => locationMatches(b, { state, district, mandal }));
@@ -107,16 +113,28 @@ export class UserAppService {
   }
 
   static async listAds({ section, category, state, district, mandal, lat, lng, savedOnly, userId, userLocation = null }) {
-    const query = VisibilityService.buildMatchQuery(userLocation, { status: 'approved' });
-    if (section) query.section = section;
-    if (category) query.category = category;
+    const extraFilters = {};
+    let categoryId = null;
+    if (category) {
+      if (mongoose.Types.ObjectId.isValid(category)) {
+        categoryId = category;
+      } else {
+        extraFilters.category = category;
+      }
+    }
     if (savedOnly && userId) {
       const user = await User.findById(userId).select('savedAds').lean();
-      query._id = { $in: user?.savedAds || [] };
+      extraFilters._id = { $in: user?.savedAds || [] };
     }
 
-    const ads = await Ad.find(query)
+    const ads = await SectionVisibilityService.filterAdsBySection({
+      userLocation,
+      sectionId: section || null,
+      categoryId,
+      extraFilters,
+    })
       .populate('section', '_id name order')
+      .populate('categoryId', '_id name sectionId')
       .populate('vendor', 'storeName location state district mandal locationCoordinates media fullAddress _id')
       .sort({ createdAt: -1 })
       .lean({ virtuals: true });
@@ -154,8 +172,17 @@ export class UserAppService {
     return Ad.findOneAndUpdate({ _id: id, status: 'approved' }, { $inc: { clicks: 1 } }, { returnDocument: 'after' });
   }
 
-  static async listCategories() {
-    return Category.find({ isActive: true }).sort({ name: 1 }).select('_id name iconUrl imageUrl isActive').lean();
+  static async listCategories({ userLocation = null, sectionId = null } = {}) {
+    return Category.find(
+      VisibilityService.buildMatchQuery(userLocation, {
+        isActive: true,
+        ...(sectionId ? { sectionId } : { sectionId: { $ne: null } }),
+      })
+    )
+      .populate('sectionId', '_id name slug order')
+      .sort({ name: 1 })
+      .select('_id name iconUrl imageUrl isActive sectionId visibilityLevel')
+      .lean();
   }
 
   static async listCoupons({ page = 1, limit = 20, category, isActive = true, sortBy = 'order', sortOrder = 'asc' }) {

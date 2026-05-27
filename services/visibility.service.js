@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 
-export const VISIBILITY_LEVELS = ['state', 'district', 'mandal'];
+export const VISIBILITY_LEVELS = ['global', 'state', 'district', 'mandal'];
 
 function objectIdOrNull(value) {
   if (!value) return null;
@@ -9,16 +9,16 @@ function objectIdOrNull(value) {
 
 export class VisibilityService {
   static validateVisibilityPayload({ visibilityLevel, stateId, districtId, mandalId }) {
-    if (!visibilityLevel && !stateId && !districtId && !mandalId) {
-      return;
-    }
-
     if (!visibilityLevel) {
-      throw new Error('Visibility level is required when a target location is selected');
+      throw new Error('Visibility level is required');
     }
 
     if (!VISIBILITY_LEVELS.includes(visibilityLevel)) {
       throw new Error('Invalid visibility level');
+    }
+
+    if (visibilityLevel === 'global') {
+      return;
     }
 
     if (!stateId) {
@@ -36,13 +36,13 @@ export class VisibilityService {
   }
 
   static normalizeVisibilityPayload({
-    visibilityLevel = null,
+    visibilityLevel = 'global',
     visibilityStateId = null,
     visibilityDistrictId = null,
     visibilityMandalId = null,
     visibilityEnabled = true,
   } = {}) {
-    const normalizedLevel = visibilityLevel || null;
+    const normalizedLevel = visibilityLevel || 'global';
     const normalizedStateId = visibilityStateId || null;
     const normalizedDistrictId = visibilityDistrictId || null;
     const normalizedMandalId = visibilityMandalId || null;
@@ -54,9 +54,9 @@ export class VisibilityService {
       mandalId: normalizedMandalId,
     });
 
-    if (!normalizedLevel) {
+    if (normalizedLevel === 'global') {
       return {
-        visibilityLevel: null,
+        visibilityLevel: 'global',
         visibilityStateId: null,
         visibilityDistrictId: null,
         visibilityMandalId: null,
@@ -92,14 +92,11 @@ export class VisibilityService {
   static buildMatchQuery(location, extraFilters = {}) {
     const locationComplete = !!(location?.stateId && location?.districtId && location?.mandalId);
     const matchers = [
-      {
-        $or: [
-          { visibilityLevel: { $exists: false } },
-          { visibilityLevel: null },
-          { visibilityStateId: { $exists: false } },
-          { visibilityStateId: null },
-        ],
-      },
+      { visibilityLevel: 'global' },
+      { visibilityLevel: { $exists: false } },
+      { visibilityLevel: null },
+      { visibilityStateId: { $exists: false } },
+      { visibilityStateId: null },
     ];
 
     if (locationComplete) {
@@ -126,6 +123,18 @@ export class VisibilityService {
       ...extraFilters,
       visibilityEnabled: { $ne: false },
       $or: matchers,
+    };
+  }
+
+  static getUserLocation(user) {
+    if (!user?.stateId || !user?.districtId || !user?.mandalId) {
+      return null;
+    }
+
+    return {
+      stateId: user.stateId,
+      districtId: user.districtId,
+      mandalId: user.mandalId,
     };
   }
 }

@@ -11,6 +11,7 @@ export class BannerController {
       const { searchParams } = new URL(req.url);
       const filters = {
         sectionId: searchParams.get('section') || searchParams.get('sectionId'),
+        categoryId: searchParams.get('categoryId') || searchParams.get('category'),
         visibilityLevel: searchParams.get('visibilityLevel'),
         stateId: searchParams.get('stateId'),
         districtId: searchParams.get('districtId'),
@@ -41,6 +42,7 @@ export class BannerController {
       const visibilityDistrictId = formData.get('visibilityDistrictId');
       const visibilityMandalId = formData.get('visibilityMandalId');
       const title = formData.get('title');
+      const categoryId = formData.get('categoryId') || null;
       const isTopBanner = formData.get('isTopBanner') === 'true';
       const viewUrl = formData.get('viewUrl');
       const whatsappLink = formData.get('whatsappLink');
@@ -61,6 +63,7 @@ export class BannerController {
 
       const banner = await BannerService.createBanner({
         section,
+        categoryId,
         title,
         location,
         locationLabel,
@@ -95,13 +98,13 @@ export class BannerController {
       const formData = await req.formData();
       
       const updateData = {};
-      const fields = ['section', 'location', 'locationLabel', 'state', 'district', 'mandal', 'visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive', 'title'];
+      const fields = ['section', 'categoryId', 'location', 'locationLabel', 'state', 'district', 'mandal', 'visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive', 'title'];
       fields.forEach(field => {
         if (formData.has(field)) {
           let value = formData.get(field);
           if (field === 'order') value = parseInt(value);
           if (field === 'isActive') value = value === 'true';
-          if (['visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId'].includes(field) && !value) {
+          if (['categoryId', 'visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId'].includes(field) && !value) {
             value = null;
           }
           updateData[field] = value;

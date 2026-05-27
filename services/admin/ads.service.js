@@ -25,6 +25,7 @@ export const adsService = {
     notes = '',
     sectionId = null,
     category = null,
+    categoryId = null,
     visibilityLevel = null,
     visibilityStateId = null,
     visibilityDistrictId = null,
@@ -34,6 +35,7 @@ export const adsService = {
       const body = { status, notes };
       if (sectionId !== undefined) body.sectionId = sectionId;
       if (category !== undefined) body.category = category;
+      if (categoryId !== undefined) body.categoryId = categoryId;
       if (visibilityLevel !== undefined) body.visibility_level = visibilityLevel;
       if (visibilityStateId !== undefined) body.visibility_state_id = visibilityStateId;
       if (visibilityDistrictId !== undefined) body.visibility_district_id = visibilityDistrictId;

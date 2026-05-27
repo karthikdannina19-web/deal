@@ -15,7 +15,7 @@ const referralSettingSchema = new mongoose.Schema(
     // Coins awarded to the referred (new) user when they convert
     coinsForReferred: {
       type: Number,
-      default: 200,
+      default: 0,
       min: 0,
     },
     // Backward-compatible alias (kept for older code that may still reference it)

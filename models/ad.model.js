@@ -233,9 +233,20 @@ const adSchema = new mongoose.Schema(
       ref: 'Section',
       index: true,
     },
+    tagId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Section',
+      index: true,
+    },
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      index: true,
+    },
     visibilityLevel: {
       type: String,
-      enum: ['state', 'district', 'mandal'],
+      enum: ['global', 'state', 'district', 'mandal'],
+      default: 'global',
       index: true,
     },
     visibilityStateId: {
@@ -275,7 +286,7 @@ adSchema.index({ isFeatured: 1, status: 1 });
 adSchema.index({ vendor: 1, status: 1 });
 adSchema.index({ 'location.city': 1, status: 1 });
 adSchema.index({ title: 'text', description: 'text', tags: 'text' });
-adSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, status: 1 });
+adSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, section: 1, tagId: 1, categoryId: 1, status: 1 });
 
 // ==========================================
 // Virtuals
