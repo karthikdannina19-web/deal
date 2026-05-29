@@ -1,6 +1,8 @@
 import { dbConnect } from '@/config/database.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { UserAppService } from './user-app.service.js';
+import { LocationResolverService } from '@/services/location-resolver.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 import User from '@/models/user.model.js';
 
 export class UserAppController {
@@ -132,30 +134,112 @@ export class UserAppController {
       ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
       : null;
     const { searchParams } = new URL(req.url);
+    const sectionId = searchParams.get('sectionId') || searchParams.get('section');
+    const queryState = searchParams.get('state');
+    const queryDistrict = searchParams.get('district');
+    const queryMandal = searchParams.get('mandal');
+    const lat = Number(searchParams.get('lat'));
+    const lng = Number(searchParams.get('lng'));
+
+    let location = authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
+      stateId: authUser.stateId,
+      districtId: authUser.districtId,
+      mandalId: authUser.mandalId,
+    } : null;
+
+    if ((!location || location === null) && Number.isFinite(lat) && Number.isFinite(lng)) {
+      try {
+        const resolved = await LocationResolverService.resolveCoordinates({ latitude: lat, longitude: lng });
+        location = {
+          stateId: resolved.state._id,
+          districtId: resolved.district._id,
+          mandalId: resolved.mandal._id,
+        };
+      } catch {
+        location = null;
+      }
+    }
+
+    if (!location && queryState && queryDistrict && queryMandal) {
+      try {
+        const resolved = await LocationMasterService.findByNames({
+          state: queryState,
+          district: queryDistrict,
+          mandal: queryMandal,
+          autoCreateMissingDistrict: false,
+          autoCreateMissingMandal: false,
+        });
+        if (resolved.state && resolved.district && resolved.mandal) {
+          location = {
+            stateId: resolved.state._id,
+            districtId: resolved.district._id,
+            mandalId: resolved.mandal._id,
+          };
+        }
+      } catch {
+        location = null;
+      }
+    }
+
     const categories = await UserAppService.listCategories({
-      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
-        stateId: authUser.stateId,
-        districtId: authUser.districtId,
-        mandalId: authUser.mandalId,
-      } : null,
-      sectionId: searchParams.get('sectionId') || searchParams.get('section'),
+      userLocation: location,
+      sectionId,
     });
-    const data = categories.map((c) => ({
-      ...c,
-      id: c._id,
-      icon: c.iconUrl || '',
-      iconImage: c.iconUrl || '',
-      image: c.imageUrl || c.iconUrl || '',
-      imageUrl: c.imageUrl || c.iconUrl || '',
-      iconUrl: c.iconUrl || c.imageUrl || '',
-      bannerUrl: c.imageUrl || '',
-      section: c.sectionId ? {
-        id: c.sectionId._id,
-        name: c.sectionId.name,
-        slug: c.sectionId.slug,
-      } : null,
-    }));
-    return Response.json({ success: true, categories: data }, { status: 200 });
+
+    const baseMapped = categories
+      .filter((c) => c.name && c.name.trim().length > 0 && c.isActive)
+      .map((c) => ({
+        ...c,
+        id: c._id,
+        _id: c._id,
+        name: c.name,
+        isActive: !!c.isActive,
+        icon: c.iconUrl || '',
+        image: c.imageUrl || c.iconUrl || '',
+        iconUrl: c.iconUrl || c.imageUrl || '',
+        imageUrl: c.imageUrl || c.iconUrl || '',
+        bannerUrl: c.imageUrl || '',
+        section: c.sectionId ? {
+          id: c.sectionId._id,
+          name: c.sectionId.name,
+          slug: c.sectionId.slug,
+        } : null,
+      }));
+
+    let mapped = baseMapped;
+    if (location && mapped.length < 4) {
+      const fallbackCategories = await UserAppService.listCategories({ userLocation: null, sectionId });
+      const fallbackMapped = fallbackCategories
+        .filter((c) => c.name && c.name.trim().length > 0 && c.isActive)
+        .map((c) => ({
+          ...c,
+          id: c._id,
+          _id: c._id,
+          name: c.name,
+          isActive: !!c.isActive,
+          icon: c.iconUrl || '',
+          image: c.imageUrl || c.iconUrl || '',
+          iconUrl: c.iconUrl || c.imageUrl || '',
+          imageUrl: c.imageUrl || c.iconUrl || '',
+          bannerUrl: c.imageUrl || '',
+          section: c.sectionId ? {
+            id: c.sectionId._id,
+            name: c.sectionId.name,
+            slug: c.sectionId.slug,
+          } : null,
+        }));
+
+      const existingIds = new Set(mapped.map((cat) => String(cat._id)));
+      for (const category of fallbackMapped) {
+        if (mapped.length >= 4) break;
+        if (!existingIds.has(String(category._id))) {
+          mapped.push(category);
+          existingIds.add(String(category._id));
+        }
+      }
+    }
+
+    return Response.json({ success: true, categories: mapped, data: mapped }, { status: 200 });
   }
 
   static async coupons(req) {
