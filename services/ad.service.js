@@ -628,7 +628,7 @@ export async function listAds(query = {}, page = 1, limit = 20, userId = null) {
       Ad.find(filters)
         .populate('section', 'name slug order')
         .populate('categoryId', 'name sectionId')
-        .populate('vendor', 'fullName storeName email location fullAddress storeStateId storeDistrictId storeMandalId')
+        .populate('vendor', 'fullName storeName email location fullAddress storeStateId storeDistrictId storeMandalId visibilityLevel visibilityStateId visibilityDistrictId visibilityMandalId')
         .sort(sortOption)
         .skip(skip)
         .limit(limit)
@@ -797,30 +797,16 @@ export async function moderateAd(
     await LocationMasterService.syncLegacyLocation(vendor);
     await vendor.save();
 
-    let visibility;
-    if (visibilityLevel) {
-      if (visibilityStateId) {
-        visibility = VisibilityService.normalizeVisibilityPayload({
-          visibilityLevel,
-          visibilityStateId,
-          visibilityDistrictId,
-          visibilityMandalId,
-          visibilityEnabled: true,
-        });
-        await LocationMasterService.validateHierarchy({
-          stateId: visibility.visibilityStateId,
-          districtId: visibility.visibilityDistrictId,
-          mandalId: visibility.visibilityMandalId,
-        });
-      } else {
-        visibility = VisibilityService.deriveFromStore(vendor, visibilityLevel);
-      }
-    } else {
-      visibility = VisibilityService.normalizeVisibilityPayload({
-        visibilityLevel: null,
+    const requestedVisibilityLevel = VisibilityService.validateChildVisibilityLevel(
+      vendor.visibilityLevel || 'global',
+      visibilityLevel || 'global'
+    );
+    const visibility = requestedVisibilityLevel === 'global'
+      ? VisibilityService.normalizeVisibilityPayload({
+        visibilityLevel: 'global',
         visibilityEnabled: true,
-      });
-    }
+      })
+      : VisibilityService.deriveFromStore(vendor, requestedVisibilityLevel);
 
     ad.visibilityLevel = visibility.visibilityLevel;
     ad.visibilityStateId = visibility.visibilityStateId;

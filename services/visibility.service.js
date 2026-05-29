@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 
 export const VISIBILITY_LEVELS = ['global', 'state', 'district', 'mandal'];
+const VISIBILITY_LEVEL_RANK = {
+  global: 0,
+  state: 1,
+  district: 2,
+  mandal: 3,
+};
 
 function objectIdOrNull(value) {
   if (!value) return null;
@@ -74,6 +80,13 @@ export class VisibilityService {
   }
 
   static deriveFromStore(entity, visibilityLevel) {
+    if (!visibilityLevel || visibilityLevel === 'global') {
+      return this.normalizeVisibilityPayload({
+        visibilityLevel: 'global',
+        visibilityEnabled: true,
+      });
+    }
+
     const stateId = entity.storeStateId || entity.visibilityStateId;
     const districtId = entity.storeDistrictId || entity.visibilityDistrictId;
     const mandalId = entity.storeMandalId || entity.visibilityMandalId;
@@ -87,6 +100,24 @@ export class VisibilityService {
       visibilityMandalId: visibilityLevel === 'mandal' ? mandalId : null,
       visibilityEnabled: true,
     };
+  }
+
+  static getAllowedChildLevels(parentVisibilityLevel = 'global') {
+    const parentRank = VISIBILITY_LEVEL_RANK[parentVisibilityLevel || 'global'] ?? 0;
+    return VISIBILITY_LEVELS.filter((level) => VISIBILITY_LEVEL_RANK[level] >= parentRank);
+  }
+
+  static validateChildVisibilityLevel(parentVisibilityLevel = 'global', childVisibilityLevel = 'global') {
+    const allowedLevels = this.getAllowedChildLevels(parentVisibilityLevel);
+    const normalizedChildLevel = childVisibilityLevel || 'global';
+
+    if (!allowedLevels.includes(normalizedChildLevel)) {
+      throw new Error(
+        `Ad visibility cannot be broader than store visibility. Allowed levels: ${allowedLevels.join(', ')}`
+      );
+    }
+
+    return normalizedChildLevel;
   }
 
   static buildMatchQuery(location, extraFilters = {}) {

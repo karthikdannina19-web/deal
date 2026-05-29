@@ -156,9 +156,6 @@ export class AdminService {
 
   static async updateVendorVisibility(vendorId, {
     visibilityLevel,
-    visibilityStateId,
-    visibilityDistrictId = null,
-    visibilityMandalId = null,
     visibilityEnabled = true,
   }) {
     await dbConnect();
@@ -166,21 +163,15 @@ export class AdminService {
     const vendor = await Vendor.findById(vendorId);
     if (!vendor) throw new Error('Vendor not found');
 
-    const visibility = VisibilityService.normalizeVisibilityPayload({
-      visibilityLevel,
-      visibilityStateId,
-      visibilityDistrictId,
-      visibilityMandalId,
-      visibilityEnabled,
-    });
-
-    if (visibility.visibilityStateId) {
-      await LocationMasterService.validateHierarchy({
-        stateId: visibility.visibilityStateId,
-        districtId: visibility.visibilityDistrictId,
-        mandalId: visibility.visibilityMandalId,
-      });
+    if (!vendor.location?.state || !vendor.location?.district || !vendor.location?.mandal) {
+      throw new Error('Vendor store location is incomplete');
     }
+
+    await LocationMasterService.syncLegacyLocation(vendor);
+
+    const visibility = visibilityLevel
+      ? VisibilityService.deriveFromStore(vendor, visibilityLevel)
+      : VisibilityService.normalizeVisibilityPayload({ visibilityEnabled });
 
     vendor.visibilityLevel = visibility.visibilityLevel;
     vendor.visibilityStateId = visibility.visibilityStateId;

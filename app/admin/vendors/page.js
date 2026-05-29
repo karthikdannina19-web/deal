@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAdminStore } from "@/store/useAdminStore";
 import { vendorService } from "@/services/admin/vendor.service";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,6 +37,18 @@ function normalizeId(value) {
   return String(value);
 }
 
+function getStoreLocationIds(vendor) {
+  return {
+    stateId: normalizeId(vendor?.storeStateId),
+    districtId: normalizeId(vendor?.storeDistrictId),
+    mandalId: normalizeId(vendor?.storeMandalId),
+  };
+}
+
+function getVisibilityLabel(level) {
+  return level ? `${level} Visibility` : 'All Users';
+}
+
 /**
  * Tab definitions for filtering vendors by their registration status
  */
@@ -61,7 +73,6 @@ export default function VendorsPage() {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState('');
-  const [locationTree, setLocationTree] = useState([]);
   const [visibilityLocation, setVisibilityLocation] = useState({
     stateId: '',
     districtId: '',
@@ -104,22 +115,6 @@ export default function VendorsPage() {
     fetchVendors();
   }, [fetchVendors]);
 
-  useEffect(() => {
-    const loadLocations = async () => {
-      try {
-        const response = await fetch('/api/locations/tree');
-        const data = await response.json();
-        if (data.success) {
-          setLocationTree(data.data || []);
-        }
-      } catch (error) {
-        console.error('Failed to load locations', error);
-      }
-    };
-
-    loadLocations();
-  }, []);
-
   /**
    * Handle Approval or Rejection
    */
@@ -152,9 +147,6 @@ export default function VendorsPage() {
     try {
       const response = await vendorService.updateVendorVisibility(selectedVendor._id, {
         visibility_level: selectedVisibilityLevel || null,
-        visibility_state_id: selectedVisibilityLevel ? visibilityLocation.stateId : null,
-        visibility_district_id: selectedVisibilityLevel === 'state' ? null : (selectedVisibilityLevel ? visibilityLocation.districtId : null),
-        visibility_mandal_id: selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null,
       });
 
       const updatedVendor = response.data;
@@ -166,9 +158,6 @@ export default function VendorsPage() {
       setProcessingId(null);
     }
   };
-
-  const selectedState = locationTree.find((state) => state.id === visibilityLocation.stateId);
-  const selectedDistrict = selectedState?.districts?.find((district) => district.id === visibilityLocation.districtId);
 
   return (
     <div className="space-y-12 pb-24">
@@ -370,11 +359,7 @@ export default function VendorsPage() {
                         onClick={() => {
                           setSelectedVendor(vendor);
                           setSelectedVisibilityLevel(vendor.visibilityLevel || '');
-                          setVisibilityLocation({
-                            stateId: normalizeId(vendor.visibilityStateId || vendor.storeStateId),
-                            districtId: normalizeId(vendor.visibilityDistrictId || vendor.storeDistrictId),
-                            mandalId: normalizeId(vendor.visibilityMandalId || vendor.storeMandalId),
-                          });
+                          setVisibilityLocation(getStoreLocationIds(vendor));
                         }}
                         className="group/btn relative w-14 h-14 rounded-3xl bg-zinc-50 text-zinc-400 hover:bg-admin-primary hover:text-white hover:rotate-12 transition-all duration-500 flex items-center justify-center overflow-hidden shadow-sm"
                       >
@@ -429,7 +414,7 @@ export default function VendorsPage() {
       {/* 4. Vendor Audit & Review Modal (Administrative View) */}
       <AnimatePresence>
         {selectedVendor && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-10 overflow-y-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -443,10 +428,10 @@ export default function VendorsPage() {
               animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 50 }}
               transition={{ type: "spring", damping: 20, stiffness: 100 }}
-              className="relative w-full max-w-[min(100vw-2rem,1100px)] bg-white rounded-[32px] shadow-2xl shadow-zinc-200/30 overflow-hidden z-10 border border-zinc-100"
+              className="relative w-full max-w-[min(100vw-1rem,1400px)] max-h-[calc(100vh-1rem)] bg-white rounded-3xl shadow-2xl shadow-zinc-900/30 overflow-hidden z-10 border border-zinc-100 flex flex-col"
             >
               {/* Modal Header/Banner */}
-              <div className="relative h-56 sm:h-64 bg-zinc-950">
+              <div className="relative h-36 sm:h-44 bg-zinc-950 shrink-0">
                 {selectedVendor.media?.bannerUrl ? (
                   <img src={selectedVendor.media.bannerUrl} alt="" className="w-full h-full object-cover opacity-85" />
                 ) : (
@@ -458,13 +443,13 @@ export default function VendorsPage() {
                 
                 <button 
                   onClick={() => setSelectedVendor(null)}
-                  className="absolute top-8 right-8 w-12 h-12 rounded-2xl bg-white/90 text-zinc-900 hover:bg-white shadow-lg transition-all duration-300 flex items-center justify-center z-20"
+                  className="absolute top-4 right-4 w-10 h-10 rounded-2xl bg-white/90 text-zinc-900 hover:bg-white shadow-lg transition-all duration-300 flex items-center justify-center z-20"
                 >
                   <XCircle size={24} />
                 </button>
                 
                 {/* Floating Status Badge */}
-                <div className="absolute top-8 left-8 z-20">
+                <div className="absolute top-4 left-4 z-20">
                    <span className={cn(
                       "px-4 py-2 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.08em] border",
                       selectedVendor.status === 'active' ? "bg-green-50 text-green-700 border-green-200" :
@@ -478,11 +463,11 @@ export default function VendorsPage() {
               </div>
 
               {/* Modal Content */}
-              <div className="px-6 sm:px-10 pb-16 -mt-20 relative z-10">
-                 <div className="flex flex-col md:flex-row items-end gap-6 mb-8">
+              <div className="px-4 sm:px-6 pb-6 -mt-14 relative z-10 overflow-y-auto">
+                 <div className="flex flex-col md:flex-row items-end gap-4 mb-5">
                     <div className="relative">
-                       <div className="w-32 h-32 sm:w-36 sm:h-36 rounded-3xl bg-white p-3 shadow-lg border border-zinc-100">
-                          <div className="w-full h-full rounded-3xl bg-zinc-50 flex items-center justify-center overflow-hidden border border-zinc-100">
+                       <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-white p-2 shadow-lg border border-zinc-100">
+                          <div className="w-full h-full rounded-2xl bg-zinc-50 flex items-center justify-center overflow-hidden border border-zinc-100">
                             {selectedVendor.media?.thumbnailUrl ? (
                               <img src={selectedVendor.media.thumbnailUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
@@ -491,37 +476,37 @@ export default function VendorsPage() {
                           </div>
                        </div>
                     </div>
-                    <div className="flex-1 pb-4 min-w-0">
-                       <div className="inline-flex flex-col gap-3 bg-white/95 border border-zinc-100 shadow-xl shadow-zinc-200/40 rounded-3xl px-6 py-5">
-                          <h1 className="text-4xl sm:text-5xl font-black text-zinc-900 tracking-tight leading-tight truncate">
+                    <div className="flex-1 pb-2 min-w-0">
+                       <div className="inline-flex max-w-full flex-col gap-2 bg-white/95 border border-zinc-100 shadow-xl shadow-zinc-200/40 rounded-3xl px-5 py-4">
+                          <h1 className="text-2xl sm:text-3xl font-black text-zinc-900 tracking-tight leading-tight truncate">
                             {selectedVendor.storeName || 'Unnamed Store'}
                           </h1>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-500">
                             <p className="text-admin-primary font-semibold uppercase tracking-[0.12em]">Administrative audit</p>
-                            <div className="h-1 w-12 bg-zinc-100 rounded-full" />
+                            <div className="h-1 w-8 bg-zinc-100 rounded-full" />
                             <p>Node #{selectedVendor._id.slice(-8).toUpperCase()}</p>
                           </div>
                        </div>
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr_0.9fr] gap-4">
                     {/* Column 1: Identity & Social */}
-                    <div className="space-y-10">
+                    <div className="space-y-4">
                        <section>
-                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-3 flex items-center gap-2">
                              <UserIcon size={14} className="text-admin-primary" /> Entity ownership
                           </label>
-                          <div className="bg-zinc-50 rounded-[32px] p-6 shadow-sm border border-zinc-100 text-zinc-900">
-                             <p className="text-lg font-semibold tracking-tight mb-1">{selectedVendor.fullName || selectedVendor.userId?.fullName || 'Unknown Proprietor'}</p>
-                             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-5">Authorized signatory</p>
-                             <div className="space-y-4 pt-5 border-t border-zinc-200">
-                                <div className="flex items-center gap-3 text-sm font-medium text-zinc-700">
-                                   <Mail size={16} className="text-admin-primary" />
-                                   {selectedVendor.email || selectedVendor.userId?.email || 'No email provided'}
+                          <div className="bg-zinc-50 rounded-3xl p-4 shadow-sm border border-zinc-100 text-zinc-900">
+                             <p className="text-base font-semibold tracking-tight mb-1">{selectedVendor.fullName || selectedVendor.userId?.fullName || 'Unknown Proprietor'}</p>
+                             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4">Authorized signatory</p>
+                             <div className="space-y-3 pt-4 border-t border-zinc-200">
+                                <div className="flex items-center gap-3 text-xs font-medium text-zinc-700 break-all">
+                                   <Mail size={14} className="text-admin-primary shrink-0" />
+                                   <span>{selectedVendor.email || selectedVendor.userId?.email || 'No email provided'}</span>
                                 </div>
-                                <div className="flex items-center gap-3 text-sm font-medium text-zinc-700">
-                                   <Phone size={16} className="text-admin-primary" />
+                                <div className="flex items-center gap-3 text-xs font-medium text-zinc-700">
+                                   <Phone size={14} className="text-admin-primary shrink-0" />
                                    {selectedVendor.mobileNumber || selectedVendor.userId?.phone || 'No phone provided'}
                                 </div>
                              </div>
@@ -529,10 +514,10 @@ export default function VendorsPage() {
                        </section>
 
                        <section>
-                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-3 flex items-center gap-2">
                              <Globe size={14} /> Social links
                           </label>
-                          <div className="flex flex-wrap gap-3">
+                          <div className="flex flex-wrap gap-2">
                              {[
                                { icon: Globe, val: selectedVendor.website, label: 'WEB' },
                                { icon: Globe, val: selectedVendor.instagram, label: 'INSTAGRAM' },
@@ -545,7 +530,7 @@ export default function VendorsPage() {
                                  target="_blank"
                                  rel="noreferrer"
                                  className={cn(
-                                   "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200",
+                                   "w-11 h-11 rounded-2xl flex items-center justify-center transition-colors duration-200",
                                    social.val ? "bg-zinc-100 text-zinc-900 hover:bg-admin-primary hover:text-white" : "bg-zinc-50 text-zinc-300 cursor-not-allowed"
                                  )}
                                >
@@ -557,43 +542,43 @@ export default function VendorsPage() {
                     </div>
 
                     {/* Column 2: Localization & Categories */}
-                    <div className="space-y-10">
+                    <div className="space-y-4">
                        <section>
-                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-3 flex items-center gap-2">
                              <MapPin size={14} className="text-admin-primary" /> Location profile
                           </label>
-                          <div className="bg-zinc-50 rounded-[32px] p-6 border border-zinc-200">
-                             <p className="text-sm font-medium text-zinc-700 leading-relaxed mb-6">
+                          <div className="bg-zinc-50 rounded-3xl p-4 border border-zinc-200">
+                             <p className="text-xs font-medium text-zinc-700 leading-relaxed mb-4">
                                 {selectedVendor.fullAddress || 'Full geographical address pending validation'}
                              </p>
-                             <div className="grid grid-cols-2 gap-4">
+                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                    <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">District</p>
-                                   <p className="font-semibold text-zinc-900">{selectedVendor.location?.district || 'N/A'}</p>
+                                   <p className="font-semibold text-sm text-zinc-900">{selectedVendor.location?.district || 'N/A'}</p>
                                 </div>
                                 <div>
                                  <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">State</p>
-                                  <p className="font-semibold text-zinc-900">{selectedVendor.location?.state || 'N/A'}</p>
+                                  <p className="font-semibold text-sm text-zinc-900">{selectedVendor.location?.state || 'N/A'}</p>
                                 </div>
                                 <div>
                                    <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">Mandal</p>
-                                   <p className="font-semibold text-zinc-900">{selectedVendor.location?.mandal || 'N/A'}</p>
+                                   <p className="font-semibold text-sm text-zinc-900">{selectedVendor.location?.mandal || 'N/A'}</p>
                                 </div>
                                 <div>
                                    <p className="text-[9px] font-semibold text-zinc-400 uppercase tracking-[0.08em] mb-1">Visibility</p>
-                                   <p className="font-semibold text-zinc-900 capitalize">{selectedVendor.visibilityLevel || 'All Users'}</p>
+                                   <p className="font-semibold text-sm text-zinc-900 capitalize">{selectedVendor.visibilityLevel || 'All Users'}</p>
                                 </div>
                              </div>
                           </div>
                        </section>
 
                        <section>
-                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-4 flex items-center gap-3">
+                          <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-3 flex items-center gap-2">
                              <Tag size={14} /> Market sector
                           </label>
-                          <div className="inline-flex items-center gap-3 px-6 py-4 bg-admin-primary/10 border border-admin-primary/15 rounded-3xl">
-                             <div className="w-10 h-10 rounded-xl bg-admin-primary/10 flex items-center justify-center text-admin-primary">
-                                <Store size={18} />
+                          <div className="inline-flex items-center gap-3 px-4 py-3 bg-admin-primary/10 border border-admin-primary/15 rounded-2xl">
+                             <div className="w-9 h-9 rounded-xl bg-admin-primary/10 flex items-center justify-center text-admin-primary">
+                                <Store size={16} />
                              </div>
                              <span className="font-semibold text-admin-primary text-sm">{selectedVendor.categoryId?.name || 'Unclassified'}</span>
                           </div>
@@ -641,7 +626,7 @@ export default function VendorsPage() {
                                   {['', 'state', 'district', 'mandal'].map((level) => (
                                     <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 cursor-pointer">
                                       <div>
-                                        <p className="text-sm font-semibold text-zinc-900 capitalize">{level ? `${level} Visibility` : 'All Users'}</p>
+                                        <p className="text-sm font-semibold text-zinc-900 capitalize">{getVisibilityLabel(level)}</p>
                                         <p className="text-xs text-zinc-500">
                                           {level === '' ? 'Visible to users in every location' : level === 'state' ? selectedVendor.location?.state : level === 'district' ? selectedVendor.location?.district : selectedVendor.location?.mandal}
                                         </p>
@@ -651,51 +636,24 @@ export default function VendorsPage() {
                                         name="vendor-visibility"
                                         value={level}
                                         checked={selectedVisibilityLevel === level}
-                                        onChange={() => setSelectedVisibilityLevel(level)}
+                                        onChange={() => {
+                                          setSelectedVisibilityLevel(level);
+                                          setVisibilityLocation(getStoreLocationIds(selectedVendor));
+                                        }}
                                       />
                                     </label>
                                   ))}
                                 </div>
-                                {selectedVisibilityLevel && (
-                                <div className="mt-5 grid grid-cols-1 gap-4">
-                                  <select
-                                    value={visibilityLocation.stateId}
-                                    onChange={(e) => setVisibilityLocation({ stateId: e.target.value, districtId: '', mandalId: '' })}
-                                    className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
-                                  >
-                                    <option value="">Select state</option>
-                                    {locationTree.map((state) => (
-                                      <option key={state.id} value={state.id}>{state.name}</option>
-                                    ))}
-                                  </select>
-
-                                  {selectedVisibilityLevel !== 'state' && (
-                                    <select
-                                      value={visibilityLocation.districtId}
-                                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, districtId: e.target.value, mandalId: '' }))}
-                                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
-                                    >
-                                      <option value="">Select district</option>
-                                      {(selectedState?.districts || []).map((district) => (
-                                        <option key={district.id} value={district.id}>{district.name}</option>
-                                      ))}
-                                    </select>
-                                  )}
-
-                                  {selectedVisibilityLevel === 'mandal' && (
-                                    <select
-                                      value={visibilityLocation.mandalId}
-                                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, mandalId: e.target.value }))}
-                                      className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
-                                    >
-                                      <option value="">Select mandal</option>
-                                      {(selectedDistrict?.mandals || []).map((mandal) => (
-                                        <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
-                                      ))}
-                                    </select>
+                                <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                                  <p className="text-xs font-semibold text-blue-900">
+                                    Automatic target: {selectedVisibilityLevel ? `${selectedVendor.location?.mandal || 'Unknown mandal'}, ${selectedVendor.location?.district || 'Unknown district'}, ${selectedVendor.location?.state || 'Unknown state'}` : 'Every user location'}
+                                  </p>
+                                  {selectedVisibilityLevel && (
+                                    <p className="mt-1 text-[11px] font-semibold text-blue-700">
+                                      IDs used: state {visibilityLocation.stateId || 'missing'}, district {visibilityLocation.districtId || 'missing'}, mandal {visibilityLocation.mandalId || 'missing'}
+                                    </p>
                                   )}
                                 </div>
-                                )}
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                <button 
@@ -759,60 +717,35 @@ export default function VendorsPage() {
                                    {['', 'state', 'district', 'mandal'].map((level) => (
                                      <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3 cursor-pointer">
                                        <div>
-                                         <p className="text-sm font-semibold text-zinc-900 capitalize">{level ? `${level} Visibility` : 'All Users'}</p>
-                                         <p className="text-xs text-zinc-500">{level ? 'Change who can see this store' : 'Show this store to users in every location'}</p>
+                                         <p className="text-sm font-semibold text-zinc-900 capitalize">{getVisibilityLabel(level)}</p>
+                                         <p className="text-xs text-zinc-500">
+                                           {level === '' ? 'Show this store to users in every location' : level === 'state' ? selectedVendor.location?.state : level === 'district' ? selectedVendor.location?.district : selectedVendor.location?.mandal}
+                                         </p>
                                        </div>
                                        <input
                                          type="radio"
                                          name="vendor-visibility-edit"
                                          value={level}
                                          checked={selectedVisibilityLevel === level}
-                                         onChange={() => setSelectedVisibilityLevel(level)}
+                                         onChange={() => {
+                                           setSelectedVisibilityLevel(level);
+                                           setVisibilityLocation(getStoreLocationIds(selectedVendor));
+                                         }}
                                        />
                                      </label>
                                    ))}
                                  </div>
 
-                                 {selectedVisibilityLevel && (
-                                 <div className="mt-5 grid grid-cols-1 gap-4">
-                                   <select
-                                     value={visibilityLocation.stateId}
-                                     onChange={(e) => setVisibilityLocation({ stateId: e.target.value, districtId: '', mandalId: '' })}
-                                     className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
-                                   >
-                                     <option value="">Select state</option>
-                                     {locationTree.map((state) => (
-                                       <option key={state.id} value={state.id}>{state.name}</option>
-                                     ))}
-                                   </select>
-
-                                   {selectedVisibilityLevel !== 'state' && (
-                                     <select
-                                       value={visibilityLocation.districtId}
-                                       onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, districtId: e.target.value, mandalId: '' }))}
-                                       className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
-                                     >
-                                       <option value="">Select district</option>
-                                       {(selectedState?.districts || []).map((district) => (
-                                         <option key={district.id} value={district.id}>{district.name}</option>
-                                       ))}
-                                     </select>
-                                   )}
-
-                                   {selectedVisibilityLevel === 'mandal' && (
-                                     <select
-                                       value={visibilityLocation.mandalId}
-                                       onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, mandalId: e.target.value }))}
-                                       className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-900"
-                                     >
-                                       <option value="">Select mandal</option>
-                                       {(selectedDistrict?.mandals || []).map((mandal) => (
-                                         <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
-                                       ))}
-                                     </select>
+                                 <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                                   <p className="text-xs font-semibold text-blue-900">
+                                     Automatic target: {selectedVisibilityLevel ? `${selectedVendor.location?.mandal || 'Unknown mandal'}, ${selectedVendor.location?.district || 'Unknown district'}, ${selectedVendor.location?.state || 'Unknown state'}` : 'Every user location'}
+                                   </p>
+                                   {selectedVisibilityLevel && (
+                                     <p className="mt-1 text-[11px] font-semibold text-blue-700">
+                                       IDs used: state {visibilityLocation.stateId || 'missing'}, district {visibilityLocation.districtId || 'missing'}, mandal {visibilityLocation.mandalId || 'missing'}
+                                     </p>
                                    )}
                                  </div>
-                                 )}
                                </div>
 
                                <button

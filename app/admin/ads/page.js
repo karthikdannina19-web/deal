@@ -8,8 +8,27 @@ import { Search, Filter, MoreHorizontal, Megaphone, Eye, MousePointerClick, Cale
 function normalizeId(value) {
   if (!value) return '';
   if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value._id) return normalizeId(value._id);
+  if (typeof value === 'object' && value.id) return normalizeId(value.id);
   if (typeof value === 'object' && value.toString) return value.toString();
   return String(value);
+}
+
+const VISIBILITY_LEVELS = ['global', 'state', 'district', 'mandal'];
+const VISIBILITY_LEVEL_RANK = {
+  global: 0,
+  state: 1,
+  district: 2,
+  mandal: 3,
+};
+
+function getAllowedVisibilityLevels(vendorVisibilityLevel = 'global') {
+  const parentRank = VISIBILITY_LEVEL_RANK[vendorVisibilityLevel || 'global'] ?? 0;
+  return VISIBILITY_LEVELS.filter((level) => VISIBILITY_LEVEL_RANK[level] >= parentRank);
+}
+
+function getVisibilityLabel(level) {
+  return level === 'global' ? 'All Users' : `${level} Visibility`;
 }
 
 export default function AdsPage() {
@@ -36,16 +55,11 @@ export default function AdsPage() {
   const [sections, setSections] = useState([]);
   const [selectedSection, setSelectedSection] = useState("");
   const [categories, setCategories] = useState([]);
+  const [isCategoryLoading, setIsCategoryLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("global");
-  const [locationTree, setLocationTree] = useState([]);
-  const [visibilityLocation, setVisibilityLocation] = useState({
-    stateId: '',
-    districtId: '',
-    mandalId: '',
-  });
 
   const fetchAds = async () => {
     try {
@@ -77,6 +91,7 @@ export default function AdsPage() {
 
   const fetchCategories = async () => {
     try {
+      setIsCategoryLoading(true);
       const res = await fetch('/api/admin/categories');
       const result = await res.json();
       if (result && result.success) {
@@ -84,37 +99,35 @@ export default function AdsPage() {
       }
     } catch (err) {
       console.error('Failed to fetch categories', err);
-    }
-  };
-
-  const fetchLocations = async () => {
-    try {
-      const res = await fetch('/api/locations/tree');
-      const result = await res.json();
-      if (result.success) setLocationTree(result.data || []);
-    } catch (err) {
-      console.error('Failed to fetch locations', err);
+    } finally {
+      setIsCategoryLoading(false);
     }
   };
 
   useEffect(() => {
     fetchAds();
     fetchSections();
-    fetchCategories();
-    fetchLocations();
   }, [page, searchTerm, statusFilter]);
 
+  useEffect(() => {
+    if (isModerationModalOpen) {
+      fetchCategories();
+    }
+  }, [isModerationModalOpen]);
+
   const handleOpenModeration = (ad) => {
+    const allowedVisibilityLevels = getAllowedVisibilityLevels(ad.vendor?.visibilityLevel || 'global');
+    const currentVisibilityLevel = ad.visibilityLevel || ad.vendor?.visibilityLevel || 'global';
+    const nextVisibilityLevel = allowedVisibilityLevels.includes(currentVisibilityLevel)
+      ? currentVisibilityLevel
+      : allowedVisibilityLevels[0];
+
     setSelectedAd(ad);
-    setSelectedSection(normalizeId(ad.section?._id || ad.section));
+    const nextSectionId = normalizeId(ad.section?._id || ad.section);
+    setSelectedSection(nextSectionId);
     setSelectedCategory(ad.category || '');
     setSelectedCategoryId(normalizeId(ad.categoryId?._id || ad.categoryId));
-    setSelectedVisibilityLevel(ad.visibilityLevel || 'global');
-    setVisibilityLocation({
-      stateId: normalizeId(ad.visibilityStateId || ad.vendor?.storeStateId),
-      districtId: normalizeId(ad.visibilityDistrictId || ad.vendor?.storeDistrictId),
-      mandalId: normalizeId(ad.visibilityMandalId || ad.vendor?.storeMandalId),
-    });
+    setSelectedVisibilityLevel(nextVisibilityLevel);
     setReviewNotes("");
     setIsModerationModalOpen(true);
   };
@@ -155,9 +168,8 @@ export default function AdsPage() {
     }
   };
 
-  const selectedState = locationTree.find((state) => state.id === visibilityLocation.stateId);
-  const selectedDistrict = selectedState?.districts?.find((district) => district.id === visibilityLocation.districtId);
-  const sectionCategories = categories.filter((category) => normalizeId(category.sectionId?._id || category.sectionId) === selectedSection);
+  const sectionCategories = categories;
+  const allowedAdVisibilityLevels = selectedAd ? getAllowedVisibilityLevels(selectedAd.vendor?.visibilityLevel || 'global') : VISIBILITY_LEVELS;
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -557,157 +569,194 @@ export default function AdsPage() {
       )}
       {/* Moderation Modal */}
       {isModerationModalOpen && selectedAd && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-zinc-900 w-full max-w-xl rounded-[32px] shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
-            <div className="p-8 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-zinc-900 w-full max-w-5xl max-h-[calc(100vh-1rem)] sm:max-h-[calc(100vh-2rem)] rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200 flex flex-col">
+            <div className="px-5 py-4 sm:px-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center shrink-0">
               <div>
-                <h3 className="text-2xl font-black text-zinc-900 dark:text-zinc-50 tracking-tight">Moderate Advertisement</h3>
-                <p className="text-sm text-zinc-500 font-medium">Review content and assign to a curated section.</p>
+                <h3 className="text-xl sm:text-2xl font-black text-zinc-900 dark:text-zinc-50 tracking-tight">Moderate Advertisement</h3>
+                <p className="text-xs sm:text-sm text-zinc-500 font-medium">Review content, map section/category, and set visibility.</p>
               </div>
-              <button onClick={() => setIsModerationModalOpen(false)} className="p-3 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-2xl transition-colors">
+              <button onClick={() => setIsModerationModalOpen(false)} className="p-2 sm:p-3 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-2xl transition-colors shrink-0">
                 <CloseIcon size={20} className="text-zinc-500" />
               </button>
             </div>
             
-            <div className="p-8 space-y-6">
-              <div className="flex gap-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700">
-                <img 
-                  src={selectedAd.images?.[0]?.url} 
-                  className="w-20 h-20 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700" 
-                />
-                <div>
-                  <p className="font-black text-zinc-900 dark:text-zinc-50">{selectedAd.title}</p>
-                  <p className="text-xs text-zinc-500 line-clamp-2 mt-1">{selectedAd.description}</p>
+            <div className="p-4 sm:p-6 overflow-y-auto">
+              <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-5">
+                <div className="space-y-5">
+                  <div className="flex gap-4 p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700">
+                    <img
+                      src={selectedAd.images?.[0]?.url}
+                      alt=""
+                      className="w-20 h-20 rounded-xl object-cover border border-zinc-200 dark:border-zinc-700 shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className="font-black text-zinc-900 dark:text-zinc-50 line-clamp-2">{selectedAd.title}</p>
+                      <p className="text-xs text-zinc-500 line-clamp-4 mt-1">{selectedAd.description}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Moderation Notes</label>
+                    <textarea
+                      value={reviewNotes}
+                      onChange={e => setReviewNotes(e.target.value)}
+                      placeholder="e.g. Content looks good, high quality images."
+                      rows={5}
+                      className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold resize-none text-zinc-900 dark:text-white"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Assign to Section</label>
-                <select 
-                  value={selectedSection}
-                  onChange={e => {
-                    setSelectedSection(e.target.value);
-                    setSelectedCategoryId('');
-                  }}
-                  className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold text-zinc-900 dark:text-white"
-                >
-                  <option value="">No Section (Standard Listing)</option>
-                  {sections.map(section => (
-                    <option key={section._id} value={section._id}>{section.name}</option>
-                  ))}
-                </select>
-                <p className="mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-                  Ads in sections appear at the top of the app and in curated discovery lists.
-                </p>
-              </div>
+                <div className="space-y-5">
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                      <label className="block text-xs font-black uppercase tracking-widest text-zinc-500">Assign to Section</label>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{sections.length} available</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSection('');
+                          setSelectedCategory('');
+                          setSelectedCategoryId('');
+                        }}
+                        className={`text-left rounded-2xl border px-4 py-3 transition-all ${
+                          !selectedSection
+                            ? 'border-admin-primary bg-admin-primary/10 text-admin-primary'
+                            : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:border-admin-primary/50'
+                        }`}
+                      >
+                        <p className="font-black text-sm">No Section</p>
+                        <p className="mt-1 text-[11px] font-semibold opacity-70">Standard listing only</p>
+                      </button>
+                      {sections.map(section => {
+                        const sectionId = normalizeId(section._id || section.id);
+                        const isSelected = selectedSection === sectionId;
+                        return (
+                          <button
+                            key={sectionId}
+                            type="button"
+                            onClick={() => {
+                              setSelectedSection(sectionId);
+                              setSelectedCategory('');
+                              setSelectedCategoryId('');
+                            }}
+                            className={`text-left rounded-2xl border px-4 py-3 transition-all ${
+                              isSelected
+                                ? 'border-admin-primary bg-admin-primary/10 text-admin-primary'
+                                : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:border-admin-primary/50'
+                            }`}
+                          >
+                            <p className="font-black text-sm line-clamp-1">{section.name}</p>
+                            <p className="mt-1 text-[11px] font-semibold opacity-70">Curated discovery</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Assigned Category</label>
-                <select
-                  value={selectedCategoryId}
-                  onChange={e => {
-                    const nextId = e.target.value;
-                    const nextCategory = sectionCategories.find((cat) => cat._id === nextId);
-                    setSelectedCategoryId(nextId);
-                    setSelectedCategory(nextCategory?.name || '');
-                  }}
-                  className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold text-zinc-900 dark:text-white"
-                >
-                  <option value="">All categories in this section</option>
-                  {sectionCategories.map(cat => (
-                    <option key={cat._id} value={cat._id}>{cat.name}</option>
-                  ))}
-                </select>
-                <p className="mt-2 text-[10px] text-zinc-500 font-bold uppercase tracking-widest">
-                  Ads only appear inside the mapped section and category.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Moderation Notes (Internal)</label>
-                <textarea 
-                  value={reviewNotes}
-                  onChange={e => setReviewNotes(e.target.value)}
-                  placeholder="e.g. Content looks good, high quality images."
-                  rows={2}
-                  className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none focus:ring-2 ring-admin-primary/20 focus:border-admin-primary transition-all font-bold resize-none text-zinc-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Visibility Target</label>
-                <div className="grid grid-cols-1 gap-3">
-                  {['global', 'state', 'district', 'mandal'].map((level) => (
-                    <label key={level} className="flex items-center justify-between rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-4 py-3 cursor-pointer">
-                      <div>
-                        <p className="font-bold text-zinc-900 dark:text-white capitalize">{level === 'global' ? 'All Users' : `${level} Visibility`}</p>
-                        <p className="text-xs text-zinc-500">
-                          {level === 'global'
-                            ? 'Visible in every location'
-                            : level === 'state'
-                            ? selectedAd.vendor?.location?.state || 'Store state'
-                            : level === 'district'
-                              ? selectedAd.vendor?.location?.district || 'Store district'
-                              : selectedAd.vendor?.location?.mandal || 'Store mandal'}
-                        </p>
+                  <div>
+                    <div className="flex items-center justify-between gap-3 mb-2.5">
+                      <label className="block text-xs font-black uppercase tracking-widest text-zinc-500">Assigned Category</label>
+                      {isCategoryLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-admin-primary" />
+                      ) : (
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">{categories.length} taxonomy</span>
+                      )}
+                    </div>
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 p-3">
+                      <div className="flex flex-wrap gap-2 max-h-36 overflow-y-auto pr-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedCategory('');
+                            setSelectedCategoryId('');
+                          }}
+                          className={`rounded-xl px-3 py-2 text-xs font-black transition-all ${
+                            !selectedCategoryId
+                              ? 'bg-admin-primary text-white'
+                              : 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700'
+                          }`}
+                        >
+                          All categories
+                        </button>
+                        {sectionCategories.map(cat => {
+                          const categoryId = normalizeId(cat._id || cat.id);
+                          const isSelected = selectedCategoryId === categoryId;
+                          return (
+                            <button
+                              key={categoryId}
+                              type="button"
+                              onClick={() => {
+                                setSelectedCategoryId(categoryId);
+                                setSelectedCategory(cat.name || '');
+                              }}
+                              className={`rounded-xl px-3 py-2 text-xs font-black transition-all ${
+                                isSelected
+                                  ? 'bg-admin-primary text-white'
+                                  : 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700 hover:border-admin-primary/50'
+                              }`}
+                            >
+                              {cat.name}
+                            </button>
+                          );
+                        })}
+                        {!isCategoryLoading && sectionCategories.length === 0 && (
+                          <p className="text-sm font-bold text-zinc-500">No categories found in Category Taxonomy.</p>
+                        )}
                       </div>
-                      <input
-                        type="radio"
-                        name="ad-visibility"
-                        value={level}
-                        checked={selectedVisibilityLevel === level}
-                        onChange={() => setSelectedVisibilityLevel(level)}
-                      />
-                    </label>
-                  ))}
-                </div>
-                {selectedVisibilityLevel !== 'global' && (
-                <div className="mt-4 grid grid-cols-1 gap-3">
-                  <select
-                    value={visibilityLocation.stateId}
-                    onChange={(e) => setVisibilityLocation({ stateId: e.target.value, districtId: '', mandalId: '' })}
-                    className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
-                  >
-                    <option value="">Select state</option>
-                    {locationTree.map((state) => (
-                      <option key={state.id} value={state.id}>{state.name}</option>
-                    ))}
-                  </select>
+                    </div>
+                  </div>
 
-                  {selectedVisibilityLevel !== 'state' && (
-                    <select
-                      value={visibilityLocation.districtId}
-                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, districtId: e.target.value, mandalId: '' }))}
-                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
-                    >
-                      <option value="">Select district</option>
-                      {(selectedState?.districts || []).map((district) => (
-                        <option key={district.id} value={district.id}>{district.name}</option>
-                      ))}
-                    </select>
-                  )}
-
-                  {selectedVisibilityLevel === 'mandal' && (
-                    <select
-                      value={visibilityLocation.mandalId}
-                      onChange={(e) => setVisibilityLocation((prev) => ({ ...prev, mandalId: e.target.value }))}
-                      className="w-full px-6 py-4 bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
-                    >
-                      <option value="">Select mandal</option>
-                      {(selectedDistrict?.mandals || []).map((mandal) => (
-                        <option key={mandal.id} value={mandal.id}>{mandal.name}</option>
-                      ))}
-                    </select>
-                  )}
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Visibility Target</label>
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 dark:border-blue-900/40 dark:bg-blue-950/20 mb-3">
+                      <p className="text-xs font-bold text-blue-800 dark:text-blue-200">
+                        Store location: {selectedAd.vendor?.location?.mandal || 'Unknown mandal'}, {selectedAd.vendor?.location?.district || 'Unknown district'}, {selectedAd.vendor?.location?.state || 'Unknown state'}
+                      </p>
+                      <p className="mt-1 text-[11px] font-semibold text-blue-700/70 dark:text-blue-200/70">
+                        Location IDs are applied automatically from the approved store profile.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {allowedAdVisibilityLevels.map((level) => {
+                        const isSelected = selectedVisibilityLevel === level;
+                        return (
+                          <button
+                            key={level}
+                            type="button"
+                            onClick={() => setSelectedVisibilityLevel(level)}
+                            className={`text-left rounded-2xl border px-4 py-3 transition-all ${
+                              isSelected
+                                ? 'border-admin-primary bg-admin-primary/10 text-admin-primary'
+                                : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:border-admin-primary/50'
+                            }`}
+                          >
+                            <p className="font-black text-sm capitalize">{getVisibilityLabel(level)}</p>
+                            <p className="text-xs opacity-70 mt-1">
+                              {level === 'global'
+                                ? 'Visible in every location'
+                                : level === 'state'
+                                ? selectedAd.vendor?.location?.state || 'Store state'
+                                : level === 'district'
+                                  ? selectedAd.vendor?.location?.district || 'Store district'
+                                  : selectedAd.vendor?.location?.mandal || 'Store mandal'}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-                )}
               </div>
-
-              <div className="pt-4 flex gap-4">
+            </div>
+            <div className="px-4 py-4 sm:px-6 border-t border-zinc-100 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 shrink-0 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button 
                   onClick={() => handleReview(selectedAd._id, 'reject', null, reviewNotes)}
                   disabled={!!processingId}
-                  className="flex-1 py-4 bg-red-50 text-red-600 font-black rounded-[24px] hover:bg-red-100 transition-colors disabled:opacity-50"
+                  className="py-4 bg-red-50 text-red-600 font-black rounded-2xl hover:bg-red-100 transition-colors disabled:opacity-50"
                 >
                   Reject Ad
                 </button>
@@ -720,17 +769,16 @@ export default function AdsPage() {
                     selectedCategory,
                     selectedCategoryId || null,
                     selectedVisibilityLevel || 'global',
-                    selectedVisibilityLevel === 'global' ? null : visibilityLocation.stateId,
-                    selectedVisibilityLevel === 'state' || selectedVisibilityLevel === 'global' ? null : visibilityLocation.districtId,
-                    selectedVisibilityLevel === 'mandal' ? visibilityLocation.mandalId : null
+                    undefined,
+                    undefined,
+                    undefined
                   )}
                   disabled={!!processingId}
-                  className="flex-1 py-4 bg-admin-primary text-white font-black rounded-[24px] hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="py-4 bg-admin-primary text-white font-black rounded-2xl hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {processingId === selectedAd._id ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 size={20} />}
                   {selectedAd?.status === 'approved' ? 'Update Ad' : 'Approve Ad'}
                 </button>
-              </div>
             </div>
           </div>
         </div>
