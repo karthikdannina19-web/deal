@@ -62,6 +62,7 @@ function mapAd(ad) {
     longitude,
     lat: latitude,
     lng: longitude,
+    storeAddress: ad.vendor?.fullAddress || '',
     storeSummary: {
       businessName: ad.vendor?.storeName || '',
       logoImage: ad.vendor?.media?.thumbnailUrl || '',

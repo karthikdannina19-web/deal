@@ -123,6 +123,7 @@ export class SectionController {
         category: ad.category || 'General',
         storeId: ad.vendor?._id || null,
         storeName: ad.vendor?.storeName || '',
+        storeAddress: ad.vendor?.fullAddress || '',
         locationLabel: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
         latitude,
         longitude,
