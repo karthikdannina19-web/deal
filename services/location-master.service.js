@@ -4,6 +4,7 @@ import Mandal from '@/models/mandal.model.js';
 import locationData from '@/utils/locationData.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const SEED_WRITE_OPTIONS = { ordered: false };
 
 function normalizeName(value) {
   return String(value || '')
@@ -78,57 +79,151 @@ class LocationMasterService {
       return;
     }
 
-    for (const [stateName, districts] of Object.entries(locationData)) {
-      const state = await State.findOneAndUpdate(
-        { normalizedName: normalizeName(stateName) },
-        {
-          $set: {
-            name: stateName,
-            code: buildStateCode(stateName),
-            normalizedName: normalizeName(stateName),
-          },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+    const seedStateNames = Object.keys(locationData);
+    const seedStateNormalizedNames = seedStateNames.map((stateName) => normalizeName(stateName));
 
-      for (const [districtName, mandals] of Object.entries(districts)) {
-        const district = await District.findOneAndUpdate(
-          {
-            stateId: state._id,
-            normalizedName: normalizeName(districtName),
-          },
-          {
+    await State.bulkWrite(
+      seedStateNames.map((stateName) => ({
+        updateOne: {
+          filter: { normalizedName: normalizeName(stateName) },
+          update: {
             $set: {
-              stateId: state._id,
-              name: districtName,
-              normalizedName: normalizeName(districtName),
+              name: stateName,
+              code: buildStateCode(stateName),
+              normalizedName: normalizeName(stateName),
             },
           },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-        );
+          upsert: true,
+        },
+      })),
+      SEED_WRITE_OPTIONS
+    );
 
-        if (!Array.isArray(mandals)) continue;
+    const states = await State.find({ normalizedName: { $in: seedStateNormalizedNames } })
+      .select('_id normalizedName')
+      .lean();
+    const stateIdByNormalizedName = new Map(
+      states.map((state) => [state.normalizedName, state._id])
+    );
 
-        for (const mandalName of mandals) {
-          await Mandal.findOneAndUpdate(
-            {
-              districtId: district._id,
-              normalizedName: normalizeName(mandalName),
+    const districtSeedEntries = [];
+    for (const [stateName, districts] of Object.entries(locationData)) {
+      const stateId = stateIdByNormalizedName.get(normalizeName(stateName));
+      if (!stateId) continue;
+
+      for (const districtName of Object.keys(districts)) {
+        districtSeedEntries.push({
+          stateId,
+          stateName,
+          districtName,
+          normalizedName: normalizeName(districtName),
+        });
+      }
+    }
+
+    if (districtSeedEntries.length > 0) {
+      await District.bulkWrite(
+        districtSeedEntries.map((district) => ({
+          updateOne: {
+            filter: {
+              stateId: district.stateId,
+              normalizedName: district.normalizedName,
             },
-            {
+            update: {
               $set: {
-                districtId: district._id,
-                name: mandalName,
-                normalizedName: normalizeName(mandalName),
+                stateId: district.stateId,
+                name: district.districtName,
+                normalizedName: district.normalizedName,
               },
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
-          );
+            upsert: true,
+          },
+        })),
+        SEED_WRITE_OPTIONS
+      );
+    }
+
+    const districts = await District.find({
+      stateId: { $in: states.map((state) => state._id) },
+    })
+      .select('_id stateId normalizedName')
+      .lean();
+    const districtIdBySeedKey = new Map(
+      districts.map((district) => [
+        `${district.stateId.toString()}:${district.normalizedName}`,
+        district._id,
+      ])
+    );
+
+    const mandalSeedEntries = [];
+    for (const [stateName, districtsByName] of Object.entries(locationData)) {
+      const stateId = stateIdByNormalizedName.get(normalizeName(stateName));
+      if (!stateId) continue;
+
+      for (const [districtName, mandals] of Object.entries(districtsByName)) {
+        const districtId = districtIdBySeedKey.get(`${stateId.toString()}:${normalizeName(districtName)}`);
+        if (!districtId || !Array.isArray(mandals)) continue;
+
+        for (const mandalName of mandals) {
+          mandalSeedEntries.push({
+            districtId,
+            mandalName,
+            normalizedName: normalizeName(mandalName),
+          });
         }
       }
     }
 
+    if (mandalSeedEntries.length > 0) {
+      await Mandal.bulkWrite(
+        mandalSeedEntries.map((mandal) => ({
+          updateOne: {
+            filter: {
+              districtId: mandal.districtId,
+              normalizedName: mandal.normalizedName,
+            },
+            update: {
+              $set: {
+                districtId: mandal.districtId,
+                name: mandal.mandalName,
+                normalizedName: mandal.normalizedName,
+              },
+            },
+            upsert: true,
+          },
+        })),
+        SEED_WRITE_OPTIONS
+      );
+    }
+
     this.cache.expiresAt = 0;
+  }
+
+  static async getStates() {
+    await this.ensureSeeded();
+
+    return State.find({})
+      .select('_id name code')
+      .sort({ name: 1 })
+      .lean();
+  }
+
+  static async getDistrictsByState(stateId) {
+    await this.ensureSeeded();
+
+    return District.find({ stateId })
+      .select('_id name stateId')
+      .sort({ name: 1 })
+      .lean();
+  }
+
+  static async getMandalsByDistrict(districtId) {
+    await this.ensureSeeded();
+
+    return Mandal.find({ districtId })
+      .select('_id name districtId')
+      .sort({ name: 1 })
+      .lean();
   }
 
   static async getTree({ forceRefresh = false } = {}) {
@@ -140,16 +235,19 @@ class LocationMasterService {
     }
 
     const states = await State.find({})
+      .select('_id name code')
       .sort({ name: 1 })
       .lean();
     const stateIds = states.map((state) => state._id);
 
     const districts = await District.find({ stateId: { $in: stateIds } })
+      .select('_id name stateId')
       .sort({ name: 1 })
       .lean();
     const districtIds = districts.map((district) => district._id);
 
     const mandals = await Mandal.find({ districtId: { $in: districtIds } })
+      .select('_id name districtId')
       .sort({ name: 1 })
       .lean();
 

@@ -3,6 +3,7 @@ import { LocationMasterService } from '@/services/location-master.service.js';
 import { LocationResolverService } from '@/services/location-resolver.service.js';
 import { authenticate } from '@/middleware/auth.middleware.js';
 import { UserService } from '@/modules/user/user.service.js';
+import mongoose from 'mongoose';
 
 /**
  * Locations Controller
@@ -28,6 +29,104 @@ export class LocationsController {
       return Response.json({
         success: false,
         message: 'Failed to fetch location tree'
+      }, { status: 500 });
+    }
+  }
+
+  /**
+   * GET /api/locations/states
+   * Returns all states/UTs for the location picker
+   */
+  static async getStates() {
+    try {
+      await dbConnect();
+      const states = await LocationMasterService.getStates();
+
+      return Response.json({
+        success: true,
+        data: states.map((state) => ({
+          id: state._id,
+          name: state.name,
+          code: state.code,
+        }))
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[LocationsController.getStates Error]', error);
+      return Response.json({
+        success: false,
+        message: 'Failed to fetch states'
+      }, { status: 500 });
+    }
+  }
+
+  /**
+   * GET /api/locations/districts?stateId=
+   * Returns districts for one state
+   */
+  static async getDistricts(req) {
+    try {
+      await dbConnect();
+      const { searchParams } = new URL(req.url);
+      const stateId = searchParams.get('stateId');
+
+      if (!mongoose.Types.ObjectId.isValid(stateId)) {
+        return Response.json({
+          success: false,
+          message: 'Valid stateId is required'
+        }, { status: 400 });
+      }
+
+      const districts = await LocationMasterService.getDistrictsByState(stateId);
+
+      return Response.json({
+        success: true,
+        data: districts.map((district) => ({
+          id: district._id,
+          name: district.name,
+          stateId: district.stateId,
+        }))
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[LocationsController.getDistricts Error]', error);
+      return Response.json({
+        success: false,
+        message: 'Failed to fetch districts'
+      }, { status: 500 });
+    }
+  }
+
+  /**
+   * GET /api/locations/mandals?districtId=
+   * Returns mandals/areas for one district
+   */
+  static async getMandals(req) {
+    try {
+      await dbConnect();
+      const { searchParams } = new URL(req.url);
+      const districtId = searchParams.get('districtId');
+
+      if (!mongoose.Types.ObjectId.isValid(districtId)) {
+        return Response.json({
+          success: false,
+          message: 'Valid districtId is required'
+        }, { status: 400 });
+      }
+
+      const mandals = await LocationMasterService.getMandalsByDistrict(districtId);
+
+      return Response.json({
+        success: true,
+        data: mandals.map((mandal) => ({
+          id: mandal._id,
+          name: mandal.name,
+          districtId: mandal.districtId,
+        }))
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[LocationsController.getMandals Error]', error);
+      return Response.json({
+        success: false,
+        message: 'Failed to fetch mandals'
       }, { status: 500 });
     }
   }
