@@ -36,16 +36,25 @@ export class LocationsController {
     try {
       await dbConnect();
 
-      let body;
-      try {
-        body = await req.json();
-      } catch {
-        return Response.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
+      let body = null;
+      if (req.method === 'GET') {
+        const { searchParams } = new URL(req.url);
+        body = {
+          latitude: searchParams.get('lat'),
+          longitude: searchParams.get('lng'),
+          accuracy: searchParams.get('accuracy'),
+        };
+      } else {
+        try {
+          body = await req.json();
+        } catch {
+          return Response.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
+        }
       }
 
-      const latitude = Number(body.latitude);
-      const longitude = Number(body.longitude);
-      const accuracy = body.accuracy === undefined ? null : Number(body.accuracy);
+      const latitude = Number(body?.latitude);
+      const longitude = Number(body?.longitude);
+      const accuracy = body?.accuracy === undefined ? null : Number(body?.accuracy);
 
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
         return Response.json({ success: false, message: 'Latitude and longitude are required' }, { status: 400 });
