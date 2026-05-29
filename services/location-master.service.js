@@ -22,15 +22,59 @@ function buildStateCode(name) {
     .toUpperCase();
 }
 
+function getSeedCounts() {
+  let districtCount = 0;
+  let mandalCount = 0;
+
+  for (const districts of Object.values(locationData)) {
+    districtCount += Object.keys(districts).length;
+    for (const mandals of Object.values(districts)) {
+      mandalCount += Array.isArray(mandals) ? mandals.length : 0;
+    }
+  }
+
+  return {
+    states: Object.keys(locationData).length,
+    districts: districtCount,
+    mandals: mandalCount,
+  };
+}
+
 class LocationMasterService {
   static cache = {
     tree: null,
     expiresAt: 0,
   };
 
+  static seedSyncPromise = null;
+
   static async ensureSeeded() {
-    const existingStateCount = await State.estimatedDocumentCount();
-    if (existingStateCount > 0) {
+    if (this.seedSyncPromise) {
+      return this.seedSyncPromise;
+    }
+
+    this.seedSyncPromise = this.syncSeedData();
+
+    try {
+      return await this.seedSyncPromise;
+    } finally {
+      this.seedSyncPromise = null;
+    }
+  }
+
+  static async syncSeedData() {
+    const seedCounts = getSeedCounts();
+    const [existingStateCount, existingDistrictCount, existingMandalCount] = await Promise.all([
+      State.estimatedDocumentCount(),
+      District.estimatedDocumentCount(),
+      Mandal.estimatedDocumentCount(),
+    ]);
+
+    if (
+      existingStateCount >= seedCounts.states &&
+      existingDistrictCount >= seedCounts.districts &&
+      existingMandalCount >= seedCounts.mandals
+    ) {
       return;
     }
 
@@ -83,6 +127,8 @@ class LocationMasterService {
         }
       }
     }
+
+    this.cache.expiresAt = 0;
   }
 
   static async getTree({ forceRefresh = false } = {}) {

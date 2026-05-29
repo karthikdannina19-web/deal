@@ -1,31 +1,146 @@
 /**
  * Location Data Utility
- * Provides dynamic data for States, Districts, and Mandals
+ * Provides seed data for States, Districts, and Mandals/areas.
  */
 
+const districtAreas = (districts) => Object.fromEntries(
+  districts.map((district) => [district, [district]])
+);
+
 const locationData = {
-  'Telangana': {
-    'Hyderabad': ['Ameerpet', 'Banjara Hills', 'Gachibowli', 'Kukatpally', 'Secunderabad'],
-    'Rangareddy': ['Manikonda', 'Puppalguda', 'Narsingi', 'Kokapet'],
-    'Medchal': ['Uppal', 'Malkajgiri', 'Medipally'],
-    'Warangal': ['Hanamkonda', 'Kazipet', 'Warangal City']
-  },
   'Andhra Pradesh': {
-    'Anantapur': ['Hindupur', 'Penukonda', 'Kadiri'],
-    'Visakhapatnam': ['Gajuwaka', 'Madhurawada', 'Seethammadhara'],
-    'Vijayawada': ['Benz Circle', 'Patamata', 'Gunaadala'],
-    'Guntur': ['Amaravati', 'Tenali', 'Narasaraopet'],
-    'Chittoor': ['Tirupati', 'Madanapalle', 'Palamaner']
+    'Alluri Sitharama Raju': ['Paderu', 'Araku Valley', 'Chintapalle', 'Rampachodavaram'],
+    'Anakapalli': ['Anakapalli', 'Narsipatnam', 'Chodavaram', 'Yelamanchili'],
+    'Anantapur': ['Anantapur', 'Hindupur', 'Penukonda', 'Kadiri', 'Gooty', 'Tadipatri'],
+    'Annamayya': ['Rayachoti', 'Rajampet', 'Madanapalle', 'Pileru'],
+    'Bapatla': ['Bapatla', 'Chirala', 'Repalle', 'Addanki'],
+    'Chittoor': ['Chittoor', 'Palamaner', 'Nagari', 'Puthalapattu'],
+    'Dr. B. R. Ambedkar Konaseema': ['Amalapuram', 'Razole', 'Mummidivaram', 'Kothapeta'],
+    'East Godavari': ['Rajamahendravaram', 'Kovvur', 'Nidadavole', 'Anaparthi'],
+    'Eluru': ['Eluru', 'Jangareddygudem', 'Nuzvid', 'Polavaram'],
+    'Guntur': ['Guntur', 'Tenali', 'Prathipadu', 'Mangalagiri'],
+    'Kakinada': ['Kakinada', 'Peddapuram', 'Tuni', 'Pithapuram'],
+    'Krishna': ['Machilipatnam', 'Gudivada', 'Avanigadda', 'Pamarru'],
+    'Kurnool': ['Kurnool', 'Adoni', 'Yemmiganur', 'Kodumur'],
+    'Nandyal': ['Nandyal', 'Dhone', 'Banaganapalle', 'Atmakur'],
+    'NTR': ['Vijayawada', 'Nandigama', 'Tiruvuru', 'Jaggayyapeta'],
+    'Palnadu': ['Narasaraopet', 'Gurazala', 'Sattenapalle', 'Macherla'],
+    'Parvathipuram Manyam': ['Parvathipuram', 'Salur', 'Palakonda', 'Kurupam'],
+    'Prakasam': ['Ongole', 'Kandukur', 'Markapur', 'Darsi'],
+    'Sri Potti Sriramulu Nellore': ['Nellore', 'Kavali', 'Atmakur', 'Gudur'],
+    'Sri Sathya Sai': ['Puttaparthi', 'Dharmavaram', 'Kadiri', 'Penukonda'],
+    'Srikakulam': ['Srikakulam', 'Tekkali', 'Palasa', 'Amadalavalasa'],
+    'Tirupati': ['Tirupati', 'Srikalahasti', 'Sullurpeta', 'Venkatagiri'],
+    'Visakhapatnam': ['Gajuwaka', 'Madhurawada', 'Seethammadhara', 'Pendurthi', 'Bheemunipatnam'],
+    'Vizianagaram': ['Vizianagaram', 'Bobbili', 'Cheepurupalli', 'Gajapathinagaram'],
+    'West Godavari': ['Bhimavaram', 'Tadepalligudem', 'Tanuku', 'Narasapuram'],
+    'YSR Kadapa': ['Kadapa', 'Proddatur', 'Pulivendula', 'Jammalamadugu']
+  },
+  'Telangana': {
+    'Adilabad': ['Adilabad', 'Boath', 'Ichoda', 'Utnoor'],
+    'Bhadradri Kothagudem': ['Kothagudem', 'Bhadrachalam', 'Palwancha', 'Manuguru'],
+    'Hanumakonda': ['Hanamkonda', 'Kazipet', 'Parkal', 'Kamalapur'],
+    'Hyderabad': ['Ameerpet', 'Banjara Hills', 'Gachibowli', 'Jubilee Hills', 'Kukatpally', 'Secunderabad'],
+    'Jagtial': ['Jagtial', 'Korutla', 'Metpally', 'Dharmapuri'],
+    'Jangaon': ['Jangaon', 'Ghanpur', 'Narmetta', 'Raghunathpalle'],
+    'Jayashankar Bhupalpally': ['Bhupalpally', 'Chityal', 'Mahadevpur', 'Regonda'],
+    'Jogulamba Gadwal': ['Gadwal', 'Alampur', 'Ieeja', 'Maldakal'],
+    'Kamareddy': ['Kamareddy', 'Banswada', 'Yellareddy', 'Domakonda'],
+    'Karimnagar': ['Karimnagar', 'Huzurabad', 'Jammikunta', 'Manakondur'],
+    'Khammam': ['Khammam', 'Madhira', 'Sathupalli', 'Wyra'],
+    'Komaram Bheem Asifabad': ['Asifabad', 'Kagaznagar', 'Sirpur', 'Rebbena'],
+    'Mahabubabad': ['Mahabubabad', 'Dornakal', 'Maripeda', 'Thorrur'],
+    'Mahabubnagar': ['Mahabubnagar', 'Jadcherla', 'Balanagar', 'Devarakadra'],
+    'Mancherial': ['Mancherial', 'Bellampalli', 'Chennur', 'Luxettipet'],
+    'Medak': ['Medak', 'Narsapur', 'Toopran', 'Ramayampet'],
+    'Medchal Malkajgiri': ['Malkajgiri', 'Medchal', 'Keesara', 'Uppal'],
+    'Mulugu': ['Mulugu', 'Eturnagaram', 'Govindaraopet', 'Tadvai'],
+    'Nagarkurnool': ['Nagarkurnool', 'Achampet', 'Kalwakurthy', 'Kollapur'],
+    'Nalgonda': ['Nalgonda', 'Devarakonda', 'Miryalaguda', 'Nakrekal'],
+    'Narayanpet': ['Narayanpet', 'Kosgi', 'Makthal', 'Damaragidda'],
+    'Nirmal': ['Nirmal', 'Bhainsa', 'Khanapur', 'Mudhole'],
+    'Nizamabad': ['Nizamabad', 'Bodhan', 'Armoor', 'Balkonda'],
+    'Peddapalli': ['Peddapalli', 'Ramagundam', 'Manthani', 'Sultanabad'],
+    'Rajanna Sircilla': ['Sircilla', 'Vemulawada', 'Yellareddypet', 'Mustabad'],
+    'Rangareddy': ['Manikonda', 'Puppalguda', 'Narsingi', 'Kokapet', 'Rajendranagar', 'Shamshabad'],
+    'Sangareddy': ['Sangareddy', 'Patancheru', 'Zaheerabad', 'Narayankhed'],
+    'Siddipet': ['Siddipet', 'Gajwel', 'Dubbak', 'Husnabad'],
+    'Suryapet': ['Suryapet', 'Kodad', 'Huzurnagar', 'Thungathurthy'],
+    'Vikarabad': ['Vikarabad', 'Tandur', 'Chevella', 'Pargi'],
+    'Wanaparthy': ['Wanaparthy', 'Pebbair', 'Kothakota', 'Atmakur'],
+    'Warangal': ['Warangal', 'Narsampet', 'Wardhannapet', 'Geesugonda'],
+    'Yadadri Bhuvanagiri': ['Bhuvanagiri', 'Aler', 'Choutuppal', 'Mothkur']
   },
   'Karnataka': {
-    'Bangalore': ['Indiranagar', 'Koramangala', 'HSR Layout', 'Whitefield'],
-    'Mysore': ['Vidyaranyapuram', 'Jayalakshmipuram'],
-    'Hubli': ['Dharwad City', 'Navalgund']
-  }
+    'Bengaluru Urban': ['Bengaluru North', 'Bengaluru South', 'Anekal', 'Yelahanka', 'KR Puram'],
+    'Bengaluru Rural': ['Devanahalli', 'Doddaballapura', 'Hoskote', 'Nelamangala'],
+    'Bagalkot': ['Bagalkot', 'Badami', 'Jamkhandi', 'Mudhol'],
+    'Ballari': ['Ballari', 'Sandur', 'Siruguppa', 'Kudligi'],
+    'Belagavi': ['Belagavi', 'Chikkodi', 'Gokak', 'Khanapur'],
+    'Bidar': ['Bidar', 'Basavakalyan', 'Bhalki', 'Humnabad'],
+    'Chamarajanagar': ['Chamarajanagar', 'Gundlupet', 'Kollegal', 'Yelandur'],
+    'Chikkaballapur': ['Chikkaballapur', 'Bagepalli', 'Chintamani', 'Gauribidanur'],
+    'Chikkamagaluru': ['Chikkamagaluru', 'Kadur', 'Koppa', 'Mudigere'],
+    'Chitradurga': ['Chitradurga', 'Challakere', 'Hiriyur', 'Hosadurga'],
+    'Dakshina Kannada': ['Mangaluru', 'Bantwal', 'Puttur', 'Sullia'],
+    'Davanagere': ['Davanagere', 'Harihar', 'Honnali', 'Jagalur'],
+    'Dharwad': ['Dharwad', 'Hubballi', 'Kalghatgi', 'Navalgund'],
+    'Gadag': ['Gadag', 'Mundargi', 'Nargund', 'Ron'],
+    'Hassan': ['Hassan', 'Arsikere', 'Belur', 'Sakleshpur'],
+    'Haveri': ['Haveri', 'Byadgi', 'Hirekerur', 'Ranebennur'],
+    'Kalaburagi': ['Kalaburagi', 'Afzalpur', 'Chincholi', 'Sedam'],
+    'Kodagu': ['Madikeri', 'Somwarpet', 'Virajpet'],
+    'Kolar': ['Kolar', 'Bangarapet', 'Malur', 'Mulbagal'],
+    'Koppal': ['Koppal', 'Gangavathi', 'Kushtagi', 'Yelburga'],
+    'Mandya': ['Mandya', 'Maddur', 'Malavalli', 'Srirangapatna'],
+    'Mysuru': ['Mysuru', 'Hunsur', 'Nanjangud', 'T Narasipura'],
+    'Raichur': ['Raichur', 'Devadurga', 'Lingasugur', 'Sindhanur'],
+    'Ramanagara': ['Ramanagara', 'Channapatna', 'Kanakapura', 'Magadi'],
+    'Shivamogga': ['Shivamogga', 'Bhadravati', 'Sagar', 'Thirthahalli'],
+    'Tumakuru': ['Tumakuru', 'Gubbi', 'Madhugiri', 'Tiptur'],
+    'Udupi': ['Udupi', 'Karkala', 'Kundapura', 'Brahmavara'],
+    'Uttara Kannada': ['Karwar', 'Sirsi', 'Kumta', 'Yellapur'],
+    'Vijayapura': ['Vijayapura', 'Basavana Bagewadi', 'Indi', 'Muddebihal'],
+    'Vijayanagara': ['Hosapete', 'Hagaribommanahalli', 'Harapanahalli', 'Kudligi'],
+    'Yadgir': ['Yadgir', 'Shahapur', 'Shorapur', 'Gurmitkal']
+  },
+  'Tamil Nadu': districtAreas(['Ariyalur', 'Chengalpattu', 'Chennai', 'Coimbatore', 'Cuddalore', 'Dharmapuri', 'Dindigul', 'Erode', 'Kallakurichi', 'Kancheepuram', 'Kanniyakumari', 'Karur', 'Krishnagiri', 'Madurai', 'Mayiladuthurai', 'Nagapattinam', 'Namakkal', 'Nilgiris', 'Perambalur', 'Pudukkottai', 'Ramanathapuram', 'Ranipet', 'Salem', 'Sivaganga', 'Tenkasi', 'Thanjavur', 'Theni', 'Thoothukudi', 'Tiruchirappalli', 'Tirunelveli', 'Tirupathur', 'Tiruppur', 'Tiruvallur', 'Tiruvannamalai', 'Tiruvarur', 'Vellore', 'Viluppuram', 'Virudhunagar']),
+  'Kerala': districtAreas(['Alappuzha', 'Ernakulam', 'Idukki', 'Kannur', 'Kasaragod', 'Kollam', 'Kottayam', 'Kozhikode', 'Malappuram', 'Palakkad', 'Pathanamthitta', 'Thiruvananthapuram', 'Thrissur', 'Wayanad']),
+  'Maharashtra': districtAreas(['Ahmednagar', 'Akola', 'Amravati', 'Aurangabad', 'Beed', 'Bhandara', 'Buldhana', 'Chandrapur', 'Dhule', 'Gadchiroli', 'Gondia', 'Hingoli', 'Jalgaon', 'Jalna', 'Kolhapur', 'Latur', 'Mumbai City', 'Mumbai Suburban', 'Nagpur', 'Nanded', 'Nandurbar', 'Nashik', 'Osmanabad', 'Palghar', 'Parbhani', 'Pune', 'Raigad', 'Ratnagiri', 'Sangli', 'Satara', 'Sindhudurg', 'Solapur', 'Thane', 'Wardha', 'Washim', 'Yavatmal']),
+  'Gujarat': districtAreas(['Ahmedabad', 'Amreli', 'Anand', 'Aravalli', 'Banaskantha', 'Bharuch', 'Bhavnagar', 'Botad', 'Chhota Udaipur', 'Dahod', 'Dang', 'Devbhoomi Dwarka', 'Gandhinagar', 'Gir Somnath', 'Jamnagar', 'Junagadh', 'Kheda', 'Kutch', 'Mahisagar', 'Mehsana', 'Morbi', 'Narmada', 'Navsari', 'Panchmahal', 'Patan', 'Porbandar', 'Rajkot', 'Sabarkantha', 'Surat', 'Surendranagar', 'Tapi', 'Vadodara', 'Valsad']),
+  'Rajasthan': districtAreas(['Ajmer', 'Alwar', 'Anupgarh', 'Balotra', 'Banswara', 'Baran', 'Barmer', 'Beawar', 'Bharatpur', 'Bhilwara', 'Bikaner', 'Bundi', 'Chittorgarh', 'Churu', 'Dausa', 'Deeg', 'Dholpur', 'Didwana Kuchaman', 'Dudu', 'Dungarpur', 'Gangapur City', 'Hanumangarh', 'Jaipur', 'Jaipur Rural', 'Jaisalmer', 'Jalore', 'Jhalawar', 'Jhunjhunu', 'Jodhpur', 'Jodhpur Rural', 'Karauli', 'Kekri', 'Khairthal Tijara', 'Kota', 'Kotputli Behror', 'Nagaur', 'Neem Ka Thana', 'Pali', 'Phalodi', 'Pratapgarh', 'Rajsamand', 'Salumbar', 'Sanchore', 'Sawai Madhopur', 'Shahpura', 'Sikar', 'Sirohi', 'Sri Ganganagar', 'Tonk', 'Udaipur']),
+  'Madhya Pradesh': districtAreas(['Agar Malwa', 'Alirajpur', 'Anuppur', 'Ashoknagar', 'Balaghat', 'Barwani', 'Betul', 'Bhind', 'Bhopal', 'Burhanpur', 'Chhatarpur', 'Chhindwara', 'Damoh', 'Datia', 'Dewas', 'Dhar', 'Dindori', 'Guna', 'Gwalior', 'Harda', 'Indore', 'Jabalpur', 'Jhabua', 'Katni', 'Khandwa', 'Khargone', 'Maihar', 'Mandla', 'Mandsaur', 'Mauganj', 'Morena', 'Narmadapuram', 'Narsinghpur', 'Neemuch', 'Niwari', 'Pandhurna', 'Panna', 'Raisen', 'Rajgarh', 'Ratlam', 'Rewa', 'Sagar', 'Satna', 'Sehore', 'Seoni', 'Shahdol', 'Shajapur', 'Sheopur', 'Shivpuri', 'Sidhi', 'Singrauli', 'Tikamgarh', 'Ujjain', 'Umaria', 'Vidisha']),
+  'Uttar Pradesh': districtAreas(['Agra', 'Aligarh', 'Ambedkar Nagar', 'Amethi', 'Amroha', 'Auraiya', 'Ayodhya', 'Azamgarh', 'Baghpat', 'Bahraich', 'Ballia', 'Balrampur', 'Banda', 'Barabanki', 'Bareilly', 'Basti', 'Bhadohi', 'Bijnor', 'Budaun', 'Bulandshahr', 'Chandauli', 'Chitrakoot', 'Deoria', 'Etah', 'Etawah', 'Farrukhabad', 'Fatehpur', 'Firozabad', 'Gautam Buddha Nagar', 'Ghaziabad', 'Ghazipur', 'Gonda', 'Gorakhpur', 'Hamirpur', 'Hapur', 'Hardoi', 'Hathras', 'Jalaun', 'Jaunpur', 'Jhansi', 'Kannauj', 'Kanpur Dehat', 'Kanpur Nagar', 'Kasganj', 'Kaushambi', 'Kheri', 'Kushinagar', 'Lalitpur', 'Lucknow', 'Maharajganj', 'Mahoba', 'Mainpuri', 'Mathura', 'Mau', 'Meerut', 'Mirzapur', 'Moradabad', 'Muzaffarnagar', 'Pilibhit', 'Pratapgarh', 'Prayagraj', 'Raebareli', 'Rampur', 'Saharanpur', 'Sambhal', 'Sant Kabir Nagar', 'Shahjahanpur', 'Shamli', 'Shravasti', 'Siddharthnagar', 'Sitapur', 'Sonbhadra', 'Sultanpur', 'Unnao', 'Varanasi']),
+  'Bihar': districtAreas(['Araria', 'Arwal', 'Aurangabad', 'Banka', 'Begusarai', 'Bhagalpur', 'Bhojpur', 'Buxar', 'Darbhanga', 'East Champaran', 'Gaya', 'Gopalganj', 'Jamui', 'Jehanabad', 'Kaimur', 'Katihar', 'Khagaria', 'Kishanganj', 'Lakhisarai', 'Madhepura', 'Madhubani', 'Munger', 'Muzaffarpur', 'Nalanda', 'Nawada', 'Patna', 'Purnia', 'Rohtas', 'Saharsa', 'Samastipur', 'Saran', 'Sheikhpura', 'Sheohar', 'Sitamarhi', 'Siwan', 'Supaul', 'Vaishali', 'West Champaran']),
+  'West Bengal': districtAreas(['Alipurduar', 'Bankura', 'Birbhum', 'Cooch Behar', 'Dakshin Dinajpur', 'Darjeeling', 'Hooghly', 'Howrah', 'Jalpaiguri', 'Jhargram', 'Kalimpong', 'Kolkata', 'Malda', 'Murshidabad', 'Nadia', 'North 24 Parganas', 'Paschim Bardhaman', 'Paschim Medinipur', 'Purba Bardhaman', 'Purba Medinipur', 'Purulia', 'South 24 Parganas', 'Uttar Dinajpur']),
+  'Odisha': districtAreas(['Angul', 'Balangir', 'Balasore', 'Bargarh', 'Bhadrak', 'Boudh', 'Cuttack', 'Deogarh', 'Dhenkanal', 'Gajapati', 'Ganjam', 'Jagatsinghpur', 'Jajpur', 'Jharsuguda', 'Kalahandi', 'Kandhamal', 'Kendrapara', 'Kendujhar', 'Khordha', 'Koraput', 'Malkangiri', 'Mayurbhanj', 'Nabarangpur', 'Nayagarh', 'Nuapada', 'Puri', 'Rayagada', 'Sambalpur', 'Subarnapur', 'Sundargarh']),
+  'Punjab': districtAreas(['Amritsar', 'Barnala', 'Bathinda', 'Faridkot', 'Fatehgarh Sahib', 'Fazilka', 'Ferozepur', 'Gurdaspur', 'Hoshiarpur', 'Jalandhar', 'Kapurthala', 'Ludhiana', 'Malerkotla', 'Mansa', 'Moga', 'Mohali', 'Muktsar', 'Pathankot', 'Patiala', 'Rupnagar', 'Sangrur', 'Shaheed Bhagat Singh Nagar', 'Tarn Taran']),
+  'Haryana': districtAreas(['Ambala', 'Bhiwani', 'Charkhi Dadri', 'Faridabad', 'Fatehabad', 'Gurugram', 'Hisar', 'Jhajjar', 'Jind', 'Kaithal', 'Karnal', 'Kurukshetra', 'Mahendragarh', 'Nuh', 'Palwal', 'Panchkula', 'Panipat', 'Rewari', 'Rohtak', 'Sirsa', 'Sonipat', 'Yamunanagar']),
+  'Chhattisgarh': districtAreas(['Balod', 'Baloda Bazar', 'Balrampur', 'Bastar', 'Bemetara', 'Bijapur', 'Bilaspur', 'Dantewada', 'Dhamtari', 'Durg', 'Gariaband', 'Gaurela Pendra Marwahi', 'Janjgir Champa', 'Jashpur', 'Kabirdham', 'Kanker', 'Khairagarh Chhuikhadan Gandai', 'Kondagaon', 'Korba', 'Koriya', 'Mahasamund', 'Manendragarh Chirmiri Bharatpur', 'Mohla Manpur Ambagarh Chowki', 'Mungeli', 'Narayanpur', 'Raigarh', 'Raipur', 'Rajnandgaon', 'Sakti', 'Sarangarh Bilaigarh', 'Sukma', 'Surajpur', 'Surguja']),
+  'Jharkhand': districtAreas(['Bokaro', 'Chatra', 'Deoghar', 'Dhanbad', 'Dumka', 'East Singhbhum', 'Garhwa', 'Giridih', 'Godda', 'Gumla', 'Hazaribagh', 'Jamtara', 'Khunti', 'Koderma', 'Latehar', 'Lohardaga', 'Pakur', 'Palamu', 'Ramgarh', 'Ranchi', 'Sahibganj', 'Seraikela Kharsawan', 'Simdega', 'West Singhbhum']),
+  'Assam': districtAreas(['Bajali', 'Baksa', 'Barpeta', 'Biswanath', 'Bongaigaon', 'Cachar', 'Charaideo', 'Chirang', 'Darrang', 'Dhemaji', 'Dhubri', 'Dibrugarh', 'Dima Hasao', 'Goalpara', 'Golaghat', 'Hailakandi', 'Hojai', 'Jorhat', 'Kamrup', 'Kamrup Metropolitan', 'Karbi Anglong', 'Karimganj', 'Kokrajhar', 'Lakhimpur', 'Majuli', 'Morigaon', 'Nagaon', 'Nalbari', 'Sivasagar', 'Sonitpur', 'South Salmara Mankachar', 'Tamulpur', 'Tinsukia', 'Udalguri', 'West Karbi Anglong']),
+  'Uttarakhand': districtAreas(['Almora', 'Bageshwar', 'Chamoli', 'Champawat', 'Dehradun', 'Haridwar', 'Nainital', 'Pauri Garhwal', 'Pithoragarh', 'Rudraprayag', 'Tehri Garhwal', 'Udham Singh Nagar', 'Uttarkashi']),
+  'Himachal Pradesh': districtAreas(['Bilaspur', 'Chamba', 'Hamirpur', 'Kangra', 'Kinnaur', 'Kullu', 'Lahaul and Spiti', 'Mandi', 'Shimla', 'Sirmaur', 'Solan', 'Una']),
+  'Goa': districtAreas(['North Goa', 'South Goa']),
+  'Arunachal Pradesh': districtAreas(['Anjaw', 'Changlang', 'Dibang Valley', 'East Kameng', 'East Siang', 'Kamle', 'Kra Daadi', 'Kurung Kumey', 'Leparada', 'Lohit', 'Longding', 'Lower Dibang Valley', 'Lower Siang', 'Lower Subansiri', 'Namsai', 'Pakke Kessang', 'Papum Pare', 'Shi Yomi', 'Siang', 'Tawang', 'Tirap', 'Upper Siang', 'Upper Subansiri', 'West Kameng', 'West Siang']),
+  'Manipur': districtAreas(['Bishnupur', 'Chandel', 'Churachandpur', 'Imphal East', 'Imphal West', 'Jiribam', 'Kakching', 'Kamjong', 'Kangpokpi', 'Noney', 'Pherzawl', 'Senapati', 'Tamenglong', 'Tengnoupal', 'Thoubal', 'Ukhrul']),
+  'Meghalaya': districtAreas(['East Garo Hills', 'East Jaintia Hills', 'East Khasi Hills', 'Eastern West Khasi Hills', 'North Garo Hills', 'Ri Bhoi', 'South Garo Hills', 'South West Garo Hills', 'South West Khasi Hills', 'West Garo Hills', 'West Jaintia Hills', 'West Khasi Hills']),
+  'Mizoram': districtAreas(['Aizawl', 'Champhai', 'Hnahthial', 'Khawzawl', 'Kolasib', 'Lawngtlai', 'Lunglei', 'Mamit', 'Saitual', 'Serchhip']),
+  'Nagaland': districtAreas(['Chumoukedima', 'Dimapur', 'Kiphire', 'Kohima', 'Longleng', 'Mokokchung', 'Mon', 'Niuland', 'Noklak', 'Peren', 'Phek', 'Shamator', 'Tseminyu', 'Tuensang', 'Wokha', 'Zunheboto']),
+  'Sikkim': districtAreas(['Gangtok', 'Gyalshing', 'Mangan', 'Namchi', 'Pakyong', 'Soreng']),
+  'Tripura': districtAreas(['Dhalai', 'Gomati', 'Khowai', 'North Tripura', 'Sepahijala', 'South Tripura', 'Unakoti', 'West Tripura']),
+  'Delhi': districtAreas(['Central Delhi', 'East Delhi', 'New Delhi', 'North Delhi', 'North East Delhi', 'North West Delhi', 'Shahdara', 'South Delhi', 'South East Delhi', 'South West Delhi', 'West Delhi']),
+  'Jammu and Kashmir': districtAreas(['Anantnag', 'Bandipora', 'Baramulla', 'Budgam', 'Doda', 'Ganderbal', 'Jammu', 'Kathua', 'Kishtwar', 'Kulgam', 'Kupwara', 'Poonch', 'Pulwama', 'Rajouri', 'Ramban', 'Reasi', 'Samba', 'Shopian', 'Srinagar', 'Udhampur']),
+  'Ladakh': districtAreas(['Kargil', 'Leh']),
+  'Puducherry': districtAreas(['Karaikal', 'Mahe', 'Puducherry', 'Yanam']),
+  'Andaman and Nicobar Islands': districtAreas(['Nicobar', 'North and Middle Andaman', 'South Andaman']),
+  'Chandigarh': districtAreas(['Chandigarh']),
+  'Dadra and Nagar Haveli and Daman and Diu': districtAreas(['Dadra and Nagar Haveli', 'Daman', 'Diu']),
+  'Lakshadweep': districtAreas(['Lakshadweep'])
 };
 
 export const getStates = () => Object.keys(locationData);
 export const getDistricts = (state) => state ? Object.keys(locationData[state] || {}) : [];
-export const getMandals = (state, district) => (state && district) ? (locationData[state][district] || []) : [];
+export const getMandals = (state, district) => (state && district) ? (locationData[state]?.[district] || []) : [];
 
 export default locationData;
