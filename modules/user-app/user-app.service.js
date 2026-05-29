@@ -204,12 +204,12 @@ export class UserAppService {
   }
 
   static async listCategories({ userLocation = null, sectionId = null } = {}) {
-    return Category.find(
-      VisibilityService.buildMatchQuery(userLocation, {
-        isActive: true,
-        ...(sectionId ? { sectionId } : { sectionId: { $ne: null } }),
-      })
-    )
+    const query = VisibilityService.buildMatchQuery(userLocation, { isActive: true });
+    if (sectionId) {
+      query.sectionId = sectionId;
+    }
+
+    return Category.find(query)
       .populate('sectionId', '_id name slug order')
       .sort({ name: 1 })
       .select('_id name iconUrl imageUrl isActive sectionId visibilityLevel')
