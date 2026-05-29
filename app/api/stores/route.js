@@ -1,5 +1,6 @@
 import { dbConnect } from '@/config/database';
 import Store from '@/models/store.model';
+import Category from '@/models/category.model';
 
 export async function GET(req) {
   try {
@@ -8,6 +9,7 @@ export async function GET(req) {
     
     const q = searchParams.get('q');
     const category = searchParams.get('category');
+    const categoryId = searchParams.get('categoryId');
     const state = searchParams.get('state');
     const district = searchParams.get('district');
     const mandal = searchParams.get('mandal');
@@ -28,8 +30,28 @@ export async function GET(req) {
         { address: { $regex: q, $options: 'i' } }
       ];
     }
-    
-    if (category && category !== 'all') query.category = category;
+
+    if (categoryId) {
+      const categoryDoc = await Category.findById(categoryId).select('name').lean();
+      if (categoryDoc) {
+        query.category = categoryDoc.name;
+      } else {
+        query.category = '_invalid_category_id_';
+      }
+    } else if (category && category !== 'all') {
+      const trimmedCategory = category.trim();
+      if (/^[0-9a-fA-F]{24}$/.test(trimmedCategory)) {
+        const categoryDoc = await Category.findById(trimmedCategory).select('name').lean();
+        if (categoryDoc) {
+          query.category = categoryDoc.name;
+        } else {
+          query.category = trimmedCategory;
+        }
+      } else {
+        query.category = trimmedCategory;
+      }
+    }
+
     if (state) query.state = state;
     if (district) query.district = district;
     if (mandal) query.mandal = mandal;
@@ -54,6 +76,16 @@ export async function GET(req) {
       Store.countDocuments(query)
     ]);
 
+    const categoryNames = [...new Set(stores.map(store => store.category).filter(Boolean))];
+    const categoryDocs = categoryNames.length > 0
+      ? await Category.find({ name: { $in: categoryNames } }).select('_id name').lean()
+      : [];
+
+    const categoryMap = categoryDocs.reduce((acc, c) => {
+      acc[c.name] = c._id.toString();
+      return acc;
+    }, {});
+
     const results = stores.map(store => {
       let distanceKm = null;
       if (!isNaN(lat) && !isNaN(lng) && store.location && store.location.coordinates) {
@@ -62,15 +94,16 @@ export async function GET(req) {
       }
 
       return {
+        _id: store._id,
         id: store._id,
         name: store.businessName,
+        category: store.category || '',
+        categoryId: categoryMap[store.category] || null,
         coverImageUrl: store.images && store.images.length > 0 ? store.images[0] : '',
-        logoUrl: store.images && store.images.length > 0 ? store.images[0] : '', // Fallback to cover if no logo
+        logoUrl: store.images && store.images.length > 0 ? store.images[0] : '',
         distanceKm: distanceKm ? parseFloat(distanceKm.toFixed(1)) : null,
-        viewCount: store.views || 0, // Fallback
-        address: store.address || [store.mandal, store.district].filter(Boolean).join(', '),
-        shortDescription: store.category,
-        category: store.category,
+        viewCount: store.views || 0,
+        address: store.address || [store.mandal, store.district, store.state].filter(Boolean).join(', '),
         isActive: store.status === 'active'
       };
     });
