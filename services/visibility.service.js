@@ -120,8 +120,19 @@ export class VisibilityService {
     return normalizedChildLevel;
   }
 
+  static getUserLocation(user) {
+    if (!user?.stateId) {
+      return null;
+    }
+
+    return {
+      stateId: user.stateId,
+      districtId: user?.districtId || null,
+      mandalId: user?.mandalId || null,
+    };
+  }
+
   static buildMatchQuery(location, extraFilters = {}) {
-    const locationComplete = !!(location?.stateId && location?.districtId && location?.mandalId);
     const matchers = [
       { visibilityLevel: 'global' },
       { visibilityLevel: { $exists: false } },
@@ -130,42 +141,34 @@ export class VisibilityService {
       { visibilityStateId: null },
     ];
 
-    if (locationComplete) {
-      matchers.push(
-        {
-          visibilityLevel: 'state',
-          visibilityStateId: objectIdOrNull(location.stateId),
-        },
-        {
-          visibilityLevel: 'district',
-          visibilityStateId: objectIdOrNull(location.stateId),
-          visibilityDistrictId: objectIdOrNull(location.districtId),
-        },
-        {
-          visibilityLevel: 'mandal',
-          visibilityStateId: objectIdOrNull(location.stateId),
-          visibilityDistrictId: objectIdOrNull(location.districtId),
-          visibilityMandalId: objectIdOrNull(location.mandalId),
-        }
-      );
+    if (location?.stateId) {
+      matchers.push({
+        visibilityLevel: 'state',
+        visibilityStateId: objectIdOrNull(location.stateId),
+      });
+    }
+
+    if (location?.stateId && location?.districtId) {
+      matchers.push({
+        visibilityLevel: 'district',
+        visibilityStateId: objectIdOrNull(location.stateId),
+        visibilityDistrictId: objectIdOrNull(location.districtId),
+      });
+    }
+
+    if (location?.stateId && location?.districtId && location?.mandalId) {
+      matchers.push({
+        visibilityLevel: 'mandal',
+        visibilityStateId: objectIdOrNull(location.stateId),
+        visibilityDistrictId: objectIdOrNull(location.districtId),
+        visibilityMandalId: objectIdOrNull(location.mandalId),
+      });
     }
 
     return {
       ...extraFilters,
       visibilityEnabled: { $ne: false },
       $or: matchers,
-    };
-  }
-
-  static getUserLocation(user) {
-    if (!user?.stateId || !user?.districtId || !user?.mandalId) {
-      return null;
-    }
-
-    return {
-      stateId: user.stateId,
-      districtId: user.districtId,
-      mandalId: user.mandalId,
     };
   }
 }

@@ -113,7 +113,7 @@ export class BannerController {
 
       // Handle image update if present
       const imageFile = formData.get('image');
-      if (imageFile && imageFile instanceof File) {
+      if (imageFile && typeof imageFile.arrayBuffer === 'function') {
         const sectionId = formData.get('section'); // Need sectionId for folder path
         const buffer = Buffer.from(await imageFile.arrayBuffer());
         updateData.image = await BannerService.uploadBannerImage(

@@ -90,6 +90,7 @@ export default function SectionsDashboard() {
   const [tagImagePreview, setTagImagePreview] = useState(null);
   const [bannerImage, setBannerImage] = useState(null);
   const [bannerImagePreview, setBannerImagePreview] = useState(null);
+  const [isBannerSaving, setIsBannerSaving] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -218,21 +219,39 @@ export default function SectionsDashboard() {
 
   const handleBannerSubmit = async (e) => {
     e.preventDefault();
-    const data = new FormData();
-    Object.keys(bannerForm).forEach(key => data.append(key, bannerForm[key]));
-    const stateName = selectedState?.name || '';
-    const districtName = selectedDistrict?.name || '';
-    const mandalName = (selectedDistrict?.mandals || []).find((mandal) => mandal.id === bannerForm.visibilityMandalId)?.name || '';
-    data.append('state', stateName);
-    data.append('district', districtName);
-    data.append('mandal', mandalName);
-    if (bannerImage) data.append('image', bannerImage);
+    setIsBannerSaving(true);
 
-    const url = editingBanner ? `/api/admin/banners/${editingBanner._id}` : '/api/admin/banners';
-    const res = await fetch(url, { method: editingBanner ? 'PUT' : 'POST', body: data });
-    if ((await res.json()).success) {
+    try {
+      const data = new FormData();
+      Object.keys(bannerForm).forEach(key => {
+        if (bannerForm[key] !== undefined && bannerForm[key] !== null) {
+          data.append(key, bannerForm[key]);
+        }
+      });
+
+      const stateName = selectedState?.name || '';
+      const districtName = selectedDistrict?.name || '';
+      const mandalName = (selectedDistrict?.mandals || []).find((mandal) => mandal.id === bannerForm.visibilityMandalId)?.name || '';
+      data.append('state', stateName);
+      data.append('district', districtName);
+      data.append('mandal', mandalName);
+      if (bannerImage) data.append('image', bannerImage);
+
+      const url = editingBanner ? `/api/admin/banners/${editingBanner._id}` : '/api/admin/banners';
+      const res = await fetch(url, { method: editingBanner ? 'PUT' : 'POST', body: data });
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to save banner');
+      }
+
       setIsBannerModalOpen(false);
       fetchData();
+    } catch (error) {
+      alert(error.message || 'Unable to save promotional banner');
+      console.error('Banner save failed', error);
+    } finally {
+      setIsBannerSaving(false);
     }
   };
 
@@ -829,7 +848,9 @@ export default function SectionsDashboard() {
                      <input value={bannerForm.storeLink} onChange={e => setBannerForm({...bannerForm, storeLink: e.target.value})} placeholder="Deep link or slug" className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
                   </div>
 
-                  <button type="submit" className="w-full py-4 bg-admin-primary text-white font-black rounded-[24px] shadow-lg shadow-admin-primary/20 mt-4">Save Promotional Banner</button>
+                  <button type="submit" disabled={isBannerSaving} className="w-full py-4 bg-admin-primary text-white font-black rounded-[24px] shadow-lg shadow-admin-primary/20 mt-4 disabled:cursor-not-allowed disabled:opacity-60">
+                    {isBannerSaving ? 'Saving...' : 'Save Promotional Banner'}
+                  </button>
                </form>
             </motion.div>
           </div>
