@@ -21,7 +21,7 @@ export class RedemptionsService {
     return {
       _id: request._id?.toString(),
       userName: this.formatUserName(user),
-      userUniqueCode: request.userUniqueCode || user.uniqueRedeemCode || '',
+      userUniqueCode: request.userUniqueCode || user.uniqueRedeemCode || user.referralCode || '',
       coinAmount: request.coinAmount || 0,
       mobileNumber: user.phone || '',
       status: request.status === 'APPROVED' ? 'success' : request.status === 'PENDING' ? 'otp_pending' : request.status === 'REJECTED' ? 'failed' : request.status,
@@ -66,14 +66,21 @@ export class RedemptionsService {
    * @param {number} coinAmount 
    */
   static async requestRedeem(vendorUserId, userUniqueCode, coinAmount) {
+    const normalizedCode = String(userUniqueCode || '').trim().toUpperCase();
+
     // 1. Fetch Vendor
     const vendor = await Vendor.findOne({ userId: vendorUserId });
     if (!vendor) throw new Error('Vendor profile not found');
     if (vendor.status !== 'active') throw new Error('Vendor account is not active');
 
-    // 2. Fetch User by Redemption Code
-    const user = await User.findOne({ uniqueRedeemCode: userUniqueCode });
-    if (!user) throw new Error('User not found with the provided redemption code');
+    // 2. Fetch User by redemption code or referral code. The vendor app currently labels this as referral code.
+    const user = await User.findOne({
+      $or: [
+        { uniqueRedeemCode: normalizedCode },
+        { referralCode: normalizedCode }
+      ]
+    });
+    if (!user) throw new Error('User not found with the provided code');
     if (user.status !== 'active') throw new Error('User account is currently not active');
 
     // 3. Balance verification
@@ -86,7 +93,7 @@ export class RedemptionsService {
       user: user._id,
       vendor: vendor._id,
       coinAmount,
-      userUniqueCode,
+      userUniqueCode: normalizedCode,
       status: 'otp_pending'
     });
     await request.save();
@@ -113,7 +120,7 @@ export class RedemptionsService {
 
     return {
       _id: request._id.toString(),
-      userUniqueCode,
+      userUniqueCode: normalizedCode,
       coinAmount: request.coinAmount,
       userName: this.formatUserName(user),
       mobileNumber: user.phone || '',
@@ -126,7 +133,7 @@ export class RedemptionsService {
     const vendor = await Vendor.findOne({ userId: vendorUserId });
     if (!vendor) throw new Error('Vendor profile not found');
 
-    const request = await RedemptionRequest.findOne({ _id: requestId, vendor: vendor._id }).populate('user', 'firstName lastName phone uniqueRedeemCode status');
+    const request = await RedemptionRequest.findOne({ _id: requestId, vendor: vendor._id }).populate('user', 'firstName lastName phone uniqueRedeemCode referralCode status');
     if (!request) throw new Error('Redemption request not found');
     if (request.status !== 'otp_pending') throw new Error(`Cannot resend OTP for request with status: ${request.status}`);
 
@@ -425,7 +432,7 @@ export class RedemptionsService {
     if (!vendor) throw new Error('Vendor profile not found');
 
     const activityRecords = await RedemptionRequest.find({ vendor: vendor._id })
-      .populate('user', 'firstName lastName email phone uniqueRedeemCode')
+      .populate('user', 'firstName lastName email phone uniqueRedeemCode referralCode')
       .sort({ createdAt: -1 });
 
     const totalRedeemedResult = await RedemptionRequest.aggregate([

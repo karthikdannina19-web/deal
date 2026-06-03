@@ -133,14 +133,14 @@ export class RedemptionsController {
       if (roleError) return roleError;
 
       const body = await req.json();
-      const { userUniqueCode, coinAmount } = body;
-      const parsedCoinAmount = Number(coinAmount);
+      const userCode = body.userUniqueCode || body.referralCode || body.code;
+      const parsedCoinAmount = Number(body.coinAmount ?? body.coins);
 
-      if (!userUniqueCode || !Number.isFinite(parsedCoinAmount) || parsedCoinAmount <= 0) {
-        return Response.json({ success: false, message: 'Valid redemption code and coin amount are required' }, { status: 400 });
+      if (!userCode || !Number.isFinite(parsedCoinAmount) || parsedCoinAmount <= 0) {
+        return Response.json({ success: false, message: 'Valid user code and coin amount are required' }, { status: 400 });
       }
 
-      const request = await RedemptionsService.requestRedeem(vendorUser.id, userUniqueCode, parsedCoinAmount);
+      const request = await RedemptionsService.requestRedeem(vendorUser.id, userCode, parsedCoinAmount);
 
       return Response.json({
         success: true,
