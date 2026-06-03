@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Settings, Share2, Search, ArrowRight, Loader2, Save, 
-  Download, ChevronRight, ChevronDown, CheckCircle, RefreshCw, Network
+  Download, CheckCircle, RefreshCw, Network
 } from 'lucide-react';
 import { cn } from "@/utils/cn";
 
@@ -26,16 +26,13 @@ export default function ReferralsDashboard() {
 
   // Data states
   const [referrals, setReferrals] = useState([]);
-  const [treeData, setTreeData] = useState([]);
+  const [referralMappings, setReferralMappings] = useState([]);
   const [settings, setSettings] = useState(defaultSettings);
 
   // Logs filters & pagination
   const [searchQuery, setSearchQuery] = useState('');
   const [logsPage, setLogsPage] = useState(1);
   const [totalPagesLogs, setTotalPagesLogs] = useState(1);
-
-  // SVG Tree States
-  const [selectedTreeIndex, setSelectedTreeIndex] = useState(0);
 
   const fetchReferralData = async () => {
     try {
@@ -63,7 +60,7 @@ export default function ReferralsDashboard() {
       const treeRes = await fetch('/api/admin/referral-tree', { headers });
       const treeResult = await treeRes.json();
       if (treeResult.success) {
-        setTreeData(treeResult.trees || []);
+        setReferralMappings(treeResult.mappings || treeResult.trees || []);
       }
 
     } catch (err) {
@@ -109,74 +106,9 @@ export default function ReferralsDashboard() {
     }
   };
 
-  // Renders beautiful interactive SVG nodes connection tree
-  const renderSVGTree = (node, x = 300, y = 60, level = 0, index = 0, siblings = 1) => {
-    if (!node) return null;
-
-    const childCount = node.children ? node.children.length : 0;
-    const ySpacing = 110;
-    const xSpacing = 160 / (level + 1);
-
-    const elements = [];
-
-    // Draw connection lines to children first (under the nodes)
-    if (node.children) {
-      node.children.forEach((child, i) => {
-        const cx = x - ((childCount - 1) * xSpacing) / 2 + i * xSpacing;
-        const cy = y + ySpacing;
-        elements.push(
-          <line
-            key={`line-${node.id}-${child.id}-${i}`}
-            x1={x}
-            y1={y}
-            x2={cx}
-            y2={cy}
-            stroke="#cbd5e1"
-            strokeWidth="2.5"
-            strokeDasharray="4 2"
-          />
-        );
-        // Recurse children
-        elements.push(...renderSVGTree(child, cx, cy, level + 1, i, childCount));
-      });
-    }
-
-    // Render node capsule
-    elements.push(
-      <g key={`node-${node.id}`} className="group cursor-pointer select-none">
-        <circle
-          cx={x}
-          cy={y}
-          r="34"
-          fill={level === 0 ? "#f59e0b" : level === 1 ? "#6366f1" : "#10b981"}
-          className="transition-all duration-300 group-hover:scale-110 shadow-sm"
-          stroke="#ffffff"
-          strokeWidth="3.5"
-        />
-        <text
-          x={x}
-          y={y - 4}
-          textAnchor="middle"
-          fill="#ffffff"
-          fontSize="11"
-          fontWeight="bold"
-        >
-          {node.name.split(' ')[0]}
-        </text>
-        <text
-          x={x}
-          y={y + 11}
-          textAnchor="middle"
-          fill="#ffffff"
-          fontSize="9"
-          fontWeight="medium"
-        >
-          {node.coinsEarned} Coins
-        </text>
-      </g>
-    );
-
-    return elements;
+  const getUserName = (user, fallback = 'User') => {
+    const name = `${user?.firstName || ''} ${user?.lastName || ''}`.trim();
+    return name || user?.phone || user?.email || fallback;
   };
 
   const handleExportCSV = () => {
@@ -240,7 +172,7 @@ export default function ReferralsDashboard() {
           )}
         >
           <Network size={16} />
-          Referral Mapping Graph ({treeData.length})
+          Referral Mapping Graph ({referralMappings.length})
         </button>
         <button 
           onClick={() => setActiveTab('logs')}
@@ -340,46 +272,95 @@ export default function ReferralsDashboard() {
       )}
 
       {activeTab === 'visualization' && (
-        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-3xl p-6 shadow-sm space-y-6">
+        <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h4 className="text-lg font-bold">Expansion Map Visualization</h4>
-              <p className="text-xs text-zinc-500">Render node mapping representing referral trees.</p>
+              <h4 className="text-lg font-bold">User Referral Mapping</h4>
+              <p className="text-xs text-zinc-500">Each row shows one user and the people directly referred by that user.</p>
             </div>
-            {treeData.length > 0 && (
-              <div className="flex gap-2">
-                {treeData.map((tree, i) => (
-                  <button 
-                    key={tree.id}
-                    onClick={() => setSelectedTreeIndex(i)}
-                    className={cn(
-                      "px-3 py-1.5 text-xs font-bold rounded-xl border transition-all",
-                      selectedTreeIndex === i ? "bg-amber-500 text-white border-amber-500 shadow-sm" : "bg-white border-zinc-200 text-zinc-600 hover:bg-zinc-50"
-                    )}
-                  >
-                    Tree: {tree.name.split(' ')[0]}
-                  </button>
-                ))}
+            <div className="grid grid-cols-2 gap-3 text-right">
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Referrers</p>
+                <p className="text-lg font-black text-zinc-900 dark:text-zinc-50">{referralMappings.length}</p>
               </div>
-            )}
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 px-4 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Links</p>
+                <p className="text-lg font-black text-zinc-900 dark:text-zinc-50">
+                  {referralMappings.reduce((sum, item) => sum + (item.totalReferrals || item.referredUsers?.length || 0), 0)}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="border border-zinc-100 dark:border-zinc-800 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950 overflow-hidden flex items-center justify-center p-6 min-h-[500px]">
+          <div className="border border-zinc-100 dark:border-zinc-800 rounded-2xl bg-zinc-50/50 dark:bg-zinc-950 overflow-hidden p-4 min-h-[320px]">
             {isLoading ? (
-              <div className="text-center text-zinc-500">
+              <div className="text-center text-zinc-500 py-16">
                 <Loader2 className="w-8 h-8 text-amber-500 animate-spin mx-auto mb-2" />
-                Aggregating nodes network...
+                Loading referral mapping...
               </div>
-            ) : treeData.length === 0 ? (
-              <div className="text-center text-zinc-500 space-y-2">
+            ) : referralMappings.length === 0 ? (
+              <div className="text-center text-zinc-500 space-y-2 py-16">
                 <Network className="w-12 h-12 mx-auto text-zinc-350" />
                 <p className="font-bold">No referral networks mapped yet.</p>
-                <p className="text-xs">Once users invite referred users, their connected tree maps will populate here.</p>
+                <p className="text-xs">Once users invite referred users, the direct mapping will populate here.</p>
               </div>
             ) : (
-              <svg width="600" height="400" className="w-full max-w-[600px] drop-shadow-sm overflow-visible">
-                {renderSVGTree(treeData[selectedTreeIndex])}
-              </svg>
+              <div className="space-y-3">
+                {referralMappings.map((mapping) => (
+                  <div
+                    key={mapping.id}
+                    className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4"
+                  >
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Referrer</p>
+                        <p className="font-black text-zinc-900 dark:text-zinc-50">{getUserName(mapping.referrer, 'Referrer')}</p>
+                        <p className="text-xs text-zinc-500">{mapping.referrer?.phone || mapping.referrer?.email || 'No contact saved'}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <span className="rounded-lg bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 text-xs font-bold">
+                          {mapping.totalReferrals || mapping.referredUsers?.length || 0} referrals
+                        </span>
+                        <span className="rounded-lg bg-green-50 text-green-700 border border-green-200 px-2.5 py-1 text-xs font-bold">
+                          {mapping.totalCoins || 0} coins
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {(mapping.referredUsers || []).map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 px-3 py-3"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <ArrowRight className="w-4 h-4 text-amber-500 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-zinc-900 dark:text-zinc-50 truncate">
+                                {getUserName(item.user, 'Referred user')}
+                              </p>
+                              <p className="text-xs text-zinc-500 truncate">
+                                {item.user?.phone || item.user?.email || item.user?.referralCode || 'No contact saved'}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 sm:justify-end">
+                            <span className={cn(
+                              "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest border",
+                              item.status === 'completed' ? "bg-green-50 text-green-700 border-green-200" : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                            )}>
+                              {item.status}
+                            </span>
+                            <span className="text-xs font-black text-zinc-900 dark:text-zinc-50 whitespace-nowrap">
+                              {item.rewardCoins || 0} Coins
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

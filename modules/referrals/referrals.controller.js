@@ -149,25 +149,50 @@ export class ReferralsController {
       const roleError = authorize(user, ['admin']);
       if (roleError) return roleError;
 
-      // Group referrals to find high referrers
-      const topReferrers = await Referral.aggregate([
-        { $group: { _id: '$referrer', count: { $sum: 1 } } },
-        { $sort: { count: -1 } },
-        { $limit: 10 }
-      ]);
+      const referrals = await Referral.find({})
+        .populate('referrer', 'firstName lastName email phone referralCode coinBalance')
+        .populate('referred', 'firstName lastName email phone referralCode coinBalance')
+        .sort({ createdAt: -1 })
+        .limit(1000);
 
-      const trees = [];
-      for (const ref of topReferrers) {
-        if (!ref._id) continue;
-        try {
-          const tree = await ReferralsService.getTree(ref._id);
-          trees.push(tree);
-        } catch (err) {
-          console.error(`Failed to generate tree for referrer ${ref._id}:`, err.message);
+      const mappingByReferrer = new Map();
+
+      referrals.forEach((referral) => {
+        if (!referral.referrer || !referral.referred) return;
+
+        const referrerId = referral.referrer._id.toString();
+        if (!mappingByReferrer.has(referrerId)) {
+          mappingByReferrer.set(referrerId, {
+            id: referrerId,
+            referrer: referral.referrer,
+            referredUsers: [],
+            totalReferrals: 0,
+            totalCoins: 0,
+            latestReferralAt: referral.createdAt,
+          });
         }
-      }
 
-      return Response.json({ success: true, trees }, { status: 200 });
+        const mapping = mappingByReferrer.get(referrerId);
+        mapping.referredUsers.push({
+          id: referral.referred._id.toString(),
+          user: referral.referred,
+          rewardCoins: referral.rewardCoins || 0,
+          status: referral.status,
+          createdAt: referral.createdAt,
+        });
+        mapping.totalReferrals += 1;
+        mapping.totalCoins += referral.rewardCoins || 0;
+        if (new Date(referral.createdAt) > new Date(mapping.latestReferralAt)) {
+          mapping.latestReferralAt = referral.createdAt;
+        }
+      });
+
+      const mappings = Array.from(mappingByReferrer.values()).sort((a, b) => {
+        if (b.totalReferrals !== a.totalReferrals) return b.totalReferrals - a.totalReferrals;
+        return new Date(b.latestReferralAt) - new Date(a.latestReferralAt);
+      });
+
+      return Response.json({ success: true, mappings, trees: mappings }, { status: 200 });
     } catch (error) {
       console.error('[ReferralsController getAdminReferralTree Error]', error);
       return Response.json({ success: false, message: error.message }, { status: 500 });

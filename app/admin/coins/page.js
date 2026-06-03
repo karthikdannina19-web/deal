@@ -453,7 +453,7 @@ export default function CoinsPage() {
                       <tr key={alert.user?._id} className="text-xs hover:bg-zinc-50">
                         <td className="py-3 font-bold">{alert.user?.firstName} {alert.user?.lastName}</td>
                         <td className="py-3 text-amber-600 font-black">{alert.count} Requests</td>
-                        <td className="py-3 text-zinc-950 font-bold">{alert.totalCoins} Coins</td>
+                        <td className="py-3 text-zinc-900 dark:text-zinc-50 font-bold">{alert.totalCoins} Coins</td>
                         <td className="py-3">
                           <span className="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 font-bold text-[10px] uppercase">Suspicious Frequency</span>
                         </td>
@@ -519,7 +519,7 @@ export default function CoinsPage() {
                         {tx.amount} Coins
                       </td>
                       <td className="px-6 py-4 text-zinc-500 font-semibold">{tx.balanceBefore}</td>
-                      <td className="px-6 py-4 text-zinc-950 font-bold">{tx.balanceAfter}</td>
+                      <td className="px-6 py-4 text-zinc-900 dark:text-zinc-50 font-bold">{tx.balanceAfter}</td>
                       <td className="px-6 py-4 text-zinc-500 text-xs">
                         {new Date(tx.createdAt).toLocaleDateString()}
                       </td>
