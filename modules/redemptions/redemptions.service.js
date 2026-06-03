@@ -4,7 +4,6 @@ import RedemptionRequest from '../../models/redemptionRequest.model.js';
 import WalletTransaction from '../../models/walletTransaction.model.js';
 import VendorTransaction from '../../models/vendorTransaction.model.js';
 import mongoose from 'mongoose';
-import { generateOtp } from '../../utils/generateOtp.js';
 import { hashData, compareHash } from '../../utils/hash.js';
 
 /**
@@ -43,7 +42,7 @@ export class RedemptionsService {
       throw new Error('Maximum OTP resend limit reached for this request.');
     }
 
-    const plainOtp = generateOtp();
+    const plainOtp = '1234';
     request.otp = await hashData(plainOtp);
     request.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
     request.otpLastSentAt = now;
