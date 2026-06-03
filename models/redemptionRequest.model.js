@@ -30,9 +30,26 @@ const redemptionRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+      enum: ['PENDING', 'APPROVED', 'REJECTED', 'otp_pending', 'success', 'failed'],
       default: 'PENDING',
       index: true,
+    },
+    otp: {
+      type: String,
+    },
+    otpExpiry: {
+      type: Date,
+    },
+    otpLastSentAt: {
+      type: Date,
+    },
+    otpResendCount: {
+      type: Number,
+      default: 0,
+    },
+    attempts: {
+      type: Number,
+      default: 0,
     },
     approvedAt: {
       type: Date,

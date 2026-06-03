@@ -4,12 +4,61 @@ import RedemptionRequest from '../../models/redemptionRequest.model.js';
 import WalletTransaction from '../../models/walletTransaction.model.js';
 import VendorTransaction from '../../models/vendorTransaction.model.js';
 import mongoose from 'mongoose';
+import { generateOtp } from '../../utils/generateOtp.js';
+import { hashData, compareHash } from '../../utils/hash.js';
 
 /**
  * Redemptions Service
  * Manages vendor redemption requests, user approval workflows, and transaction ledgers
  */
 export class RedemptionsService {
+  static formatUserName(user) {
+    return `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || 'User';
+  }
+
+  static formatVendorActivity(request) {
+    const user = request.user || {};
+    return {
+      _id: request._id?.toString(),
+      userName: this.formatUserName(user),
+      userUniqueCode: request.userUniqueCode || user.uniqueRedeemCode || '',
+      coinAmount: request.coinAmount || 0,
+      mobileNumber: user.phone || '',
+      status: request.status === 'APPROVED' ? 'success' : request.status === 'PENDING' ? 'otp_pending' : request.status === 'REJECTED' ? 'failed' : request.status,
+      createdAt: request.createdAt
+    };
+  }
+
+  static async sendOtpForRequest(request, user) {
+    const now = new Date();
+
+    if (request.otpLastSentAt) {
+      const secondsSinceLastOtp = (now - new Date(request.otpLastSentAt)) / 1000;
+      if (secondsSinceLastOtp < 30) {
+        throw new Error(`Please wait ${Math.ceil(30 - secondsSinceLastOtp)} seconds before requesting a new OTP.`);
+      }
+    }
+
+    if ((request.otpResendCount || 0) >= 3) {
+      throw new Error('Maximum OTP resend limit reached for this request.');
+    }
+
+    const plainOtp = generateOtp();
+    request.otp = await hashData(plainOtp);
+    request.otpExpiry = new Date(Date.now() + 5 * 60 * 1000);
+    request.otpLastSentAt = now;
+    request.otpResendCount = (request.otpResendCount || 0) + 1;
+    request.attempts = 0;
+    request.status = 'otp_pending';
+    await request.save();
+
+    const message = `Hello ${user.firstName || 'User'}, your OTP for redeeming ${request.coinAmount} coins is ${plainOtp}. It expires in 5 minutes.`;
+    console.log('--------------------------------------------------');
+    console.log(`[SMS GATEWAY MOCK] To: ${user.phone}`);
+    console.log(`Message: ${message}`);
+    console.log('--------------------------------------------------');
+  }
+
   /**
    * Vendor requests to redeem coins from a user
    * @param {string} vendorUserId - User ID of the Vendor
@@ -32,15 +81,16 @@ export class RedemptionsService {
       throw new Error(`User does not have enough coins. Available: ${user.coinBalance}`);
     }
 
-    // 4. Create pending request
+    // 4. Create OTP pending request
     const request = new RedemptionRequest({
       user: user._id,
       vendor: vendor._id,
       coinAmount,
       userUniqueCode,
-      status: 'PENDING'
+      status: 'otp_pending'
     });
     await request.save();
+    await this.sendOtpForRequest(request, user);
 
     // 5. Send Real-time Push Notification to user
     try {
@@ -48,8 +98,8 @@ export class RedemptionsService {
       const tokens = PushNotificationService.extractValidTokensFromUsers([user]);
       if (tokens.length > 0) {
         await PushNotificationService.sendToTokens(tokens, {
-          title: 'Redemption Request Received',
-          body: `Vendor "${vendor.storeName}" wants to redeem ${coinAmount} coins from your wallet.`,
+          title: 'Redemption OTP Sent',
+          body: `Share the OTP only if you want "${vendor.storeName}" to redeem ${coinAmount} coins.`,
           type: 'redemption_request',
           metadata: {
             requestId: request._id.toString(),
@@ -61,7 +111,147 @@ export class RedemptionsService {
       console.error('Failed to send push notification to user:', err.message);
     }
 
-    return request;
+    return {
+      _id: request._id.toString(),
+      userUniqueCode,
+      coinAmount: request.coinAmount,
+      userName: this.formatUserName(user),
+      mobileNumber: user.phone || '',
+      status: request.status,
+      createdAt: request.createdAt
+    };
+  }
+
+  static async resendVendorRedeemOtp(vendorUserId, requestId) {
+    const vendor = await Vendor.findOne({ userId: vendorUserId });
+    if (!vendor) throw new Error('Vendor profile not found');
+
+    const request = await RedemptionRequest.findOne({ _id: requestId, vendor: vendor._id }).populate('user', 'firstName lastName phone uniqueRedeemCode status');
+    if (!request) throw new Error('Redemption request not found');
+    if (request.status !== 'otp_pending') throw new Error(`Cannot resend OTP for request with status: ${request.status}`);
+
+    await this.sendOtpForRequest(request, request.user);
+
+    return this.formatVendorActivity(request);
+  }
+
+  static async verifyVendorRedeemOtp(vendorUserId, requestId, otp, idempotencyKey = null) {
+    const vendor = await Vendor.findOne({ userId: vendorUserId });
+    if (!vendor) throw new Error('Vendor profile not found');
+
+    const request = await RedemptionRequest.findOne({ _id: requestId, vendor: vendor._id });
+    if (!request) throw new Error('Redemption request not found');
+
+    if (request.status === 'success' || request.status === 'APPROVED') {
+      return {
+        _id: request._id.toString(),
+        coinAmount: request.coinAmount,
+        status: 'success',
+        alreadyProcessed: true,
+        createdAt: request.createdAt
+      };
+    }
+
+    if (request.status !== 'otp_pending') throw new Error(`Invalid request state: ${request.status}`);
+    if (!request.otp || !request.otpExpiry) throw new Error('OTP has not been generated for this request');
+
+    if (new Date() > request.otpExpiry) {
+      request.status = 'failed';
+      await request.save();
+      throw new Error('OTP has expired');
+    }
+
+    if ((request.attempts || 0) >= 5) {
+      request.status = 'failed';
+      await request.save();
+      throw new Error('Maximum verification attempts exceeded');
+    }
+
+    const isMatch = await compareHash(String(otp), request.otp);
+    if (!isMatch) {
+      request.attempts = (request.attempts || 0) + 1;
+      await request.save();
+      throw new Error('Invalid OTP');
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const lockedRequest = await RedemptionRequest.findOne({ _id: requestId, vendor: vendor._id }).session(session);
+      if (!lockedRequest) throw new Error('Redemption request not found');
+      if (lockedRequest.status === 'success' || lockedRequest.status === 'APPROVED') {
+        await session.commitTransaction();
+        return {
+          _id: lockedRequest._id.toString(),
+          coinAmount: lockedRequest.coinAmount,
+          status: 'success',
+          alreadyProcessed: true,
+          createdAt: lockedRequest.createdAt
+        };
+      }
+      if (lockedRequest.status !== 'otp_pending') throw new Error(`Invalid request state: ${lockedRequest.status}`);
+
+      const user = await User.findById(lockedRequest.user).session(session);
+      const lockedVendor = await Vendor.findById(lockedRequest.vendor).session(session);
+      if (!user || !lockedVendor) throw new Error('User or Vendor record missing');
+      if (user.coinBalance < lockedRequest.coinAmount) throw new Error('User has insufficient balance for this redemption');
+
+      const userOldBalance = user.coinBalance || 0;
+      const vendorOldBalance = lockedVendor.coinBalance || 0;
+
+      user.coinBalance = userOldBalance - lockedRequest.coinAmount;
+      lockedVendor.coinBalance = vendorOldBalance + lockedRequest.coinAmount;
+      lockedRequest.status = 'success';
+      lockedRequest.approvedAt = new Date();
+
+      await user.save({ session });
+      await lockedVendor.save({ session });
+      await lockedRequest.save({ session });
+
+      await new WalletTransaction({
+        user: user._id,
+        type: 'debit',
+        amount: lockedRequest.coinAmount,
+        balanceBefore: userOldBalance,
+        balanceAfter: user.coinBalance,
+        transactionType: 'REDEMPTION_DEBIT',
+        referenceId: lockedRequest._id
+      }).save({ session });
+
+      await new VendorTransaction({
+        vendor: lockedVendor._id,
+        amount: lockedRequest.coinAmount,
+        type: 'credit',
+        redemptionRequest: lockedRequest._id
+      }).save({ session });
+
+      const AuditLog = (await import('../../models/auditLog.model.js')).default;
+      await new AuditLog({
+        action: 'COIN_REDEMPTION_OTP_VERIFIED',
+        userId: user._id,
+        role: 'user',
+        entityId: lockedRequest._id,
+        entityType: 'redemption_request',
+        actionType: 'update',
+        severity: 'low',
+        metadata: { vendorId: lockedVendor._id, amount: lockedRequest.coinAmount, idempotencyKey }
+      }).save({ session });
+
+      await session.commitTransaction();
+
+      return {
+        _id: lockedRequest._id.toString(),
+        coinAmount: lockedRequest.coinAmount,
+        status: 'success',
+        createdAt: lockedRequest.createdAt
+      };
+    } catch (err) {
+      await session.abortTransaction();
+      throw err;
+    } finally {
+      session.endSession();
+    }
   }
 
   /**
@@ -234,10 +424,29 @@ export class RedemptionsService {
     const vendor = await Vendor.findOne({ userId: vendorUserId });
     if (!vendor) throw new Error('Vendor profile not found');
 
-    const history = await RedemptionRequest.find({ vendor: vendor._id })
-      .populate('user', 'firstName lastName email uniqueRedeemCode')
+    const activityRecords = await RedemptionRequest.find({ vendor: vendor._id })
+      .populate('user', 'firstName lastName email phone uniqueRedeemCode')
       .sort({ createdAt: -1 });
-    return history;
+
+    const totalRedeemedResult = await RedemptionRequest.aggregate([
+      { $match: { vendor: vendor._id, status: { $in: ['success', 'APPROVED'] } } },
+      { $group: { _id: null, total: { $sum: '$coinAmount' } } }
+    ]);
+
+    const usersRedeemedResult = await RedemptionRequest.distinct('user', {
+      vendor: vendor._id,
+      status: { $in: ['success', 'APPROVED'] }
+    });
+
+    return {
+      wallet: {
+        balance: vendor.coinBalance || 0,
+        totalRedeemed: totalRedeemedResult[0]?.total || 0,
+        usersRedeemed: usersRedeemedResult.length,
+        storeName: vendor.storeName || ''
+      },
+      activity: activityRecords.map((request) => this.formatVendorActivity(request))
+    };
   }
 
   /**

@@ -134,16 +134,17 @@ export class RedemptionsController {
 
       const body = await req.json();
       const { userUniqueCode, coinAmount } = body;
+      const parsedCoinAmount = Number(coinAmount);
 
-      if (!userUniqueCode || !coinAmount || coinAmount <= 0) {
+      if (!userUniqueCode || !Number.isFinite(parsedCoinAmount) || parsedCoinAmount <= 0) {
         return Response.json({ success: false, message: 'Valid redemption code and coin amount are required' }, { status: 400 });
       }
 
-      const request = await RedemptionsService.requestRedeem(vendorUser.id, userUniqueCode, coinAmount);
+      const request = await RedemptionsService.requestRedeem(vendorUser.id, userUniqueCode, parsedCoinAmount);
 
       return Response.json({
         success: true,
-        message: 'Redemption request submitted successfully. Awaiting user approval.',
+        message: 'OTP sent to user.',
         request
       }, { status: 201 });
 
@@ -166,10 +167,82 @@ export class RedemptionsController {
       if (roleError) return roleError;
 
       const history = await RedemptionsService.getVendorHistory(vendorUser.id);
-      return Response.json({ success: true, history }, { status: 200 });
+      return Response.json({
+        success: true,
+        wallet: history.wallet,
+        activity: history.activity,
+        history: history.activity
+      }, { status: 200 });
     } catch (error) {
       console.error('[RedemptionsController vendorGetHistory Error]', error);
       return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * POST /api/vendor/redeem/verify-otp
+   */
+  static async vendorVerifyRedeemOtp(req) {
+    try {
+      await dbConnect();
+      const { user: vendorUser, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const roleError = authorize(vendorUser, ['vendor']);
+      if (roleError) return roleError;
+
+      const body = await req.json();
+      const { requestId, otp } = body;
+      const idempotencyKey = req.headers.get('x-idempotency-key');
+
+      if (!requestId || !otp) {
+        return Response.json({ success: false, message: 'Request ID and OTP are required' }, { status: 400 });
+      }
+
+      const result = await RedemptionsService.verifyVendorRedeemOtp(vendorUser.id, requestId, otp, idempotencyKey);
+
+      return Response.json({
+        success: true,
+        message: 'Coins redeemed successfully.',
+        request: result
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[RedemptionsController vendorVerifyRedeemOtp Error]', error);
+      const status = error.message.includes('not found') ? 404 : 400;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
+
+  /**
+   * POST /api/vendor/redeem/resend-otp
+   */
+  static async vendorResendRedeemOtp(req) {
+    try {
+      await dbConnect();
+      const { user: vendorUser, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const roleError = authorize(vendorUser, ['vendor']);
+      if (roleError) return roleError;
+
+      const body = await req.json();
+      const { requestId } = body;
+
+      if (!requestId) {
+        return Response.json({ success: false, message: 'Request ID is required' }, { status: 400 });
+      }
+
+      const request = await RedemptionsService.resendVendorRedeemOtp(vendorUser.id, requestId);
+
+      return Response.json({
+        success: true,
+        message: 'OTP resent to user.',
+        request
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[RedemptionsController vendorResendRedeemOtp Error]', error);
+      const status = error.message.includes('not found') ? 404 : 400;
+      return Response.json({ success: false, message: error.message }, { status });
     }
   }
 
@@ -190,7 +263,7 @@ export class RedemptionsController {
 
       // Calculate total redeemed summary
       const totalRedeemedResult = await RedemptionRequest.aggregate([
-        { $match: { vendor: vendor._id, status: 'APPROVED' } },
+        { $match: { vendor: vendor._id, status: { $in: ['APPROVED', 'success'] } } },
         { $group: { _id: null, total: { $sum: '$coinAmount' } } }
       ]);
 
@@ -247,11 +320,11 @@ export class RedemptionsController {
 
       // Circulation telemetry calculations
       const totalApprovedResult = await RedemptionRequest.aggregate([
-        { $match: { status: 'APPROVED' } },
+        { $match: { status: { $in: ['APPROVED', 'success'] } } },
         { $group: { _id: null, total: { $sum: '$coinAmount' } } }
       ]);
       const totalPendingResult = await RedemptionRequest.aggregate([
-        { $match: { status: 'PENDING' } },
+        { $match: { status: { $in: ['PENDING', 'otp_pending'] } } },
         { $group: { _id: null, total: { $sum: '$coinAmount' } } }
       ]);
 
