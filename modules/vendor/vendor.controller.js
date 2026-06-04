@@ -97,7 +97,7 @@ export class VendorController {
       return Response.json({
         success: false,
         message: error.message || 'Failed to complete Step 1'
-      }, { status: 500 });
+      }, { status: error.statusCode || 500 });
     }
   }
 

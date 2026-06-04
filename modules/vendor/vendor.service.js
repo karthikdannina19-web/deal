@@ -27,6 +27,47 @@ export class VendorService {
     return new RegExp(`^${escaped}(\\+del_|_del_)`);
   }
 
+  static isDeletedVendorRecord(vendor) {
+    return (
+      vendor?.is_deleted === true ||
+      vendor?.account_status === 'DELETED' ||
+      vendor?.status === 'deleted' ||
+      Boolean(vendor?.deletedAt)
+    );
+  }
+
+  static async archiveDeletedVendorIdentifiers(vendor, reason = '') {
+    if (!vendor) return;
+
+    const timestamp = Date.now();
+    const updates = {
+      status: 'deleted',
+      deletedAt: vendor.deletedAt || new Date(),
+      is_deleted: true,
+      account_status: 'DELETED',
+    };
+
+    if (reason) {
+      updates.deletionReason = vendor.deletionReason || reason;
+      updates.deleted_reason = vendor.deleted_reason || reason;
+    }
+
+    if (vendor.mobileNumber && !/_del_\d+$/.test(vendor.mobileNumber)) {
+      updates.mobileNumber = `${vendor.mobileNumber}_del_${timestamp}`;
+    }
+
+    if (vendor.email && !/(?:\+del_|_del_)\d+/.test(vendor.email)) {
+      const parts = vendor.email.split('@');
+      updates.email = parts.length === 2 ? `${parts[0]}+del_${timestamp}@${parts[1]}` : `${vendor.email}_del_${timestamp}`;
+    }
+
+    if (vendor.slug && !/_del_\d+$/.test(vendor.slug)) {
+      updates.slug = `${vendor.slug}_del_${timestamp}`;
+    }
+
+    await Vendor.updateOne({ _id: vendor._id }, { $set: updates });
+  }
+
   static async findArchivedVendor({ mobileNumber, email }) {
     const orConditions = [];
 
@@ -292,15 +333,34 @@ export class VendorService {
 
     await dbConnect();
     
-    // 1. Check if vendor already exists and has completed registration (not deleted or draft)
-    const existingVendor = await Vendor.findOne({
-      mobileNumber,
-      is_deleted: { $ne: true },
-      account_status: { $ne: 'DELETED' },
-      status: { $ne: 'deleted' },
-    });
-    if (existingVendor && existingVendor.status !== 'draft') {
-      throw new Error('An account with this mobile number already exists. Please log in.');
+    // 1. Check same-mobile vendor records. Deleted/stale-deleted records must not block re-registration.
+    const sameMobileVendors = await Vendor.find({ mobileNumber }).sort({ updatedAt: -1 });
+    for (const existingVendor of sameMobileVendors) {
+      if (this.isDeletedVendorRecord(existingVendor)) {
+        await this.archiveDeletedVendorIdentifiers(
+          existingVendor,
+          'Archived during fresh registration with a previously deleted mobile number.'
+        );
+        continue;
+      }
+
+      const linkedUser = existingVendor.userId
+        ? await User.findById(existingVendor.userId).select('status')
+        : null;
+
+      if (linkedUser?.status === 'deleted') {
+        await this.archiveDeletedVendorIdentifiers(
+          existingVendor,
+          'Archived because the associated user account was already deleted.'
+        );
+        continue;
+      }
+
+      if (existingVendor.status !== 'draft') {
+        const error = new Error('An account with this mobile number already exists. Please log in.');
+        error.statusCode = 409;
+        throw error;
+      }
     }
 
     const archivedVendor = await this.findArchivedVendor({ mobileNumber, email });
