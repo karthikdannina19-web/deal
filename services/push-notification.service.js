@@ -1,8 +1,13 @@
 import User from "@/models/user.model.js";
-import { getFirebaseMessaging } from "@/firebase/firebaseAdmin.js";
+import {
+  getFirebaseMessagingAccessToken,
+  getFirebaseServiceAccount,
+} from "@/firebase/firebaseAdmin.js";
 
 const FCM_BATCH_SIZE = 500;
 const MAX_RETRY_ATTEMPTS = 2;
+const USER_FIREBASE_PROJECT_ID = "rhockdeal-20fc2";
+const USER_FCM_SEND_URL = `https://fcm.googleapis.com/v1/projects/${USER_FIREBASE_PROJECT_ID}/messages:send`;
 
 const INVALID_TOKEN_CODES = new Set([
   "messaging/invalid-registration-token",
@@ -11,6 +16,9 @@ const INVALID_TOKEN_CODES = new Set([
   "invalid-registration-token",
   "not-registered",
   "invalid-argument",
+  "INVALID_ARGUMENT",
+  "UNREGISTERED",
+  "SENDER_ID_MISMATCH",
 ]);
 
 const RETRYABLE_CODES = new Set([
@@ -30,12 +38,13 @@ function chunkArray(items, size) {
 
 function normalizeToken(token) {
   if (typeof token !== "string") return "";
-  return token.trim();
+  return token;
 }
 
 function isValidDeviceToken(token) {
   if (!token) return false;
   if (token.length <= 15) return false;
+  if (token !== token.trim()) return false;
   if (token.startsWith("test_fcm_token_")) return false;
   if (token.toLowerCase().includes("dummy")) return false;
   return true;
@@ -48,7 +57,16 @@ function asStringData(value) {
 }
 
 function getErrorCode(error) {
-  return error?.code || error?.errorInfo?.code || "unknown";
+  return error?.code || error?.errorInfo?.code || error?.status || "unknown";
+}
+
+function getFcmErrorCode(responseBody = {}) {
+  const details = responseBody?.error?.details;
+  if (Array.isArray(details)) {
+    const fcmError = details.find((item) => item?.errorCode);
+    if (fcmError?.errorCode) return fcmError.errorCode;
+  }
+  return responseBody?.error?.status || responseBody?.error?.code || "unknown";
 }
 
 function isInvalidTokenError(error) {
@@ -72,6 +90,7 @@ function buildPayload(token, payload) {
     },
     data: {
       type: asStringData(payload.type || "welcome"),
+      screen: asStringData(payload.screen || payload.action?.target || "notifications"),
       notificationId: asStringData(payload.notificationId || ""),
       imageUrl: asStringData(payload.imageUrl || ""),
       actionType: asStringData(action.type || "none"),
@@ -80,9 +99,9 @@ function buildPayload(token, payload) {
       metadata: asStringData(payload.metadata || {}),
     },
     android: {
-      priority: "high",
+      priority: "HIGH",
       notification: {
-        channelId: "high_importance_channel",
+        channel_id: payload.androidChannelId || "default",
         image: imageUrl,
       },
     },
@@ -103,23 +122,60 @@ async function cleanupInvalidTokens(tokens = []) {
   );
 }
 
-async function sendSingleWithRetry(token, payload, attempt = 1) {
-  let messaging;
+async function sendHttpV1Message(message) {
+  const serviceAccount = getFirebaseServiceAccount();
+  if (serviceAccount.projectId !== USER_FIREBASE_PROJECT_ID) {
+    throw new Error(
+      `Firebase service account project mismatch. Expected ${USER_FIREBASE_PROJECT_ID}, got ${serviceAccount.projectId}.`
+    );
+  }
+
+  const accessToken = await getFirebaseMessagingAccessToken();
+  const response = await fetch(USER_FCM_SEND_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ message }),
+  });
+
+  const responseText = await response.text();
+  let responseBody;
   try {
-    messaging = getFirebaseMessaging();
+    responseBody = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    responseBody = { raw: responseText };
+  }
+
+  console.log("[PushNotificationService] FCM HTTP v1 response:", {
+    url: USER_FCM_SEND_URL,
+    status: response.status,
+    ok: response.ok,
+    body: responseBody,
+  });
+
+  if (!response.ok) {
+    const code = getFcmErrorCode(responseBody);
+    const error = new Error(responseBody?.error?.message || `FCM send failed with ${response.status}`);
+    error.code = code;
+    error.status = responseBody?.error?.status || code;
+    error.response = responseBody;
+    throw error;
+  }
+
+  return responseBody;
+}
+
+async function sendSingleWithRetry(token, payload, attempt = 1) {
+  try {
+    const response = await sendHttpV1Message(buildPayload(token, payload));
+    return { token, success: true, error: null, response };
   } catch (error) {
     if (error.message.includes('credentials missing')) {
       console.warn("[PushNotificationService] Firebase notifications disabled (credentials missing).");
-    } else {
-      console.warn("[PushNotificationService] Firebase init failed:", error.message);
+      return { token, success: false, error };
     }
-    return { token, success: false, error };
-  }
-
-  try {
-    await messaging.send(buildPayload(token, payload));
-    return { token, success: true, error: null };
-  } catch (error) {
     if (attempt < MAX_RETRY_ATTEMPTS && isRetryableError(error)) {
       return sendSingleWithRetry(token, payload, attempt + 1);
     }
@@ -160,9 +216,8 @@ export class PushNotificationService {
       };
     }
 
-    let messaging;
     try {
-      messaging = getFirebaseMessaging();
+      getFirebaseServiceAccount();
     } catch (error) {
       if (error.message.includes('credentials missing')) {
         console.warn("[PushNotificationService] Firebase notifications disabled (credentials missing).");
@@ -185,45 +240,29 @@ export class PushNotificationService {
 
     const chunks = chunkArray(uniqueTokens, FCM_BATCH_SIZE);
     for (const tokenChunk of chunks) {
-      const firstPayload = buildPayload(tokenChunk[0], payload);
-      const multicastPayload = {
-        ...firstPayload,
-        tokens: tokenChunk,
-      };
-      delete multicastPayload.token;
+      const results = await Promise.all(
+        tokenChunk.map((token) => sendSingleWithRetry(token, payload))
+      );
 
-      try {
-        const batchResponse = await messaging.sendEachForMulticast(multicastPayload);
-        batchResponse.responses.forEach((result, index) => {
-          const token = tokenChunk[index];
-          if (result.success) {
-            successCount += 1;
-            return;
-          }
+      results.forEach((result) => {
+        if (result.success) {
+          successCount += 1;
+          return;
+        }
 
-          if (isInvalidTokenError(result.error)) {
-            invalidTokens.push(token);
-            failureCount += 1;
-            return;
-          }
-
-          failures.push({
-            token,
-            code: getErrorCode(result.error),
-            retryable: isRetryableError(result.error),
-          });
+        if (isInvalidTokenError(result.error)) {
+          invalidTokens.push(result.token);
           failureCount += 1;
+          return;
+        }
+
+        failures.push({
+          token: result.token,
+          code: getErrorCode(result.error),
+          retryable: isRetryableError(result.error),
         });
-      } catch (error) {
-        tokenChunk.forEach((token) => {
-          failures.push({
-            token,
-            code: getErrorCode(error),
-            retryable: isRetryableError(error),
-          });
-        });
-        failureCount += tokenChunk.length;
-      }
+        failureCount += 1;
+      });
     }
 
     const retryableTokens = failures.filter((f) => f.retryable).map((f) => f.token);

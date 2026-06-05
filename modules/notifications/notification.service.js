@@ -8,12 +8,13 @@ import { PushNotificationService } from '../../services/push-notification.servic
  */
 export class NotificationService {
   static normalizeToken(token = '') {
-    return typeof token === 'string' ? token.trim() : '';
+    return typeof token === 'string' ? token : '';
   }
 
   static isValidDeviceToken(token) {
     if (!token) return false;
     if (token.length <= 15) return false;
+    if (token !== token.trim()) return false;
     if (token.startsWith('test_fcm_token_')) return false;
     if (token.toLowerCase().includes('dummy')) return false;
     return true;
