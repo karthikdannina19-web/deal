@@ -39,6 +39,37 @@ export function getVendorCoordinates(vendor) {
   return { latitude, longitude };
 }
 
+export function getAdCoordinates(ad) {
+  const latitude = parseCoordinate(
+    ad?.location?.coordinates?.lat
+      ?? ad?.location?.lat
+      ?? null
+  );
+  const longitude = parseCoordinate(
+    ad?.location?.coordinates?.lng
+      ?? ad?.location?.lng
+      ?? null
+  );
+
+  if (!hasValidCoordinates(latitude, longitude)) {
+    return {
+      latitude: null,
+      longitude: null,
+    };
+  }
+
+  return { latitude, longitude };
+}
+
+export function getOfferCoordinates(ad) {
+  const vendorCoordinates = getVendorCoordinates(ad?.vendor);
+  if (hasValidCoordinates(vendorCoordinates.latitude, vendorCoordinates.longitude)) {
+    return vendorCoordinates;
+  }
+
+  return getAdCoordinates(ad);
+}
+
 export function calculateDistanceKm(userLatitude, userLongitude, storeLatitude, storeLongitude) {
   if (!hasValidCoordinates(userLatitude, userLongitude) || !hasValidCoordinates(storeLatitude, storeLongitude)) {
     return null;

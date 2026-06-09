@@ -14,7 +14,7 @@ export class LocationsController {
    * GET /api/locations/tree
    * Returns a hierarchical tree of states, districts, and mandals
    */
-  static async getLocationTree(req) {
+  static async getLocationTree() {
     try {
       await dbConnect();
       const tree = await LocationMasterService.getTree();
@@ -139,8 +139,8 @@ export class LocationsController {
       if (req.method === 'GET') {
         const { searchParams } = new URL(req.url);
         body = {
-          latitude: searchParams.get('lat'),
-          longitude: searchParams.get('lng'),
+          latitude: searchParams.get('latitude') || searchParams.get('lat'),
+          longitude: searchParams.get('longitude') || searchParams.get('lng'),
           accuracy: searchParams.get('accuracy'),
         };
       } else {
@@ -151,8 +151,8 @@ export class LocationsController {
         }
       }
 
-      const latitude = Number(body?.latitude);
-      const longitude = Number(body?.longitude);
+      const latitude = Number(body?.latitude ?? body?.lat);
+      const longitude = Number(body?.longitude ?? body?.lng);
       const accuracy = body?.accuracy === undefined ? null : Number(body?.accuracy);
 
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -169,19 +169,24 @@ export class LocationsController {
         ? await UserService.resolveAndSaveLocation(auth.user.id, { latitude, longitude, accuracy })
         : await LocationResolverService.resolveCoordinates({ latitude, longitude });
 
+      const location = {
+        state: { id: resolved.state._id, name: resolved.state.name },
+        district: { id: resolved.district._id, name: resolved.district.name },
+        mandal: { id: resolved.mandal._id, name: resolved.mandal.name },
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        lat: resolved.latitude,
+        lng: resolved.longitude,
+        addressLine: resolved.addressLine,
+        area: resolved.area,
+        city: resolved.city,
+        pincode: resolved.pincode,
+      };
+
       return Response.json({
         success: true,
-        location: {
-          state: { id: resolved.state._id, name: resolved.state.name },
-          district: { id: resolved.district._id, name: resolved.district.name },
-          mandal: { id: resolved.mandal._id, name: resolved.mandal.name },
-          latitude: resolved.latitude,
-          longitude: resolved.longitude,
-          addressLine: resolved.addressLine,
-          area: resolved.area,
-          city: resolved.city,
-          pincode: resolved.pincode,
-        }
+        location,
+        data: location
       }, { status: 200 });
     } catch (error) {
       console.error('[LocationsController.resolveLocation Error]', error);

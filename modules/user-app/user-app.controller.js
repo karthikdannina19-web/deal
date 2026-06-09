@@ -51,8 +51,8 @@ export class UserAppController {
       state: searchParams.get('state'),
       district: searchParams.get('district'),
       mandal: searchParams.get('mandal'),
-      lat: searchParams.get('lat'),
-      lng: searchParams.get('lng'),
+      lat: searchParams.get('lat') || searchParams.get('latitude'),
+      lng: searchParams.get('lng') || searchParams.get('longitude'),
       topOnly,
       userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
         stateId: authUser.stateId,
@@ -80,8 +80,8 @@ export class UserAppController {
       state: searchParams.get('state'),
       district: searchParams.get('district'),
       mandal: searchParams.get('mandal'),
-      lat: searchParams.get('lat'),
-      lng: searchParams.get('lng'),
+      lat: searchParams.get('lat') || searchParams.get('latitude'),
+      lng: searchParams.get('lng') || searchParams.get('longitude'),
       savedOnly: searchParams.get('savedOnly') === 'true',
       userId,
       userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
@@ -302,7 +302,7 @@ export class UserAppController {
           totalPages: pagination.totalPages,
         },
       }, { status: 200 });
-    } catch (error) {
+    } catch {
       return Response.json({
         success: true,
         data: {

@@ -1,6 +1,8 @@
 import { dbConnect } from '@/config/database';
 import Store from '@/models/store.model';
 import Category from '@/models/category.model';
+import Vendor from '@/models/vendor.model';
+import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 export async function GET(req) {
   try {
@@ -13,67 +15,95 @@ export async function GET(req) {
     const state = searchParams.get('state');
     const district = searchParams.get('district');
     const mandal = searchParams.get('mandal');
-    const lat = parseFloat(searchParams.get('lat'));
-    const lng = parseFloat(searchParams.get('lng'));
+    const lat = parseCoordinate(searchParams.get('lat'));
+    const lng = parseCoordinate(searchParams.get('lng'));
     
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const skip = (page - 1) * limit;
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(100, Math.max(1, limit));
+    const skip = (safePage - 1) * safeLimit;
     
     const sort = searchParams.get('sort') || 'newest';
 
-    const query = { status: 'active' };
+    const storeQuery = { status: 'active' };
+    const vendorQuery = {
+      status: 'active',
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' }
+    };
     
     if (q) {
-      query.$or = [
+      storeQuery.$or = [
         { businessName: { $regex: q, $options: 'i' } },
         { address: { $regex: q, $options: 'i' } }
       ];
+      vendorQuery.$or = [
+        { storeName: { $regex: q, $options: 'i' } },
+        { fullAddress: { $regex: q, $options: 'i' } }
+      ];
     }
 
+    let categoryName = null;
+    let resolvedCategoryId = null;
     if (categoryId) {
       const categoryDoc = await Category.findById(categoryId).select('name').lean();
       if (categoryDoc) {
-        query.category = categoryDoc.name;
+        categoryName = categoryDoc.name;
+        resolvedCategoryId = categoryDoc._id;
       } else {
-        query.category = '_invalid_category_id_';
+        categoryName = '_invalid_category_id_';
       }
     } else if (category && category !== 'all') {
       const trimmedCategory = category.trim();
       if (/^[0-9a-fA-F]{24}$/.test(trimmedCategory)) {
         const categoryDoc = await Category.findById(trimmedCategory).select('name').lean();
         if (categoryDoc) {
-          query.category = categoryDoc.name;
+          categoryName = categoryDoc.name;
+          resolvedCategoryId = categoryDoc._id;
         } else {
-          query.category = trimmedCategory;
+          categoryName = trimmedCategory;
         }
       } else {
-        query.category = trimmedCategory;
+        categoryName = trimmedCategory;
+        const categoryDoc = await Category.findOne({ name: trimmedCategory }).select('_id name').lean();
+        if (categoryDoc) {
+          resolvedCategoryId = categoryDoc._id;
+        }
       }
     }
 
-    if (state) query.state = state;
-    if (district) query.district = district;
-    if (mandal) query.mandal = mandal;
+    if (categoryName) storeQuery.category = categoryName;
+    if (resolvedCategoryId) {
+      vendorQuery.categoryId = resolvedCategoryId;
+    } else if (categoryName) {
+      vendorQuery._id = null;
+    }
 
-    if (!isNaN(lat) && !isNaN(lng)) {
-      query.location = {
-        $geoWithin: {
-          $centerSphere: [[lng, lat], 50 / 6378.1] // 50km radius
-        }
-      };
+    if (state) {
+      storeQuery.state = state;
+      vendorQuery['location.state'] = state;
+    }
+    if (district) {
+      storeQuery.district = district;
+      vendorQuery['location.district'] = district;
+    }
+    if (mandal) {
+      storeQuery.mandal = mandal;
+      vendorQuery['location.mandal'] = mandal;
     }
 
     let sortOption = { createdAt: -1 };
-    if (sort === 'popular') sortOption = { views: -1 }; // Assuming views might be added to Store model later
+    if (sort === 'popular') sortOption = { views: -1 };
 
-    const [stores, total] = await Promise.all([
-      Store.find(query)
+    const [stores, vendors] = await Promise.all([
+      Store.find(storeQuery)
         .sort(sortOption)
-        .skip(skip)
-        .limit(limit)
         .lean(),
-      Store.countDocuments(query)
+      Vendor.find(vendorQuery)
+        .populate('categoryId', '_id name')
+        .sort(sortOption)
+        .lean()
     ]);
 
     const categoryNames = [...new Set(stores.map(store => store.category).filter(Boolean))];
@@ -86,12 +116,10 @@ export async function GET(req) {
       return acc;
     }, {});
 
-    const results = stores.map(store => {
-      let distanceKm = null;
-      if (!isNaN(lat) && !isNaN(lng) && store.location && store.location.coordinates) {
-        const [adLng, adLat] = store.location.coordinates;
-        distanceKm = calculateDistance(lat, lng, adLat, adLng);
-      }
+    const mappedStores = stores.map(store => {
+      const storeLat = parseCoordinate(store.location?.coordinates?.[1]);
+      const storeLng = parseCoordinate(store.location?.coordinates?.[0]);
+      const distanceKm = calculateDistanceKm(lat, lng, storeLat, storeLng);
 
       return {
         _id: store._id,
@@ -101,24 +129,86 @@ export async function GET(req) {
         categoryId: categoryMap[store.category] || null,
         coverImageUrl: store.images && store.images.length > 0 ? store.images[0] : '',
         logoUrl: store.images && store.images.length > 0 ? store.images[0] : '',
-        distanceKm: distanceKm ? parseFloat(distanceKm.toFixed(1)) : null,
+        distanceKm,
+        latitude: storeLat,
+        longitude: storeLng,
+        lat: storeLat,
+        lng: storeLng,
         viewCount: store.views || 0,
         address: store.address || [store.mandal, store.district, store.state].filter(Boolean).join(', '),
+        location: {
+          state: store.state || '',
+          district: store.district || '',
+          mandal: store.mandal || '',
+          latitude: storeLat,
+          longitude: storeLng,
+          lat: storeLat,
+          lng: storeLng,
+          coordinates: storeLat !== null && storeLng !== null ? [storeLng, storeLat] : []
+        },
         isActive: store.status === 'active'
       };
     });
 
+    const mappedVendors = vendors.map(vendor => {
+      const { latitude, longitude } = getVendorCoordinates(vendor);
+      const distanceKm = calculateDistanceKm(lat, lng, latitude, longitude);
+      const address = vendor.fullAddress || [vendor.location?.mandal, vendor.location?.district, vendor.location?.state].filter(Boolean).join(', ');
+
+      return {
+        _id: vendor._id,
+        id: vendor._id,
+        name: vendor.storeName || vendor.fullName || '',
+        category: vendor.categoryId?.name || '',
+        categoryId: vendor.categoryId?._id || null,
+        coverImageUrl: vendor.media?.bannerUrl || vendor.media?.images?.[0] || vendor.media?.thumbnailUrl || '',
+        logoUrl: vendor.media?.thumbnailUrl || vendor.media?.images?.[0] || '',
+        distanceKm,
+        latitude,
+        longitude,
+        lat: latitude,
+        lng: longitude,
+        viewCount: vendor.views || 0,
+        address,
+        location: {
+          state: vendor.location?.state || '',
+          district: vendor.location?.district || '',
+          mandal: vendor.location?.mandal || '',
+          latitude,
+          longitude,
+          lat: latitude,
+          lng: longitude,
+          coordinates: latitude !== null && longitude !== null ? [longitude, latitude] : []
+        },
+        isActive: vendor.status === 'active'
+      };
+    });
+
+    const allResults = [...mappedVendors, ...mappedStores];
+    if (sort === 'distance') {
+      allResults.sort((a, b) => {
+        const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.MAX_SAFE_INTEGER;
+        const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.MAX_SAFE_INTEGER;
+        return aDistance - bDistance;
+      });
+    }
+
+    const total = allResults.length;
+    const results = allResults.slice(skip, skip + safeLimit);
+
     return Response.json({
       success: true,
       message: 'Stores fetched successfully',
+      total,
       data: {
-        stores: results
+        stores: results,
+        total
       },
       pagination: {
-        page,
-        limit,
+        page: safePage,
+        limit: safeLimit,
         total,
-        totalPages: Math.ceil(total / limit)
+        totalPages: Math.ceil(total / safeLimit)
       }
     }, { status: 200 });
 
@@ -129,20 +219,4 @@ export async function GET(req) {
       message: 'Failed to fetch stores'
     }, { status: 500 });
   }
-}
-
-function calculateDistance(lat1, lon1, lat2, lon2) {
-  const R = 6371;
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
-function deg2rad(deg) {
-  return deg * (Math.PI / 180);
 }

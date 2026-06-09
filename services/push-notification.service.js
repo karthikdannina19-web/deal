@@ -1,11 +1,12 @@
-import User from "@/models/user.model.js";
+import User from "../models/user.model.js";
 import {
   getFirebaseMessagingAccessToken,
   getFirebaseServiceAccount,
-} from "@/firebase/firebaseAdmin.js";
+} from "../firebase/firebaseAdmin.js";
 
 const FCM_BATCH_SIZE = 500;
 const MAX_RETRY_ATTEMPTS = 2;
+const DEFAULT_ANDROID_NOTIFICATION_CHANNEL_ID = "default";
 const USER_FIREBASE_PROJECT_ID = "rhockdeal-20fc2";
 const USER_FCM_SEND_URL = `https://fcm.googleapis.com/v1/projects/${USER_FIREBASE_PROJECT_ID}/messages:send`;
 
@@ -56,6 +57,10 @@ function asStringData(value) {
   return JSON.stringify(value);
 }
 
+function getAndroidChannelId(payload = {}) {
+  return payload.androidChannelId || DEFAULT_ANDROID_NOTIFICATION_CHANNEL_ID;
+}
+
 function getErrorCode(error) {
   return error?.code || error?.errorInfo?.code || error?.status || "unknown";
 }
@@ -80,6 +85,7 @@ function isRetryableError(error) {
 function buildPayload(token, payload) {
   const action = payload.action && typeof payload.action === "object" ? payload.action : { type: "none" };
   const imageUrl = payload.imageUrl || undefined;
+  const androidChannelId = getAndroidChannelId(payload);
 
   return {
     token,
@@ -101,7 +107,7 @@ function buildPayload(token, payload) {
     android: {
       priority: "HIGH",
       notification: {
-        channel_id: payload.androidChannelId || "default",
+        channel_id: androidChannelId,
         image: imageUrl,
       },
     },
@@ -116,10 +122,14 @@ function buildPayload(token, payload) {
 async function cleanupInvalidTokens(tokens = []) {
   if (!tokens.length) return;
 
-  await User.updateMany(
-    { "fcmTokens.token": { $in: tokens } },
-    { $pull: { fcmTokens: { token: { $in: tokens } } } }
-  );
+  try {
+    await User.updateMany(
+      { "fcmTokens.token": { $in: tokens } },
+      { $pull: { fcmTokens: { token: { $in: tokens } } } }
+    );
+  } catch (error) {
+    console.warn("[PushNotificationService] Failed to clean invalid FCM tokens:", error.message);
+  }
 }
 
 async function sendHttpV1Message(message) {
@@ -152,6 +162,7 @@ async function sendHttpV1Message(message) {
     url: USER_FCM_SEND_URL,
     status: response.status,
     ok: response.ok,
+    androidChannelId: message?.android?.notification?.channel_id,
     body: responseBody,
   });
 

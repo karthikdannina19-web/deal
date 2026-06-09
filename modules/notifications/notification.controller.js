@@ -166,10 +166,11 @@ export class NotificationController {
       if (authError) return authError;
 
       const body = await req.json();
-      const { token, platform } = body;
+      const token = body.token || body.fcmToken;
+      const { platform } = body;
 
       if (!token) {
-        return Response.json({ success: false, message: 'Device token is required' }, { status: 400 });
+        return Response.json({ success: false, message: 'FCM token is required' }, { status: 400 });
       }
 
       await NotificationService.saveDeviceToken(user.id, token, platform || 'android');
@@ -195,10 +196,10 @@ export class NotificationController {
       if (authError) return authError;
 
       const body = await req.json();
-      const { token } = body;
+      const token = body.token || body.fcmToken;
 
       if (!token) {
-        return Response.json({ success: false, message: 'Device token is required' }, { status: 400 });
+        return Response.json({ success: false, message: 'FCM token is required' }, { status: 400 });
       }
 
       await NotificationService.removeDeviceToken(user.id, token);

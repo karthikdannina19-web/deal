@@ -7,7 +7,7 @@ import '@/models/vendor.model.js';
 import mongoose from 'mongoose';
 import { VisibilityService } from '@/services/visibility.service.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
-import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
+import { calculateDistanceKm, getOfferCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 function num(v, fallback = 999999) {
   return Number.isFinite(v) ? v : fallback;
@@ -47,7 +47,7 @@ function mapBanner(banner) {
 
 function mapAd(ad) {
   const imageUrl = ad.primaryImage || ad.images?.[0]?.url || '';
-  const { latitude, longitude } = getVendorCoordinates(ad.vendor);
+  const { latitude, longitude } = getOfferCoordinates(ad);
   return {
     id: ad._id,
     _id: ad._id,
@@ -141,6 +141,8 @@ export class UserAppService {
   }
 
   static async listAds({ section, category, state, district, mandal, lat, lng, savedOnly, userId, userLocation = null }) {
+    const userLatitude = parseCoordinate(lat);
+    const userLongitude = parseCoordinate(lng);
     const extraFilters = {};
     let categoryId = null;
     if (category) {
@@ -177,12 +179,12 @@ export class UserAppService {
         return locationMatches(loc, { state, district, mandal });
       }))
       .map((ad) => {
-        const { latitude, longitude } = getVendorCoordinates(ad.vendor);
+        const { latitude, longitude } = getOfferCoordinates(ad);
         return {
           ...ad,
           distanceKm: calculateDistanceKm(
-            parseCoordinate(lat),
-            parseCoordinate(lng),
+            userLatitude,
+            userLongitude,
             latitude,
             longitude
           ),
