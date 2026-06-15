@@ -8,10 +8,17 @@ export const userService = {
   /**
    * Fetch all users with optional filtering
    */
-  getAllUsers: async (page = 1, limit = 10, search = '') => {
+  getAllUsers: async (page = 1, limit = 10, search = '', filters = {}) => {
     try {
       const response = await api.get('/api/admin/users', {
-        params: { page, limit, search }
+        params: {
+          page,
+          limit,
+          search,
+          stateId: filters.stateId || undefined,
+          districtId: filters.districtId || undefined,
+          mandalId: filters.mandalId || undefined,
+        }
       });
       return response.data;
     } catch (error) {

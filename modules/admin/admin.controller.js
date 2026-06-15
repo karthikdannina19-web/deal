@@ -419,7 +419,10 @@ export class AdminController {
       const filters = {
         search: searchParams.get('search'),
         page: searchParams.get('page'),
-        limit: searchParams.get('limit')
+        limit: searchParams.get('limit'),
+        stateId: searchParams.get('stateId'),
+        districtId: searchParams.get('districtId'),
+        mandalId: searchParams.get('mandalId'),
       };
       
       const result = await AdminService.listUsers(filters);

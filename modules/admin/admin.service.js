@@ -11,6 +11,7 @@ import { dbConnect } from '@/config/database.js';
 import { LocationMasterService } from '@/services/location-master.service.js';
 import { VisibilityService } from '@/services/visibility.service.js';
 import { PriorityService } from '@/services/priority.service.js';
+import mongoose from 'mongoose';
 
 export class AdminService {
   /**
@@ -384,17 +385,55 @@ export class AdminService {
 
   /**
    * List all users with filters
-   * @param {Object} filters { search, page, limit }
+   * @param {Object} filters { search, page, limit, stateId, districtId, mandalId }
    */
   static async listUsers(filters = {}) {
     await dbConnect();
-    const { search, page = 1, limit = 20 } = filters;
+    const {
+      search,
+      page = 1,
+      limit = 20,
+      stateId,
+      districtId,
+      mandalId,
+    } = filters;
     
     const query = { role: 'user' };
+
+    if (districtId && !stateId) {
+      throw new Error('State is required when filtering by district');
+    }
+
+    if (mandalId && !districtId) {
+      throw new Error('District is required when filtering by mandal');
+    }
+
+    for (const [label, value] of [
+      ['stateId', stateId],
+      ['districtId', districtId],
+      ['mandalId', mandalId],
+    ]) {
+      if (value && !mongoose.Types.ObjectId.isValid(value)) {
+        throw new Error(`Invalid ${label}`);
+      }
+    }
+
+    if (stateId || districtId || mandalId) {
+      await LocationMasterService.validateHierarchy({ stateId, districtId, mandalId });
+    }
+
+    if (mandalId) {
+      query.mandalId = mandalId;
+    } else if (districtId) {
+      query.districtId = districtId;
+    } else if (stateId) {
+      query.stateId = stateId;
+    }
     
     if (search) {
       query.$or = [
-        { fullName: { $regex: search, $options: 'i' } },
+        { firstName: { $regex: search, $options: 'i' } },
+        { lastName: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } }
       ];
