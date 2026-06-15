@@ -416,6 +416,123 @@ export class RedemptionsController {
   }
 
   /**
+   * GET /api/admin/vendors/[id]/redemptions
+   * Full lifetime redemption history for a specific vendor (admin-only)
+   */
+  static async getVendorRedemptionHistory(req, { params }) {
+    try {
+      await dbConnect();
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const roleError = authorize(user, ['admin']);
+      if (roleError) return roleError;
+
+      const { id: vendorId } = await params;
+      if (!vendorId || !mongoose.Types.ObjectId.isValid(vendorId)) {
+        return Response.json({ success: false, message: 'Invalid vendor ID' }, { status: 400 });
+      }
+
+      const { searchParams } = new URL(req.url);
+      const page = parseInt(searchParams.get('page') || '1', 10);
+      const limit = parseInt(searchParams.get('limit') || '20', 10);
+      const statusFilter = searchParams.get('status') || '';
+      const skip = (page - 1) * limit;
+
+      const vendorObjId = new mongoose.Types.ObjectId(vendorId);
+
+      // Fetch vendor profile
+      const vendor = await Vendor.findById(vendorObjId).select('storeName fullName email mobileNumber coinBalance location fullAddress media');
+      if (!vendor) return Response.json({ success: false, message: 'Vendor not found' }, { status: 404 });
+
+      // Build filter
+      let filterQuery = { vendor: vendorObjId };
+      if (statusFilter) filterQuery.status = statusFilter;
+
+      // Paginated redemption history
+      const total = await RedemptionRequest.countDocuments(filterQuery);
+      const redemptions = await RedemptionRequest.find(filterQuery)
+        .populate('user', 'firstName lastName email uniqueRedeemCode mobileNumber')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      const totalPages = Math.ceil(total / limit);
+
+      // Lifetime aggregate stats
+      const lifetimeStats = await RedemptionRequest.aggregate([
+        { $match: { vendor: vendorObjId } },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            totalCoins: { $sum: '$coinAmount' },
+          },
+        },
+      ]);
+
+      // Build stats map
+      const statsMap = { APPROVED: { count: 0, coins: 0 }, PENDING: { count: 0, coins: 0 }, REJECTED: { count: 0, coins: 0 }, OTHER: { count: 0, coins: 0 } };
+      let totalLifetimeCoins = 0;
+      let totalLifetimeCount = 0;
+      for (const s of lifetimeStats) {
+        const key = ['APPROVED', 'success'].includes(s._id) ? 'APPROVED'
+          : ['PENDING', 'otp_pending'].includes(s._id) ? 'PENDING'
+          : ['REJECTED', 'failed'].includes(s._id) ? 'REJECTED' : 'OTHER';
+        statsMap[key].count += s.count;
+        statsMap[key].coins += s.totalCoins;
+        totalLifetimeCoins += s.totalCoins;
+        totalLifetimeCount += s.count;
+      }
+
+      // Monthly breakdown (last 12 months)
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+      const monthlyBreakdown = await RedemptionRequest.aggregate([
+        { $match: { vendor: vendorObjId, status: { $in: ['APPROVED', 'success'] }, createdAt: { $gte: twelveMonthsAgo } } },
+        {
+          $group: {
+            _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } },
+            count: { $sum: 1 },
+            totalCoins: { $sum: '$coinAmount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]);
+
+      return Response.json({
+        success: true,
+        vendor: {
+          _id: vendor._id,
+          storeName: vendor.storeName,
+          fullName: vendor.fullName,
+          email: vendor.email,
+          mobileNumber: vendor.mobileNumber,
+          coinBalance: vendor.coinBalance,
+          location: vendor.location,
+          fullAddress: vendor.fullAddress,
+          thumbnailUrl: vendor.media?.thumbnailUrl || null,
+        },
+        redemptions,
+        stats: {
+          totalLifetimeCoins,
+          totalLifetimeCount,
+          approved: statsMap.APPROVED,
+          pending: statsMap.PENDING,
+          rejected: statsMap.REJECTED,
+          currentBalance: vendor.coinBalance || 0,
+        },
+        monthlyBreakdown,
+        pagination: { total, page, limit, totalPages },
+      }, { status: 200 });
+
+    } catch (error) {
+      console.error('[RedemptionsController getVendorRedemptionHistory Error]', error);
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
    * GET /api/admin/fraud-analysis
    */
   static async getAdminFraudAnalysis(req) {
