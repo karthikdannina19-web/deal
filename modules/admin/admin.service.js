@@ -20,7 +20,11 @@ export class AdminService {
    */
   static async listVendors(filters = {}) {
     await dbConnect();
-    const { status, search, page = 1, limit = 10, visibilityLevel } = filters;
+    const status = filters.status;
+    const search = filters.search;
+    const page = parseInt(filters.page || '1', 10);
+    const limit = parseInt(filters.limit || '10', 10);
+    const visibilityLevel = filters.visibilityLevel;
     
     const query = {
       is_deleted: { $ne: true },

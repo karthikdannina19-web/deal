@@ -578,8 +578,25 @@ export default function CoinsPage() {
     fetchDashboardData();
   }, [redemptionsPage, transactionsPage, statusFilter, highValueFilter, selectedVendorId]);
 
+  const combinedVendorsList = React.useMemo(() => {
+    const list = [...vendorsList];
+    redemptions.forEach(r => {
+      if (r.vendor && r.vendor._id) {
+        if (!list.some(v => v._id === r.vendor._id)) {
+          list.push({
+            _id: r.vendor._id,
+            storeName: r.vendor.storeName || 'Merchant',
+            fullName: r.vendor.fullName || '',
+            location: r.vendor.location || {}
+          });
+        }
+      }
+    });
+    return list;
+  }, [vendorsList, redemptions]);
+
   const openVendorHistory = () => {
-    const v = vendorsList.find(v => v._id === selectedVendorId);
+    const v = combinedVendorsList.find(v => v._id === selectedVendorId);
     setHistoryModalVendorId(selectedVendorId);
     setHistoryModalVendorName(v?.storeName || v?.fullName || 'Vendor');
   };
@@ -768,7 +785,7 @@ export default function CoinsPage() {
 
                 {/* Vendor Search Selector */}
                 <VendorSearchSelector
-                  vendorsList={vendorsList}
+                  vendorsList={combinedVendorsList}
                   selectedVendorId={selectedVendorId}
                   onSelect={(id) => { setSelectedVendorId(id); setRedemptionsPage(1); }}
                   onView={openVendorHistory}
@@ -783,7 +800,7 @@ export default function CoinsPage() {
                   <div className="p-1.5 bg-indigo-500 text-white rounded-md"><Store size={14} /></div>
                   <div>
                     <p className="text-xs font-bold text-indigo-900 dark:text-indigo-100">
-                      Vendor Filter Active: {vendorsList.find(v => v._id === selectedVendorId)?.storeName || 'Selected Merchant'}
+                      Vendor Filter Active: {combinedVendorsList.find(v => v._id === selectedVendorId)?.storeName || 'Selected Merchant'}
                     </p>
                     <p className="text-[10px] text-indigo-600 dark:text-indigo-400">Showing filtered redemptions. Click "View Full History" for detailed A-Z lifetime report.</p>
                   </div>
