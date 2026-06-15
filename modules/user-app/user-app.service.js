@@ -119,8 +119,8 @@ export class UserAppService {
   static async listBanners({ section, state, district, mandal, lat, lng, topOnly = false, userLocation = null }) {
     const banners = await SectionVisibilityService.filterBannersBySection({
       userLocation,
-      sectionId: section || null,
-      extraFilters: topOnly ? { isTopBanner: true } : {},
+      sectionId: topOnly ? null : section || null,
+      extraFilters: topOnly ? { placementType: 'home_top', isTopBanner: true } : {},
     })
       .populate('section', '_id name order')
       .populate('categoryId', '_id name sectionId')
@@ -129,8 +129,9 @@ export class UserAppService {
     const filteredBanners = userLocation
       ? banners
       : banners.filter((b) => locationMatches(b, { state, district, mandal }));
+    const limitedBanners = topOnly ? filteredBanners.slice(0, 1) : filteredBanners;
 
-    return filteredBanners
+    return limitedBanners
       .map((b) => ({
         ...b,
         distanceKm: calculateDistanceKm(

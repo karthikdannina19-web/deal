@@ -70,12 +70,13 @@ export class SectionVisibilityService {
   static filterBannersBySection({ userLocation = null, sectionId = null, categoryId = null, extraFilters = {} } = {}) {
     const query = VisibilityService.buildMatchQuery(userLocation, {
       isActive: true,
+      placementType: 'section',
       ...extraFilters,
     });
 
     if (sectionId) {
       query.section = normalizeSectionId(sectionId);
-    } else {
+    } else if (query.placementType !== 'home_top') {
       query.section = { $ne: null };
     }
 

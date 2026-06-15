@@ -10,7 +10,7 @@ const bannerSchema = new mongoose.Schema(
     section: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Section',
-      required: true,
+      required: false,
       index: true,
     },
     tagId: {
@@ -85,6 +85,12 @@ const bannerSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    placementType: {
+      type: String,
+      enum: ['section', 'home_top'],
+      default: 'section',
+      index: true,
+    },
     isTopBanner: {
       type: Boolean,
       default: false,
@@ -125,7 +131,12 @@ const bannerSchema = new mongoose.Schema(
 // Indexes
 bannerSchema.index({ section: 1, order: 1 });
 bannerSchema.index({ isActive: 1 });
-bannerSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, section: 1, tagId: 1, categoryId: 1, isActive: 1 });
+bannerSchema.index({ placementType: 1, isTopBanner: 1, isActive: 1 });
+bannerSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, section: 1, tagId: 1, categoryId: 1, placementType: 1, isActive: 1 });
+
+bannerSchema.pre('validate', function () {
+  this.isTopBanner = this.placementType === 'home_top';
+});
 
 if (mongoose.models.Banner) {
   delete mongoose.models.Banner;

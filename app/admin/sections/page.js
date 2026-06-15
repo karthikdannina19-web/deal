@@ -71,6 +71,7 @@ export default function SectionsDashboard() {
     visibilityMandalId: ''
   });
   const [bannerForm, setBannerForm] = useState({
+    placementType: 'section',
     section: '',
     categoryId: '',
     title: '',
@@ -229,6 +230,7 @@ export default function SectionsDashboard() {
     if (banner) {
       setEditingBanner(banner);
       setBannerForm({ 
+        placementType: banner.placementType || (banner.isTopBanner ? 'home_top' : 'section'),
         section: normalizeId(banner.section?._id || banner.section), 
         categoryId: normalizeId(banner.categoryId?._id || banner.categoryId),
         title: banner.title || '',
@@ -248,6 +250,7 @@ export default function SectionsDashboard() {
     } else {
       setEditingBanner(null);
       setBannerForm({
+        placementType: 'section',
         section: sections[0]?._id || '',
         categoryId: '',
         title: '',
@@ -644,6 +647,9 @@ export default function SectionsDashboard() {
                                <p className="mt-1 text-xs text-zinc-500 capitalize">
                                  {(banner.visibilityLevel || 'global')} visibility
                                </p>
+                               <p className="mt-1 text-[11px] font-bold uppercase tracking-widest text-admin-primary">
+                                 {(banner.placementType || (banner.isTopBanner ? 'home_top' : 'section')).replace('_', ' ')}
+                               </p>
                             </div>
                             <div className={cn("px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest", banner.isActive ? "bg-green-100 text-green-700" : "bg-zinc-100 text-zinc-400")}>
                                {banner.isActive ? 'Live' : 'Paused'}
@@ -926,16 +932,40 @@ export default function SectionsDashboard() {
                   
                   <div className="grid grid-cols-2 gap-4">
                      <div>
+                        <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Placement Type</label>
+                        <select
+                          value={bannerForm.placementType}
+                          onChange={e => setBannerForm({
+                            ...bannerForm,
+                            placementType: e.target.value,
+                            section: e.target.value === 'home_top' ? '' : bannerForm.section || sections[0]?._id || '',
+                            categoryId: e.target.value === 'home_top' ? '' : bannerForm.categoryId
+                          })}
+                          className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white"
+                        >
+                          <option value="section">Section Banner</option>
+                          <option value="home_top">Home Hero</option>
+                        </select>
+                     </div>
+                     {bannerForm.placementType === 'section' ? (
+                     <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Category Tag</label>
                         <select value={bannerForm.section} onChange={e => setBannerForm({...bannerForm, section: e.target.value, categoryId: ''})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white">
                            {sections.map(s => <option key={s._id} value={s._id}>{s.name}</option>)}
                         </select>
                      </div>
+                     ) : (
+                     <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                        <p className="text-xs font-bold text-blue-900">Home Hero Banner</p>
+                        <p className="mt-1 text-[11px] font-semibold text-blue-700">This banner will be eligible only for <code>/api/banners/top</code>.</p>
+                     </div>
+                     )}
                      <div>
                         <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Title</label>
                         <input value={bannerForm.title} onChange={e => setBannerForm({...bannerForm, title: e.target.value})} placeholder="Festival Offer" className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white" />
                      </div>
                   </div>
+                  {bannerForm.placementType === 'section' && (
                   <div>
                      <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Assigned Category</label>
                      <select value={bannerForm.categoryId} onChange={e => setBannerForm({...bannerForm, categoryId: e.target.value})} className="w-full px-6 py-3 bg-zinc-50 dark:bg-zinc-800 border border-transparent dark:border-zinc-700 rounded-2xl outline-none font-bold text-zinc-900 dark:text-white">
@@ -943,6 +973,7 @@ export default function SectionsDashboard() {
                         {sectionCategories.map(category => <option key={category._id} value={category._id}>{category.name}</option>)}
                      </select>
                   </div>
+                  )}
 
                   <div className="grid grid-cols-2 gap-4">
                      <div>

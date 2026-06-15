@@ -14,6 +14,7 @@ export const BannerService = {
     const query = {};
     if (filters.sectionId) query.section = filters.sectionId;
     if (filters.categoryId) query.categoryId = filters.categoryId;
+    if (filters.placementType) query.placementType = filters.placementType;
     if (filters.visibilityLevel) query.visibilityLevel = filters.visibilityLevel;
     if (filters.stateId) query.visibilityStateId = filters.stateId;
     if (filters.districtId) query.visibilityDistrictId = filters.districtId;
@@ -46,6 +47,8 @@ export const BannerService = {
 
     const banner = new Banner({
       ...data,
+      placementType: data.placementType || 'section',
+      isTopBanner: (data.placementType || 'section') === 'home_top',
       ...visibility,
     });
     await banner.save();
@@ -88,6 +91,13 @@ export const BannerService = {
       data.visibilityDistrictId = visibility.visibilityDistrictId;
       data.visibilityMandalId = visibility.visibilityMandalId;
       data.visibilityEnabled = visibility.visibilityEnabled;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(data, 'placementType')) {
+      data.isTopBanner = data.placementType === 'home_top';
+      if (data.placementType === 'home_top') {
+        data.categoryId = null;
+      }
     }
     const banner = await Banner.findByIdAndUpdate(id, data, { returnDocument: 'after' });
     if (!banner) throw new Error('Banner not found');

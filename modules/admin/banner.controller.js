@@ -43,6 +43,7 @@ export class BannerController {
       const visibilityMandalId = formData.get('visibilityMandalId');
       const title = formData.get('title');
       const categoryId = formData.get('categoryId') || null;
+      const placementType = formData.get('placementType') || 'section';
       const isTopBanner = formData.get('isTopBanner') === 'true';
       const viewUrl = formData.get('viewUrl');
       const whatsappLink = formData.get('whatsappLink');
@@ -50,21 +51,25 @@ export class BannerController {
       const order = parseInt(formData.get('order')) || 0;
       const imageFile = formData.get('image');
 
-      if (!section || !imageFile) {
-        return Response.json({ success: false, message: 'Section and Image are required' }, { status: 400 });
+      if (!imageFile) {
+        return Response.json({ success: false, message: 'Image is required' }, { status: 400 });
+      }
+      if (placementType === 'section' && !section) {
+        return Response.json({ success: false, message: 'Section is required for section banners' }, { status: 400 });
       }
       const buffer = Buffer.from(await imageFile.arrayBuffer());
       const image = await BannerService.uploadBannerImage(
         buffer,
         imageFile.name,
         imageFile.type,
-        section
+        section || 'home-top'
       );
 
       const banner = await BannerService.createBanner({
         section,
         categoryId,
         title,
+        placementType,
         location,
         locationLabel,
         state,
@@ -74,7 +79,7 @@ export class BannerController {
         visibilityStateId: visibilityStateId || null,
         visibilityDistrictId: visibilityDistrictId || null,
         visibilityMandalId: visibilityMandalId || null,
-        isTopBanner,
+        isTopBanner: placementType === 'home_top' || isTopBanner,
         viewUrl,
         whatsappLink,
         storeLink,
@@ -98,7 +103,7 @@ export class BannerController {
       const formData = await req.formData();
       
       const updateData = {};
-      const fields = ['section', 'categoryId', 'location', 'locationLabel', 'state', 'district', 'mandal', 'visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive', 'title'];
+      const fields = ['section', 'categoryId', 'location', 'locationLabel', 'state', 'district', 'mandal', 'visibilityLevel', 'visibilityStateId', 'visibilityDistrictId', 'visibilityMandalId', 'viewUrl', 'whatsappLink', 'storeLink', 'order', 'isActive', 'title', 'placementType'];
       fields.forEach(field => {
         if (formData.has(field)) {
           let value = formData.get(field);
@@ -114,7 +119,7 @@ export class BannerController {
       // Handle image update if present
       const imageFile = formData.get('image');
       if (imageFile && typeof imageFile.arrayBuffer === 'function') {
-        const sectionId = formData.get('section'); // Need sectionId for folder path
+        const sectionId = formData.get('section') || 'home-top'; // Need sectionId for folder path
         const buffer = Buffer.from(await imageFile.arrayBuffer());
         updateData.image = await BannerService.uploadBannerImage(
           buffer,
