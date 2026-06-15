@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { 
-  Coins, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, Loader2, 
+import {
+  Coins, Wallet, ArrowUpRight, ArrowDownLeft, Calendar, Loader2,
   Search, ShieldAlert, User, Clock, CheckCircle2, XCircle, RefreshCw, AlertTriangle
 } from "lucide-react";
 import { cn } from "@/utils/cn";
@@ -86,8 +86,8 @@ export default function CoinsPage() {
           </h2>
           <p className="text-zinc-500 dark:text-zinc-400 mt-1">Audit transfers, monitor vendor requests, and manage coin distribution.</p>
         </div>
-        <button 
-          onClick={fetchDashboardData} 
+        <button
+          onClick={fetchDashboardData}
           disabled={isLoading}
           className="flex items-center gap-2 px-4 py-2 border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-xl transition-all shadow-sm active:scale-95 disabled:opacity-50"
         >
@@ -149,7 +149,7 @@ export default function CoinsPage() {
 
       {/* Tabs */}
       <div className="flex border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto gap-2">
-        <button 
+        <button
           onClick={() => setActiveTab('circulation')}
           className={cn(
             "px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap",
@@ -158,7 +158,7 @@ export default function CoinsPage() {
         >
           Circulation Dashboard
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('redemptions')}
           className={cn(
             "px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap",
@@ -167,7 +167,7 @@ export default function CoinsPage() {
         >
           Vendor Redemptions ({redemptions.length})
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('fraud')}
           className={cn(
             "px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2",
@@ -179,7 +179,7 @@ export default function CoinsPage() {
             <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
           )}
         </button>
-        <button 
+        <button
           onClick={() => setActiveTab('transactions')}
           className={cn(
             "px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap",
@@ -206,8 +206,8 @@ export default function CoinsPage() {
                   <span>{Math.round((stats.userCirculation / (stats.userCirculation + stats.totalRedeemed || 1)) * 100)}%</span>
                 </div>
                 <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-amber-500 h-full rounded-full transition-all duration-1000" 
+                  <div
+                    className="bg-amber-500 h-full rounded-full transition-all duration-1000"
                     style={{ width: `${(stats.userCirculation / (stats.userCirculation + stats.totalRedeemed || 1)) * 100}%` }}
                   />
                 </div>
@@ -218,8 +218,8 @@ export default function CoinsPage() {
                   <span>{Math.round((stats.totalRedeemed / (stats.userCirculation + stats.totalRedeemed || 1)) * 100)}%</span>
                 </div>
                 <div className="w-full bg-zinc-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-indigo-500 h-full rounded-full transition-all duration-1000" 
+                  <div
+                    className="bg-indigo-500 h-full rounded-full transition-all duration-1000"
                     style={{ width: `${(stats.totalRedeemed / (stats.userCirculation + stats.totalRedeemed || 1)) * 100}%` }}
                   />
                 </div>
@@ -254,37 +254,37 @@ export default function CoinsPage() {
           {/* Controls */}
           <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex flex-wrap gap-4 items-center justify-between">
             <div className="flex gap-2">
-              <button 
-                onClick={() => setStatusFilter('')} 
+              <button
+                onClick={() => setStatusFilter('')}
                 className={cn("px-3 py-1 text-xs font-bold rounded-lg border", !statusFilter ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-white border-zinc-200 text-zinc-500")}
               >
                 All
               </button>
-              <button 
-                onClick={() => setStatusFilter('PENDING')} 
+              <button
+                onClick={() => setStatusFilter('PENDING')}
                 className={cn("px-3 py-1 text-xs font-bold rounded-lg border", statusFilter === 'PENDING' ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-white border-zinc-200 text-zinc-500")}
               >
                 Pending
               </button>
-              <button 
-                onClick={() => setStatusFilter('APPROVED')} 
+              <button
+                onClick={() => setStatusFilter('APPROVED')}
                 className={cn("px-3 py-1 text-xs font-bold rounded-lg border", statusFilter === 'APPROVED' ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-white border-zinc-200 text-zinc-500")}
               >
                 Approved
               </button>
-              <button 
-                onClick={() => setStatusFilter('REJECTED')} 
+              <button
+                onClick={() => setStatusFilter('REJECTED')}
                 className={cn("px-3 py-1 text-xs font-bold rounded-lg border", statusFilter === 'REJECTED' ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-white border-zinc-200 text-zinc-500")}
               >
                 Rejected
               </button>
             </div>
             <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-              <input 
-                type="checkbox" 
-                checked={highValueFilter} 
-                onChange={(e) => setHighValueFilter(e.target.checked)} 
-                className="w-4 h-4 rounded text-amber-500 border-zinc-350 focus:ring-amber-500" 
+              <input
+                type="checkbox"
+                checked={highValueFilter}
+                onChange={(e) => setHighValueFilter(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 border-zinc-350 focus:ring-amber-500"
               />
               High Value Only (200+)
             </label>
@@ -342,9 +342,9 @@ export default function CoinsPage() {
                       <td className="px-6 py-4">
                         <span className={cn(
                           "inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest border",
-                          r.status === 'APPROVED' ? "bg-green-50 text-green-700 border-green-200" : 
-                          r.status === 'PENDING' ? "bg-yellow-50 text-yellow-700 border-yellow-200" : 
-                          "bg-red-50 text-red-700 border-red-200"
+                          r.status === 'APPROVED' ? "bg-green-50 text-green-700 border-green-200" :
+                            r.status === 'PENDING' ? "bg-yellow-50 text-yellow-700 border-yellow-200" :
+                              "bg-red-50 text-red-700 border-red-200"
                         )}>
                           {r.status}
                         </span>
@@ -366,14 +366,14 @@ export default function CoinsPage() {
           <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <p className="text-sm text-zinc-500">Page {redemptionsPage} of {totalPagesRedemptions}</p>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setRedemptionsPage(p => Math.max(1, p - 1))}
                 disabled={redemptionsPage === 1 || isLoading}
                 className="px-3 py-1 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-zinc-500 disabled:opacity-50"
               >
                 Previous
               </button>
-              <button 
+              <button
                 onClick={() => setRedemptionsPage(p => Math.min(totalPagesRedemptions, p + 1))}
                 disabled={redemptionsPage === totalPagesRedemptions || isLoading}
                 className="px-3 py-1 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-zinc-500 disabled:opacity-50"
@@ -534,14 +534,14 @@ export default function CoinsPage() {
           <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
             <p className="text-sm text-zinc-500">Page {transactionsPage} of {totalPagesTransactions}</p>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => setTransactionsPage(p => Math.max(1, p - 1))}
                 disabled={transactionsPage === 1 || isLoading}
                 className="px-3 py-1 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-zinc-500 disabled:opacity-50"
               >
                 Previous
               </button>
-              <button 
+              <button
                 onClick={() => setTransactionsPage(p => Math.min(totalPagesTransactions, p + 1))}
                 disabled={transactionsPage === totalPagesTransactions || isLoading}
                 className="px-3 py-1 border border-zinc-200 dark:border-zinc-700 rounded-md text-sm text-zinc-500 disabled:opacity-50"

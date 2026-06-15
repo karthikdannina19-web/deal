@@ -81,7 +81,7 @@ export class RedemptionsController {
       if (authError) return authError;
 
       const stats = await RedemptionsService.getUserWalletStats(user.id);
-      
+
       // Fetch unique redemption code to display
       const fullUser = await User.findById(user.id).select('uniqueRedeemCode');
 
@@ -108,7 +108,7 @@ export class RedemptionsController {
       const transactions = await WalletTransaction.find({ user: user.id })
         .sort({ createdAt: -1 })
         .limit(50);
-        
+
       return Response.json({ success: true, transactions }, { status: 200 });
     } catch (error) {
       console.error('[RedemptionsController getWalletTransactions Error]', error);
