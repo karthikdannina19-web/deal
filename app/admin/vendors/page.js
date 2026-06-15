@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAdminStore } from "@/store/useAdminStore";
 import { vendorService } from "@/services/admin/vendor.service";
+import { priorityService } from "@/services/admin/priority.service";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, 
@@ -73,6 +74,7 @@ export default function VendorsPage() {
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [processingId, setProcessingId] = useState(null);
   const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState('');
+  const [selectedPriority, setSelectedPriority] = useState('');
   const [visibilityLocation, setVisibilityLocation] = useState({
     stateId: '',
     districtId: '',
@@ -122,7 +124,12 @@ export default function VendorsPage() {
     setProcessingId(id);
     try {
       if (status === 'active') {
-        await vendorService.approveVendor(id, selectedVisibilityLevel || null);
+        await vendorService.approveVendor(
+          id,
+          selectedVisibilityLevel || null,
+          selectedPriority || null,
+          selectedVisibilityLevel || 'global'
+        );
       } else if (status === 'rejected') {
         await vendorService.rejectVendor(id, "Admin moderation review");
       }
@@ -147,6 +154,8 @@ export default function VendorsPage() {
     try {
       const response = await vendorService.updateVendorVisibility(selectedVendor._id, {
         visibility_level: selectedVisibilityLevel || null,
+        priority: selectedPriority || null,
+        priority_scope_level: selectedVisibilityLevel || 'global',
       });
 
       const updatedVendor = response.data;
@@ -158,6 +167,47 @@ export default function VendorsPage() {
       setProcessingId(null);
     }
   };
+
+  useEffect(() => {
+    if (!selectedVendor) {
+      setSelectedPriority('');
+      return;
+    }
+
+    const scopeLevel = selectedVisibilityLevel || 'global';
+    const stateId = visibilityLocation.stateId || '';
+    const districtId = visibilityLocation.districtId || '';
+    const mandalId = visibilityLocation.mandalId || '';
+
+    let cancelled = false;
+
+    const loadPriority = async () => {
+      try {
+        const result = await priorityService.listRules({
+          entityType: 'vendor',
+          entityId: selectedVendor._id,
+          scopeLevel,
+          stateId,
+          districtId,
+          mandalId,
+        });
+
+        if (!cancelled) {
+          setSelectedPriority(result.data?.[0]?.priority ? String(result.data[0].priority) : '');
+        }
+      } catch {
+        if (!cancelled) {
+          setSelectedPriority('');
+        }
+      }
+    };
+
+    loadPriority();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVendor, selectedVisibilityLevel, visibilityLocation.stateId, visibilityLocation.districtId, visibilityLocation.mandalId]);
 
   return (
     <div className="space-y-12 pb-24">
@@ -359,6 +409,7 @@ export default function VendorsPage() {
                         onClick={() => {
                           setSelectedVendor(vendor);
                           setSelectedVisibilityLevel(vendor.visibilityLevel || '');
+                          setSelectedPriority('');
                           setVisibilityLocation(getStoreLocationIds(vendor));
                         }}
                         className="group/btn relative w-14 h-14 rounded-3xl bg-zinc-50 text-zinc-400 hover:bg-admin-primary hover:text-white hover:rotate-12 transition-all duration-500 flex items-center justify-center overflow-hidden shadow-sm"
@@ -654,6 +705,23 @@ export default function VendorsPage() {
                                     </p>
                                   )}
                                 </div>
+                                <div className="mt-5 rounded-2xl border border-zinc-200 bg-white px-4 py-4">
+                                  <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Location priority</label>
+                                  <div className="mt-3 flex items-center gap-3">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      step="1"
+                                      value={selectedPriority}
+                                      onChange={(event) => setSelectedPriority(event.target.value)}
+                                      placeholder="1"
+                                      className="w-32 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-admin-primary"
+                                    />
+                                    <p className="text-xs font-medium text-zinc-500">
+                                      Lower number means higher priority in this approved visibility scope.
+                                    </p>
+                                  </div>
+                                </div>
                               </div>
                               <div className="grid grid-cols-2 gap-4">
                                <button 
@@ -745,6 +813,23 @@ export default function VendorsPage() {
                                        IDs used: state {visibilityLocation.stateId || 'missing'}, district {visibilityLocation.districtId || 'missing'}, mandal {visibilityLocation.mandalId || 'missing'}
                                      </p>
                                    )}
+                                 </div>
+                                 <div className="mt-5 rounded-2xl border border-zinc-200 bg-white px-4 py-4">
+                                   <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">Location priority</label>
+                                   <div className="mt-3 flex items-center gap-3">
+                                     <input
+                                       type="number"
+                                       min="1"
+                                       step="1"
+                                       value={selectedPriority}
+                                       onChange={(event) => setSelectedPriority(event.target.value)}
+                                       placeholder="1"
+                                       className="w-32 rounded-2xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-admin-primary"
+                                     />
+                                     <p className="text-xs font-medium text-zinc-500">
+                                       This order will be used for users inside the selected visibility target.
+                                     </p>
+                                   </div>
                                  </div>
                                </div>
 

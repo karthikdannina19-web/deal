@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from "@/utils/cn";
+import { priorityService } from '@/services/admin/priority.service';
 
 function normalizeId(value) {
   if (!value) return '';
@@ -91,6 +92,12 @@ export default function SectionsDashboard() {
   const [bannerImage, setBannerImage] = useState(null);
   const [bannerImagePreview, setBannerImagePreview] = useState(null);
   const [isBannerSaving, setIsBannerSaving] = useState(false);
+  const [priorityScopeLevel, setPriorityScopeLevel] = useState('global');
+  const [priorityStateId, setPriorityStateId] = useState('');
+  const [priorityDistrictId, setPriorityDistrictId] = useState('');
+  const [priorityMandalId, setPriorityMandalId] = useState('');
+  const [sectionPriorityDrafts, setSectionPriorityDrafts] = useState({});
+  const [isPrioritySaving, setIsPrioritySaving] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -124,6 +131,51 @@ export default function SectionsDashboard() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const loadPriorityRules = async () => {
+      try {
+        const result = await priorityService.listRules({
+          entityType: 'section',
+          scopeLevel: priorityScopeLevel,
+          stateId: priorityStateId,
+          districtId: priorityDistrictId,
+          mandalId: priorityMandalId,
+        });
+
+        const nextDrafts = {};
+        for (const rule of result.data || []) {
+          nextDrafts[String(rule.entityId)] = String(rule.priority);
+        }
+        setSectionPriorityDrafts(nextDrafts);
+      } catch (error) {
+        console.error('Failed to load section priority rules', error);
+        setSectionPriorityDrafts({});
+      }
+    };
+
+    if (priorityScopeLevel === 'global') {
+      loadPriorityRules();
+      return;
+    }
+
+    if (priorityScopeLevel === 'state' && priorityStateId) {
+      loadPriorityRules();
+      return;
+    }
+
+    if (priorityScopeLevel === 'district' && priorityStateId && priorityDistrictId) {
+      loadPriorityRules();
+      return;
+    }
+
+    if (priorityScopeLevel === 'mandal' && priorityStateId && priorityDistrictId && priorityMandalId) {
+      loadPriorityRules();
+      return;
+    }
+
+    setSectionPriorityDrafts({});
+  }, [priorityScopeLevel, priorityStateId, priorityDistrictId, priorityMandalId]);
 
   // --- Tag Logic ---
   const handleOpenTagModal = (tag = null) => {
@@ -259,6 +311,8 @@ export default function SectionsDashboard() {
   const selectedDistrict = selectedState?.districts?.find((district) => district.id === bannerForm.visibilityDistrictId);
   const selectedTagState = locationTree.find((state) => state.id === tagForm.visibilityStateId);
   const selectedTagDistrict = selectedTagState?.districts?.find((district) => district.id === tagForm.visibilityDistrictId);
+  const selectedPriorityState = locationTree.find((state) => state.id === priorityStateId);
+  const selectedPriorityDistrict = selectedPriorityState?.districts?.find((district) => district.id === priorityDistrictId);
   const sectionCategories = categories.filter((category) => normalizeId(category.sectionId?._id || category.sectionId) === bannerForm.section);
 
   const handleDeleteBanner = async (id) => {
@@ -297,6 +351,32 @@ export default function SectionsDashboard() {
       alert('Network error during assignment');
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleSaveSectionPriorities = async () => {
+    const rules = sections
+      .map((section) => ({
+        entityId: section._id,
+        scopeLevel: priorityScopeLevel,
+        stateId: priorityStateId || null,
+        districtId: priorityDistrictId || null,
+        mandalId: priorityMandalId || null,
+        priority: Number(sectionPriorityDrafts[String(section._id)]),
+      }))
+      .filter((rule) => Number.isFinite(rule.priority) && rule.priority > 0);
+
+    try {
+      setIsPrioritySaving(true);
+      await priorityService.saveRules({
+        entityType: 'section',
+        rules,
+      });
+      alert('Section priorities saved successfully.');
+    } catch (error) {
+      alert(error || 'Failed to save section priorities.');
+    } finally {
+      setIsPrioritySaving(false);
     }
   };
 
@@ -364,6 +444,95 @@ export default function SectionsDashboard() {
                 </button>
              </div>
 
+             <div className="rounded-[32px] border border-zinc-200 bg-white p-6 shadow-sm">
+               <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+                 <div>
+                   <h4 className="text-lg font-black text-zinc-900">Location Priority Rules</h4>
+                   <p className="text-sm text-zinc-500 font-medium mt-1">
+                     Set how sections should rank for users in a specific state, district, or mandal.
+                   </p>
+                 </div>
+                 <button
+                   type="button"
+                   onClick={handleSaveSectionPriorities}
+                   disabled={isPrioritySaving}
+                   className="px-5 py-3 rounded-2xl bg-admin-primary text-white text-sm font-black shadow-lg shadow-admin-primary/20 disabled:opacity-60"
+                 >
+                   {isPrioritySaving ? 'Saving...' : 'Save Priority Rules'}
+                 </button>
+               </div>
+
+               <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                 <div>
+                   <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Scope</label>
+                   <select
+                     value={priorityScopeLevel}
+                     onChange={(e) => {
+                       setPriorityScopeLevel(e.target.value);
+                       setPriorityStateId('');
+                       setPriorityDistrictId('');
+                       setPriorityMandalId('');
+                     }}
+                     className="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl font-bold text-zinc-900 outline-none"
+                   >
+                     <option value="global">Global</option>
+                     <option value="state">State</option>
+                     <option value="district">District</option>
+                     <option value="mandal">Mandal</option>
+                   </select>
+                 </div>
+
+                 {priorityScopeLevel !== 'global' && (
+                   <div>
+                     <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">State</label>
+                     <select
+                       value={priorityStateId}
+                       onChange={(e) => {
+                         setPriorityStateId(e.target.value);
+                         setPriorityDistrictId('');
+                         setPriorityMandalId('');
+                       }}
+                       className="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl font-bold text-zinc-900 outline-none"
+                     >
+                       <option value="">Select state</option>
+                       {locationTree.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
+                     </select>
+                   </div>
+                 )}
+
+                 {['district', 'mandal'].includes(priorityScopeLevel) && (
+                   <div>
+                     <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">District</label>
+                     <select
+                       value={priorityDistrictId}
+                       onChange={(e) => {
+                         setPriorityDistrictId(e.target.value);
+                         setPriorityMandalId('');
+                       }}
+                       className="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl font-bold text-zinc-900 outline-none"
+                     >
+                       <option value="">Select district</option>
+                       {(selectedPriorityState?.districts || []).map((district) => <option key={district.id} value={district.id}>{district.name}</option>)}
+                     </select>
+                   </div>
+                 )}
+
+                 {priorityScopeLevel === 'mandal' && (
+                   <div>
+                     <label className="text-[10px] font-black uppercase text-zinc-400 mb-2 block">Mandal</label>
+                     <select
+                       value={priorityMandalId}
+                       onChange={(e) => setPriorityMandalId(e.target.value)}
+                       className="w-full px-5 py-3 bg-zinc-50 border border-zinc-200 rounded-2xl font-bold text-zinc-900 outline-none"
+                     >
+                       <option value="">Select mandal</option>
+                       {(selectedPriorityDistrict?.mandals || []).map((mandal) => <option key={mandal.id} value={mandal.id}>{mandal.name}</option>)}
+                     </select>
+                   </div>
+                 )}
+               </div>
+             </div>
+
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {sections.map(section => (
                   <div key={section._id} className="group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[32px] p-6 hover:shadow-2xl hover:shadow-zinc-200/50 dark:hover:shadow-none transition-all duration-500 relative overflow-hidden">
@@ -384,6 +553,27 @@ export default function SectionsDashboard() {
                     </div>
                     
                     <p className="text-sm text-zinc-500 line-clamp-2 mb-6 font-medium">{section.description || 'No description provided.'}</p>
+
+                    <div className="mb-6 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Location priority</label>
+                      <div className="mt-2 flex items-center gap-3">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={sectionPriorityDrafts[String(section._id)] || ''}
+                          onChange={(event) => setSectionPriorityDrafts((current) => ({
+                            ...current,
+                            [String(section._id)]: event.target.value,
+                          }))}
+                          placeholder="1"
+                          className="w-24 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-black text-zinc-900 outline-none focus:border-admin-primary"
+                        />
+                        <p className="text-xs font-semibold text-zinc-500">
+                          {priorityScopeLevel === 'global' ? 'Global fallback order' : `Overrides order in selected ${priorityScopeLevel}`}
+                        </p>
+                      </div>
+                    </div>
                     
                     <div className="flex items-center justify-between pt-6 border-t border-zinc-50 dark:border-zinc-800">
                        <div className="flex items-center gap-2">

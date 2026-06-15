@@ -3,6 +3,7 @@ import Banner from '@/models/banner.model.js';
 import Category from '@/models/category.model.js';
 import Section from '@/models/section.model.js';
 import { VisibilityService } from '@/services/visibility.service.js';
+import { PriorityService } from '@/services/priority.service.js';
 
 function normalizeSectionId(sectionId) {
   return sectionId || null;
@@ -10,13 +11,24 @@ function normalizeSectionId(sectionId) {
 
 export class SectionVisibilityService {
   static async getVisibleSections({ userLocation = null } = {}) {
-    return Section.find(
+    const sections = await Section.find(
       VisibilityService.buildMatchQuery(userLocation, {
         isActive: true,
       })
-    )
-      .sort({ order: 1, name: 1 })
-      .lean();
+    ).lean();
+
+    const ruleMap = await PriorityService.getEffectivePriorityMap(
+      'section',
+      sections.map((section) => section._id),
+      userLocation
+    );
+
+    return PriorityService.sortItemsByPriority(
+      sections,
+      (section) => section._id,
+      ruleMap,
+      (left, right) => (left.order || 0) - (right.order || 0) || String(left.name || '').localeCompare(String(right.name || ''))
+    );
   }
 
   static async getVisibleCategories({ userLocation = null, sectionId = null } = {}) {

@@ -110,6 +110,8 @@ export class AdminController {
       const { id } = await params;
       const body = await req.json();
       const { status, reason, visibility_level, visibilityLevel } = body; // 'active' or 'rejected'
+      const priority = body.priority ?? body.location_priority ?? null;
+      const priorityScopeLevel = body.priority_scope_level ?? body.priorityScopeLevel ?? null;
       const hasVisibilityPayload = [
         'visibility_level',
         'visibilityLevel',
@@ -121,6 +123,10 @@ export class AdminController {
         'visibilityMandalId',
         'visibility_enabled',
         'visibilityEnabled',
+        'priority',
+        'location_priority',
+        'priority_scope_level',
+        'priorityScopeLevel',
       ].some((key) => Object.prototype.hasOwnProperty.call(body, key));
 
       if (!status && hasVisibilityPayload) {
@@ -130,6 +136,8 @@ export class AdminController {
           visibilityDistrictId: body.visibility_district_id ?? body.visibilityDistrictId ?? null,
           visibilityMandalId: body.visibility_mandal_id ?? body.visibilityMandalId ?? null,
           visibilityEnabled: body.visibility_enabled ?? body.visibilityEnabled ?? true,
+          priority,
+          priorityScopeLevel,
         });
 
         return Response.json({
@@ -143,7 +151,13 @@ export class AdminController {
         return Response.json({ success: false, message: 'Invalid status' }, { status: 400 });
       }
 
-      const vendor = await AdminService.updateVendorStatus(id, status, reason, visibility_level ?? visibilityLevel ?? null);
+      const vendor = await AdminService.updateVendorStatus(
+        id,
+        status,
+        reason,
+        visibility_level ?? visibilityLevel ?? null,
+        priority ? { priority, scopeLevel: priorityScopeLevel || visibility_level || visibilityLevel || 'global' } : null
+      );
       return Response.json({ 
         success: true, 
         message: `Vendor ${status === 'active' ? 'approved' : status} successfully`,
@@ -325,6 +339,16 @@ export class AdminController {
         : Object.prototype.hasOwnProperty.call(body, 'visibilityMandalId')
           ? body.visibilityMandalId
           : undefined;
+      const priority = Object.prototype.hasOwnProperty.call(body, 'priority')
+        ? body.priority
+        : Object.prototype.hasOwnProperty.call(body, 'location_priority')
+          ? body.location_priority
+          : undefined;
+      const priorityScopeLevel = Object.prototype.hasOwnProperty.call(body, 'priority_scope_level')
+        ? body.priority_scope_level
+        : Object.prototype.hasOwnProperty.call(body, 'priorityScopeLevel')
+          ? body.priorityScopeLevel
+          : undefined;
 
       const authHeader = req.headers.get('authorization');
       let adminId = null;
@@ -349,7 +373,9 @@ export class AdminController {
         visibilityLevel,
         visibilityStateId,
         visibilityDistrictId,
-        visibilityMandalId
+        visibilityMandalId,
+        priority,
+        priorityScopeLevel
       );
       
       return Response.json({ 

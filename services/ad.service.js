@@ -6,6 +6,7 @@ import UserSubscription from '../models/userSubscription.model.js';
 import { NotificationService } from '../modules/notifications/notification.service.js';
 import { LocationMasterService } from '@/services/location-master.service.js';
 import { VisibilityService } from '@/services/visibility.service.js';
+import { PriorityService } from '@/services/priority.service.js';
 
 /**
  * Ad Management Service
@@ -742,7 +743,9 @@ export async function moderateAd(
   visibilityLevel = undefined,
   visibilityStateId = undefined,
   visibilityDistrictId = undefined,
-  visibilityMandalId = undefined
+  visibilityMandalId = undefined,
+  priority = undefined,
+  priorityScopeLevel = undefined
 ) {
   const ad = await Ad.findById(adId);
 
@@ -813,6 +816,19 @@ export async function moderateAd(
     ad.visibilityDistrictId = visibility.visibilityDistrictId;
     ad.visibilityMandalId = visibility.visibilityMandalId;
     ad.visibilityEnabled = visibility.visibilityEnabled;
+  }
+
+  if ((action === 'approve' || action === 'activate') && priority !== undefined && priority !== null && priority !== '') {
+    const resolvedScopeLevel = priorityScopeLevel || ad.visibilityLevel || visibilityLevel || 'global';
+    await PriorityService.upsertRule({
+      entityType: 'ad',
+      entityId: ad._id,
+      scopeLevel: resolvedScopeLevel,
+      stateId: ad.visibilityStateId || visibilityStateId || null,
+      districtId: ad.visibilityDistrictId || visibilityDistrictId || null,
+      mandalId: ad.visibilityMandalId || visibilityMandalId || null,
+      priority,
+    });
   }
 
   if (action === 'reject' && !ad.creditRefunded && !ad.editedFromApproved) {

@@ -7,6 +7,7 @@ import '@/models/vendor.model.js';
 import mongoose from 'mongoose';
 import { VisibilityService } from '@/services/visibility.service.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
+import { PriorityService } from '@/services/priority.service.js';
 import { calculateDistanceKm, getOfferCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 
 function num(v, fallback = 999999) {
@@ -103,6 +104,8 @@ function mapAd(ad) {
     viewCount: ad.showViews !== false ? (ad.views || 0) : null,
     // clickCount: null means vendor disabled click counter — hide the widget in the UI
     clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
+    resolvedPriority: ad._resolvedPriority ?? null,
+    priorityScopeLevel: ad._priorityScopeLevel ?? null,
     shareLink: ad.url || '',
     isActive: ad.status === 'approved',
   };
@@ -190,7 +193,26 @@ export class UserAppService {
           ),
         };
       });
-    return filtered.map(mapAd);
+
+    const ruleMap = await PriorityService.getEffectivePriorityMap(
+      'ad',
+      filtered.map((ad) => ad._id),
+      userLocation
+    );
+
+    return PriorityService.sortItemsByPriority(
+      filtered,
+      (ad) => ad._id,
+      ruleMap,
+      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    ).map((ad) => {
+      const rule = ruleMap.get(String(ad._id));
+      return mapAd({
+        ...ad,
+        _resolvedPriority: rule?.priority ?? null,
+        _priorityScopeLevel: rule?.scopeLevel ?? null,
+      });
+    });
   }
 
   static async incrementBannerView(id) {

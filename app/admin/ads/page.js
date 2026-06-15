@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAdminStore } from "@/store/useAdminStore";
 import { adsService } from "@/services/admin/ads.service";
+import { priorityService } from "@/services/admin/priority.service";
 import { Search, Filter, MoreHorizontal, Megaphone, Eye, MousePointerClick, Calendar, CheckCircle2, XCircle, Clock, Loader2, Plus, X as CloseIcon, Upload, Check } from "lucide-react";
 
 function normalizeId(value) {
@@ -60,6 +61,7 @@ export default function AdsPage() {
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
   const [selectedVisibilityLevel, setSelectedVisibilityLevel] = useState("global");
+  const [selectedPriority, setSelectedPriority] = useState("");
 
   const fetchAds = async () => {
     try {
@@ -128,6 +130,7 @@ export default function AdsPage() {
     setSelectedCategory(ad.category || '');
     setSelectedCategoryId(normalizeId(ad.categoryId?._id || ad.categoryId));
     setSelectedVisibilityLevel(nextVisibilityLevel);
+    setSelectedPriority("");
     setReviewNotes("");
     setIsModerationModalOpen(true);
   };
@@ -142,7 +145,9 @@ export default function AdsPage() {
     visibilityLevel = undefined,
     visibilityStateId = undefined,
     visibilityDistrictId = undefined,
-    visibilityMandalId = undefined
+    visibilityMandalId = undefined,
+    priority = undefined,
+    priorityScopeLevel = undefined
   ) => {
     setProcessingId(id);
     try {
@@ -156,7 +161,9 @@ export default function AdsPage() {
         visibilityLevel,
         visibilityStateId,
         visibilityDistrictId,
-        visibilityMandalId
+        visibilityMandalId,
+        priority,
+        priorityScopeLevel
       );
       updateAdStatus(id, status === 'approve' || status === 'activate' ? 'approved' : status === 'reject' ? 'rejected' : status);
       await fetchAds();
@@ -170,6 +177,46 @@ export default function AdsPage() {
 
   const sectionCategories = categories;
   const allowedAdVisibilityLevels = selectedAd ? getAllowedVisibilityLevels(selectedAd.vendor?.visibilityLevel || 'global') : VISIBILITY_LEVELS;
+
+  useEffect(() => {
+    if (!selectedAd) {
+      setSelectedPriority("");
+      return;
+    }
+
+    const scopeLevel = selectedVisibilityLevel || 'global';
+    const stateId = normalizeId(selectedAd.vendor?.storeStateId || selectedAd.visibilityStateId);
+    const districtId = normalizeId(selectedAd.vendor?.storeDistrictId || selectedAd.visibilityDistrictId);
+    const mandalId = normalizeId(selectedAd.vendor?.storeMandalId || selectedAd.visibilityMandalId);
+    let cancelled = false;
+
+    const loadPriority = async () => {
+      try {
+        const result = await priorityService.listRules({
+          entityType: 'ad',
+          entityId: selectedAd._id,
+          scopeLevel,
+          stateId,
+          districtId,
+          mandalId,
+        });
+
+        if (!cancelled) {
+          setSelectedPriority(result.data?.[0]?.priority ? String(result.data[0].priority) : "");
+        }
+      } catch {
+        if (!cancelled) {
+          setSelectedPriority("");
+        }
+      }
+    };
+
+    loadPriority();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAd, selectedVisibilityLevel]);
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -749,6 +796,26 @@ export default function AdsPage() {
                       })}
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-xs font-black uppercase tracking-widest text-zinc-500 mb-2.5">Location Priority</label>
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-4">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={selectedPriority}
+                          onChange={(event) => setSelectedPriority(event.target.value)}
+                          placeholder="1"
+                          className="w-28 rounded-2xl border border-zinc-200 dark:border-zinc-700 px-4 py-3 text-sm font-black text-zinc-900 dark:text-white outline-none focus:border-admin-primary"
+                        />
+                        <p className="text-xs font-semibold text-zinc-500">
+                          Lower number will show this ad earlier for users in the selected visibility target.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -771,7 +838,9 @@ export default function AdsPage() {
                     selectedVisibilityLevel || 'global',
                     undefined,
                     undefined,
-                    undefined
+                    undefined,
+                    selectedPriority || null,
+                    selectedVisibilityLevel || 'global'
                   )}
                   disabled={!!processingId}
                   className="py-4 bg-admin-primary text-white font-black rounded-2xl hover:shadow-xl hover:shadow-admin-primary/30 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"

@@ -10,6 +10,7 @@ import VendorAccountLog from '@/models/vendorAccountLog.model.js';
 import { dbConnect } from '@/config/database.js';
 import { LocationMasterService } from '@/services/location-master.service.js';
 import { VisibilityService } from '@/services/visibility.service.js';
+import { PriorityService } from '@/services/priority.service.js';
 
 export class AdminService {
   /**
@@ -99,7 +100,7 @@ export class AdminService {
    * @param {string} vendorId 
    * @param {string} status 'active' or 'rejected'
    */
-  static async updateVendorStatus(vendorId, status, reason = '', visibilityLevel = null) {
+  static async updateVendorStatus(vendorId, status, reason = '', visibilityLevel = null, priorityConfig = null) {
     await dbConnect();
     
     const vendor = await Vendor.findById(vendorId);
@@ -121,6 +122,18 @@ export class AdminService {
       vendor.visibilityDistrictId = visibility.visibilityDistrictId;
       vendor.visibilityMandalId = visibility.visibilityMandalId;
       vendor.visibilityEnabled = visibility.visibilityEnabled;
+
+      if (priorityConfig?.priority) {
+        await PriorityService.upsertRule({
+          entityType: 'vendor',
+          entityId: vendor._id,
+          scopeLevel: priorityConfig.scopeLevel || visibility.visibilityLevel || 'global',
+          stateId: priorityConfig.stateId ?? visibility.visibilityStateId ?? null,
+          districtId: priorityConfig.districtId ?? visibility.visibilityDistrictId ?? null,
+          mandalId: priorityConfig.mandalId ?? visibility.visibilityMandalId ?? null,
+          priority: priorityConfig.priority,
+        });
+      }
     }
 
     vendor.status = status;
@@ -157,6 +170,8 @@ export class AdminService {
   static async updateVendorVisibility(vendorId, {
     visibilityLevel,
     visibilityEnabled = true,
+    priority = null,
+    priorityScopeLevel = null,
   }) {
     await dbConnect();
 
@@ -179,6 +194,18 @@ export class AdminService {
     vendor.visibilityMandalId = visibility.visibilityMandalId;
     vendor.visibilityEnabled = visibility.visibilityEnabled;
     await vendor.save();
+
+    if (priority) {
+      await PriorityService.upsertRule({
+        entityType: 'vendor',
+        entityId: vendor._id,
+        scopeLevel: priorityScopeLevel || vendor.visibilityLevel || 'global',
+        stateId: vendor.visibilityStateId,
+        districtId: vendor.visibilityDistrictId,
+        mandalId: vendor.visibilityMandalId,
+        priority,
+      });
+    }
 
     return vendor;
   }

@@ -19,9 +19,13 @@ export const vendorService = {
   /**
    * Approve a vendor
    */
-  approveVendor: async (id, visibilityLevel = null) => {
+  approveVendor: async (id, visibilityLevel = null, priority = null, priorityScopeLevel = null) => {
     try {
-      const response = await api.post(`/api/admin/vendors/${id}/approve`, { visibility_level: visibilityLevel });
+      const response = await api.post(`/api/admin/vendors/${id}/approve`, {
+        visibility_level: visibilityLevel,
+        priority,
+        priority_scope_level: priorityScopeLevel,
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to approve vendor';

@@ -5,8 +5,9 @@ import Category from '@/models/category.model.js';
 import Section from '@/models/section.model.js';
 import { VisibilityService } from '@/services/visibility.service.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
+import { PriorityService } from '@/services/priority.service.js';
 
-function buildVendorPayload(vendor) {
+function buildVendorPayload(vendor, priorityRule = null) {
   return {
     id: vendor._id,
     storeName: vendor.storeName || '',
@@ -15,10 +16,12 @@ function buildVendorPayload(vendor) {
     location: vendor.location || {},
     media: vendor.media || {},
     visibilityLevel: vendor.visibilityLevel,
+    resolvedPriority: priorityRule?.priority ?? null,
+    priorityScopeLevel: priorityRule?.scopeLevel ?? null,
   };
 }
 
-function buildAdPayload(ad) {
+function buildAdPayload(ad, priorityRule = null) {
   return {
     id: ad._id,
     title: ad.title,
@@ -31,6 +34,8 @@ function buildAdPayload(ad) {
     views: ad.showViews === false ? null : (ad.views || 0),
     clicks: ad.showClicks === false ? null : (ad.clicks || 0),
     visibilityLevel: ad.visibilityLevel,
+    resolvedPriority: priorityRule?.priority ?? null,
+    priorityScopeLevel: priorityRule?.scopeLevel ?? null,
     vendor: ad.vendor ? {
       id: ad.vendor._id,
       storeName: ad.vendor.storeName || '',
@@ -72,7 +77,7 @@ function buildCategoryPayload(category) {
   };
 }
 
-function buildSectionPayload(section) {
+function buildSectionPayload(section, priorityRule = null) {
   return {
     id: section._id,
     name: section.name,
@@ -82,6 +87,8 @@ function buildSectionPayload(section) {
     banner: section.banner || null,
     order: section.order || 0,
     visibilityLevel: section.visibilityLevel,
+    resolvedPriority: priorityRule?.priority ?? null,
+    priorityScopeLevel: priorityRule?.scopeLevel ?? null,
   };
 }
 
@@ -108,7 +115,7 @@ export class HomeFeedService {
   static async getHomeFeed({ user, vendorLimit = 20, adLimit = 20, bannerLimit = 20, categoryLimit = 50, sectionLimit = 50 }) {
     const location = this.getFreshUserLocation(user);
 
-    const [vendors, ads, banners, sections, categories] = await Promise.all([
+    const [vendorsRaw, adsRaw, banners, sectionsRaw, categories] = await Promise.all([
       Vendor.find(
         VisibilityService.buildMatchQuery(location, {
           status: 'active',
@@ -116,7 +123,6 @@ export class HomeFeedService {
         })
       )
         .sort({ createdAt: -1 })
-        .limit(vendorLimit)
         .lean(),
       Ad.find(
         VisibilityService.buildMatchQuery(location, {
@@ -126,7 +132,6 @@ export class HomeFeedService {
       )
         .populate('vendor', 'storeName fullAddress location media')
         .sort({ isFeatured: -1, priority: -1, createdAt: -1 })
-        .limit(adLimit)
         .lean(),
       Banner.find(
         VisibilityService.buildMatchQuery(location, {
@@ -151,11 +156,46 @@ export class HomeFeedService {
         .lean(),
     ]);
 
+    const [vendorPriorityMap, adPriorityMap, sectionPriorityMap] = await Promise.all([
+      PriorityService.getEffectivePriorityMap('vendor', vendorsRaw.map((vendor) => vendor._id), location),
+      PriorityService.getEffectivePriorityMap('ad', adsRaw.map((ad) => ad._id), location),
+      PriorityService.getEffectivePriorityMap('section', sectionsRaw.map((section) => section._id), location),
+    ]);
+
+    const vendors = PriorityService.sortItemsByPriority(
+      vendorsRaw,
+      (vendor) => vendor._id,
+      vendorPriorityMap,
+      (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    ).slice(0, vendorLimit);
+
+    const ads = PriorityService.sortItemsByPriority(
+      adsRaw,
+      (ad) => ad._id,
+      adPriorityMap,
+      (left, right) => {
+        if ((right.isFeatured ? 1 : 0) !== (left.isFeatured ? 1 : 0)) {
+          return (right.isFeatured ? 1 : 0) - (left.isFeatured ? 1 : 0);
+        }
+        if ((right.priority || 0) !== (left.priority || 0)) {
+          return (right.priority || 0) - (left.priority || 0);
+        }
+        return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+      }
+    ).slice(0, adLimit);
+
+    const sections = PriorityService.sortItemsByPriority(
+      sectionsRaw,
+      (section) => section._id,
+      sectionPriorityMap,
+      (left, right) => (left.order || 0) - (right.order || 0) || String(left.name || '').localeCompare(String(right.name || ''))
+    ).slice(0, sectionLimit);
+
     return {
-      sections: sections.slice(0, sectionLimit).map(buildSectionPayload),
+      sections: sections.map((section) => buildSectionPayload(section, sectionPriorityMap.get(String(section._id)) || null)),
       categories: categories.map(buildCategoryPayload),
-      vendors: vendors.map(buildVendorPayload),
-      ads: ads.map(buildAdPayload),
+      vendors: vendors.map((vendor) => buildVendorPayload(vendor, vendorPriorityMap.get(String(vendor._id)) || null)),
+      ads: ads.map((ad) => buildAdPayload(ad, adPriorityMap.get(String(ad._id)) || null)),
       banners: banners.map(buildBannerPayload),
     };
   }

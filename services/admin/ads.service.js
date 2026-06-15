@@ -29,7 +29,9 @@ export const adsService = {
     visibilityLevel = null,
     visibilityStateId = null,
     visibilityDistrictId = null,
-    visibilityMandalId = null
+    visibilityMandalId = null,
+    priority = null,
+    priorityScopeLevel = null
   ) => {
     try {
       const body = { status, notes };
@@ -40,6 +42,8 @@ export const adsService = {
       if (visibilityStateId !== undefined) body.visibility_state_id = visibilityStateId;
       if (visibilityDistrictId !== undefined) body.visibility_district_id = visibilityDistrictId;
       if (visibilityMandalId !== undefined) body.visibility_mandal_id = visibilityMandalId;
+      if (priority !== undefined) body.priority = priority;
+      if (priorityScopeLevel !== undefined) body.priority_scope_level = priorityScopeLevel;
       const response = await api.put(`/api/admin/ads/review/${id}`, body);
       return response.data;
     } catch (error) {

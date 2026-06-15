@@ -3,6 +3,8 @@ import Store from '@/models/store.model';
 import Category from '@/models/category.model';
 import Vendor from '@/models/vendor.model';
 import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
+import { PriorityService } from '@/services/priority.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 export async function GET(req) {
   try {
@@ -25,6 +27,9 @@ export async function GET(req) {
     const skip = (safePage - 1) * safeLimit;
     
     const sort = searchParams.get('sort') || 'newest';
+    const stateId = searchParams.get('stateId');
+    const districtId = searchParams.get('districtId');
+    const mandalId = searchParams.get('mandalId');
 
     const storeQuery = { status: 'active' };
     const vendorQuery = {
@@ -124,6 +129,7 @@ export async function GET(req) {
       return {
         _id: store._id,
         id: store._id,
+        entityType: 'store',
         name: store.businessName,
         category: store.category || '',
         categoryId: categoryMap[store.category] || null,
@@ -135,6 +141,8 @@ export async function GET(req) {
         lat: storeLat,
         lng: storeLng,
         viewCount: store.views || 0,
+        resolvedPriority: null,
+        priorityScopeLevel: null,
         address: store.address || [store.mandal, store.district, store.state].filter(Boolean).join(', '),
         location: {
           state: store.state || '',
@@ -158,6 +166,7 @@ export async function GET(req) {
       return {
         _id: vendor._id,
         id: vendor._id,
+        entityType: 'vendor',
         name: vendor.storeName || vendor.fullName || '',
         category: vendor.categoryId?.name || '',
         categoryId: vendor.categoryId?._id || null,
@@ -169,6 +178,8 @@ export async function GET(req) {
         lat: latitude,
         lng: longitude,
         viewCount: vendor.views || 0,
+        resolvedPriority: null,
+        priorityScopeLevel: null,
         address,
         location: {
           state: vendor.location?.state || '',
@@ -184,13 +195,79 @@ export async function GET(req) {
       };
     });
 
-    const allResults = [...mappedVendors, ...mappedStores];
+    const userLocation = stateId
+      ? {
+          stateId,
+          districtId: districtId || null,
+          mandalId: mandalId || null,
+        }
+      : (state || district || mandal)
+        ? await (async () => {
+            try {
+              const resolved = await LocationMasterService.findByNames({
+                state,
+                district,
+                mandal,
+              });
+              return {
+                stateId: resolved.state?._id || null,
+                districtId: resolved.district?._id || null,
+                mandalId: resolved.mandal?._id || null,
+              };
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+
+    const [vendorPriorityMap, storePriorityMap] = await Promise.all([
+      PriorityService.getEffectivePriorityMap('vendor', vendors.map((vendor) => vendor._id), userLocation),
+      PriorityService.getEffectivePriorityMap('store', stores.map((store) => store._id), userLocation),
+    ]);
+
+    const vendorPriorityLookup = new Map(Array.from(vendorPriorityMap.entries()));
+    const storePriorityLookup = new Map(Array.from(storePriorityMap.entries()));
+
+    const hydratedVendors = mappedVendors.map((vendor) => {
+      const rule = vendorPriorityLookup.get(String(vendor._id));
+      return {
+        ...vendor,
+        resolvedPriority: rule?.priority ?? null,
+        priorityScopeLevel: rule?.scopeLevel ?? null,
+      };
+    });
+
+    const hydratedStores = mappedStores.map((store) => {
+      const rule = storePriorityLookup.get(String(store._id));
+      return {
+        ...store,
+        resolvedPriority: rule?.priority ?? null,
+        priorityScopeLevel: rule?.scopeLevel ?? null,
+      };
+    });
+
+    let allResults = [...hydratedVendors, ...hydratedStores];
     if (sort === 'distance') {
       allResults.sort((a, b) => {
         const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Number.MAX_SAFE_INTEGER;
         const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Number.MAX_SAFE_INTEGER;
         return aDistance - bDistance;
       });
+    } else {
+      allResults = PriorityService.sortItemsByPriority(
+        allResults,
+        (item) => item._id,
+        new Map([
+          ...Array.from(vendorPriorityLookup.entries()),
+          ...Array.from(storePriorityLookup.entries()),
+        ]),
+        (left, right) => {
+          if (sort === 'popular') {
+            return (right.viewCount || 0) - (left.viewCount || 0);
+          }
+          return 0;
+        }
+      );
     }
 
     const total = allResults.length;
