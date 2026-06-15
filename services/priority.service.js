@@ -120,14 +120,54 @@ export class PriorityService {
       this.normalizeScope({ scopeLevel, stateId, districtId, mandalId })
     );
 
+    const normalizedEntityId = normalizeEntityId(entityId);
+    const scopeQuery = {
+      entityType,
+      scopeLevel: scope.scopeLevel,
+      stateId: scope.stateId,
+      districtId: scope.districtId,
+      mandalId: scope.mandalId,
+    };
+
+    const existing = await PriorityRule.findOne({
+      ...scopeQuery,
+      entityId: normalizedEntityId,
+    });
+
+    if (existing) {
+      if (normalizedPriority < existing.priority) {
+        await PriorityRule.updateMany(
+          {
+            ...scopeQuery,
+            entityId: { $ne: normalizedEntityId },
+            priority: { $gte: normalizedPriority, $lt: existing.priority },
+          },
+          { $inc: { priority: 1 } }
+        );
+      } else if (normalizedPriority > existing.priority) {
+        await PriorityRule.updateMany(
+          {
+            ...scopeQuery,
+            entityId: { $ne: normalizedEntityId },
+            priority: { $gt: existing.priority, $lte: normalizedPriority },
+          },
+          { $inc: { priority: -1 } }
+        );
+      }
+    } else {
+      await PriorityRule.updateMany(
+        {
+          ...scopeQuery,
+          priority: { $gte: normalizedPriority },
+        },
+        { $inc: { priority: 1 } }
+      );
+    }
+
     return PriorityRule.findOneAndUpdate(
       {
-        entityType,
-        entityId: normalizeEntityId(entityId),
-        scopeLevel: scope.scopeLevel,
-        stateId: scope.stateId,
-        districtId: scope.districtId,
-        mandalId: scope.mandalId,
+        ...scopeQuery,
+        entityId: normalizedEntityId,
       },
       {
         $set: {

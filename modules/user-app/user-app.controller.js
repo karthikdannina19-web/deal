@@ -6,6 +6,68 @@ import { LocationMasterService } from '@/services/location-master.service.js';
 import User from '@/models/user.model.js';
 
 export class UserAppController {
+  static async resolveRequestLocation({ req, authUser = null }) {
+    const { searchParams } = new URL(req.url);
+
+    if (authUser?.stateId && authUser?.districtId && authUser?.mandalId) {
+      return {
+        stateId: authUser.stateId,
+        districtId: authUser.districtId,
+        mandalId: authUser.mandalId,
+      };
+    }
+
+    const queryStateId = searchParams.get('stateId');
+    const queryDistrictId = searchParams.get('districtId');
+    const queryMandalId = searchParams.get('mandalId');
+    if (queryStateId) {
+      return {
+        stateId: queryStateId,
+        districtId: queryDistrictId || null,
+        mandalId: queryMandalId || null,
+      };
+    }
+
+    const lat = Number(searchParams.get('lat') || searchParams.get('latitude'));
+    const lng = Number(searchParams.get('lng') || searchParams.get('longitude'));
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      try {
+        const resolved = await LocationResolverService.resolveCoordinates({ latitude: lat, longitude: lng });
+        return {
+          stateId: resolved.state._id,
+          districtId: resolved.district._id,
+          mandalId: resolved.mandal._id,
+        };
+      } catch {
+        // fall through
+      }
+    }
+
+    const queryState = searchParams.get('state');
+    const queryDistrict = searchParams.get('district');
+    const queryMandal = searchParams.get('mandal');
+    if (queryState && queryDistrict && queryMandal) {
+      try {
+        const resolved = await LocationMasterService.findByNames({
+          state: queryState,
+          district: queryDistrict,
+          mandal: queryMandal,
+          autoCreateMissingDistrict: false,
+          autoCreateMissingMandal: false,
+        });
+        return {
+          stateId: resolved.state._id,
+          districtId: resolved.district._id,
+          mandalId: resolved.mandal._id,
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
   static async sections(req) {
     await dbConnect();
     const authHeader = req.headers.get('authorization');
@@ -46,6 +108,7 @@ export class UserAppController {
     const authUser = auth?.user?.id
       ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
       : null;
+    const userLocation = await this.resolveRequestLocation({ req, authUser });
     const data = await UserAppService.listBanners({
       section: searchParams.get('section') || searchParams.get('sectionId'),
       state: searchParams.get('state'),
@@ -54,11 +117,7 @@ export class UserAppController {
       lat: searchParams.get('lat') || searchParams.get('latitude'),
       lng: searchParams.get('lng') || searchParams.get('longitude'),
       topOnly,
-      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
-        stateId: authUser.stateId,
-        districtId: authUser.districtId,
-        mandalId: authUser.mandalId,
-      } : null,
+      userLocation,
     });
     return Response.json({ success: true, data }, { status: 200 });
   }
@@ -74,6 +133,7 @@ export class UserAppController {
       ? await User.findById(userId).select('stateId districtId mandalId').lean()
       : null;
 
+    const userLocation = await this.resolveRequestLocation({ req, authUser });
     const data = await UserAppService.listAds({
       section: searchParams.get('section') || searchParams.get('sectionId'),
       category: searchParams.get('category'),
@@ -84,11 +144,7 @@ export class UserAppController {
       lng: searchParams.get('lng') || searchParams.get('longitude'),
       savedOnly: searchParams.get('savedOnly') === 'true',
       userId,
-      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
-        stateId: authUser.stateId,
-        districtId: authUser.districtId,
-        mandalId: authUser.mandalId,
-      } : null,
+      userLocation,
     });
     return Response.json({ success: true, data }, { status: 200 });
   }

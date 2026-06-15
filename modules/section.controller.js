@@ -8,8 +8,73 @@ import { VisibilityService } from '@/services/visibility.service.js';
 import Category from '@/models/category.model.js';
 import { SectionVisibilityService } from '@/services/section-visibility.service.js';
 import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
+import { PriorityService } from '@/services/priority.service.js';
+import { LocationResolverService } from '@/services/location-resolver.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 export class SectionController {
+  static async resolveRequestLocation(req, authUser = null) {
+    const { searchParams } = new URL(req.url);
+
+    if (authUser?.stateId && authUser?.districtId && authUser?.mandalId) {
+      return {
+        stateId: authUser.stateId,
+        districtId: authUser.districtId,
+        mandalId: authUser.mandalId,
+      };
+    }
+
+    const queryStateId = searchParams.get('stateId');
+    const queryDistrictId = searchParams.get('districtId');
+    const queryMandalId = searchParams.get('mandalId');
+    if (queryStateId) {
+      return {
+        stateId: queryStateId,
+        districtId: queryDistrictId || null,
+        mandalId: queryMandalId || null,
+      };
+    }
+
+    const latitude = parseCoordinate(searchParams.get('lat') || searchParams.get('latitude'));
+    const longitude = parseCoordinate(searchParams.get('lng') || searchParams.get('longitude'));
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      try {
+        const resolved = await LocationResolverService.resolveCoordinates({ latitude, longitude });
+        return {
+          stateId: resolved.state._id,
+          districtId: resolved.district._id,
+          mandalId: resolved.mandal._id,
+        };
+      } catch {
+        // fall through
+      }
+    }
+
+    const state = searchParams.get('state');
+    const district = searchParams.get('district');
+    const mandal = searchParams.get('mandal');
+    if (state && district && mandal) {
+      try {
+        const resolved = await LocationMasterService.findByNames({
+          state,
+          district,
+          mandal,
+          autoCreateMissingDistrict: false,
+          autoCreateMissingMandal: false,
+        });
+        return {
+          stateId: resolved.state._id,
+          districtId: resolved.district._id,
+          mandalId: resolved.mandal._id,
+        };
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
   /**
    * GET /api/sections
    * Fetch all active sections with banners
@@ -44,7 +109,7 @@ export class SectionController {
       const auth = authHeader ? await authenticate(req) : { user: null, error: null };
       if (auth?.error && authHeader) return auth.error;
       const authUser = auth?.user?.id ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean() : null;
-      const userLocation = VisibilityService.getUserLocation(authUser);
+      const userLocation = await this.resolveRequestLocation(req, authUser);
       const page = parseInt(searchParams.get('page')) || 1;
       const limit = parseInt(searchParams.get('limit')) || 20;
       const skip = (page - 1) * limit;
@@ -76,7 +141,7 @@ export class SectionController {
           sectionId: section._id,
           categoryId: requestedCategoryId || null,
         })
-          .select('_id section title category images status vendor')
+          .select('_id section title category images status vendor showViews showClicks views clicks createdAt isFeatured priority')
           .populate('vendor', 'storeName location state district mandal locationCoordinates media fullAddress _id')
           .sort({ isFeatured: -1, priority: -1, createdAt: -1 })
           .skip(skip)
@@ -113,64 +178,86 @@ export class SectionController {
         };
       });
 
-      const mappedAds = ads.map(ad => ({
-        ...(() => {
-          const { latitude, longitude } = getVendorCoordinates(ad.vendor);
-          return {
-        id: ad._id,
-        _id: ad._id,
-        title: ad.title,
-        category: ad.category || 'General',
-        storeId: ad.vendor?._id || null,
-        storeName: ad.vendor?.storeName || '',
-        storeAddress: ad.vendor?.fullAddress || '',
-        locationLabel: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
-        latitude,
-        longitude,
-        lat: latitude,
-        lng: longitude,
-        distanceKm: calculateDistanceKm(userLatitude, userLongitude, latitude, longitude),
-        storeSummary: {
-          businessName: ad.vendor?.storeName || '',
-          logoImage: ad.vendor?.media?.thumbnailUrl || '',
-          fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || ''
-        },
-        store: {
+      const adPriorityMap = await PriorityService.getEffectivePriorityMap(
+        'ad',
+        ads.map((ad) => ad._id),
+        userLocation
+      );
+
+      const orderedAds = PriorityService.sortItemsByPriority(
+        ads,
+        (ad) => ad._id,
+        adPriorityMap,
+        (left, right) => {
+          if ((right.isFeatured ? 1 : 0) !== (left.isFeatured ? 1 : 0)) {
+            return (right.isFeatured ? 1 : 0) - (left.isFeatured ? 1 : 0);
+          }
+          if ((right.priority || 0) !== (left.priority || 0)) {
+            return (right.priority || 0) - (left.priority || 0);
+          }
+          return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+        }
+      );
+
+      const mappedAds = orderedAds.map((ad) => {
+        const { latitude, longitude } = getVendorCoordinates(ad.vendor);
+        const rule = adPriorityMap.get(String(ad._id));
+        return {
+          id: ad._id,
+          _id: ad._id,
+          title: ad.title,
+          category: ad.category || 'General',
+          storeId: ad.vendor?._id || null,
           storeName: ad.vendor?.storeName || '',
-          location: {
-            lat: latitude,
-            lng: longitude,
+          storeAddress: ad.vendor?.fullAddress || '',
+          locationLabel: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', '),
+          latitude,
+          longitude,
+          lat: latitude,
+          lng: longitude,
+          distanceKm: calculateDistanceKm(userLatitude, userLongitude, latitude, longitude),
+          storeSummary: {
+            businessName: ad.vendor?.storeName || '',
+            logoImage: ad.vendor?.media?.thumbnailUrl || '',
+            fullAddress: ad.vendor?.fullAddress || [ad.vendor?.location?.mandal, ad.vendor?.location?.district, ad.vendor?.location?.state].filter(Boolean).join(', ') || '',
           },
-          locationCoordinates: {
-            lat: latitude,
-            lng: longitude,
+          store: {
+            storeName: ad.vendor?.storeName || '',
+            location: {
+              lat: latitude,
+              lng: longitude,
+            },
+            locationCoordinates: {
+              lat: latitude,
+              lng: longitude,
+            },
           },
-        },
-        storeDetails: {
-          location: {
-            lat: latitude,
-            lng: longitude,
+          storeDetails: {
+            location: {
+              lat: latitude,
+              lng: longitude,
+            },
+            locationCoordinates: {
+              lat: latitude,
+              lng: longitude,
+            },
           },
-          locationCoordinates: {
-            lat: latitude,
-            lng: longitude,
-          },
-        },
-        vendor: ad.vendor ? {
-          ...ad.vendor,
-          locationCoordinates: {
-            ...(ad.vendor.locationCoordinates || {}),
-            lat: latitude,
-            lng: longitude,
-          },
-        } : null,
-        image: { url: ad.images?.[0]?.url || '' },
-        viewCount: ad.showViews !== false ? (ad.views || 0) : null,
-        clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
-        status: ad.status
-          };
-        })()
-      }));
+          vendor: ad.vendor ? {
+            ...ad.vendor,
+            locationCoordinates: {
+              ...(ad.vendor.locationCoordinates || {}),
+              lat: latitude,
+              lng: longitude,
+            },
+          } : null,
+          image: { url: ad.images?.[0]?.url || '' },
+          viewCount: ad.showViews !== false ? (ad.views || 0) : null,
+          clickCount: ad.showClicks !== false ? (ad.clicks || 0) : null,
+          resolvedPriority: rule?.priority ?? null,
+          priorityScopeLevel: rule?.scopeLevel ?? null,
+          status: ad.status,
+        };
+      });
 
       return Response.json({
         success: true,
