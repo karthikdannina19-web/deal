@@ -19,14 +19,16 @@ export default function CoinsPage() {
   const [totalPagesTransactions, setTotalPagesTransactions] = useState(1);
 
   // Data states
-  const [stats, setStats] = useState({ totalRedeemed: 0, pendingRedemption: 0, userCirculation: 0, vendorCirculation: 0 });
+  const [stats, setStats] = useState({ totalRedeemed: 0, pendingRedemption: 0, userCirculation: 0, vendorCirculation: 0, vendorLifetimeRedeemed: 0 });
   const [redemptions, setRedemptions] = useState([]);
   const [walletLogs, setWalletLogs] = useState([]);
   const [fraudAlerts, setFraudAlerts] = useState({ highValueAlerts: [], populatedSpikes: [], populatedCodeAlerts: [] });
+  const [vendorsList, setVendorsList] = useState([]);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
   const [highValueFilter, setHighValueFilter] = useState(false);
+  const [selectedVendorId, setSelectedVendorId] = useState('');
 
   const fetchDashboardData = async () => {
     try {
@@ -39,12 +41,21 @@ export default function CoinsPage() {
         headers['Authorization'] = `Bearer ${token}`;
       }
 
+      // Fetch Vendors List (once)
+      if (vendorsList.length === 0) {
+        const vRes = await fetch('/api/admin/vendors?limit=1000', { headers });
+        const vData = await vRes.json();
+        if (vData.success) {
+          setVendorsList(vData.vendors || []);
+        }
+      }
+
       // Fetch Redemptions & Stats
-      const redemptionsRes = await fetch(`/api/admin/redemptions?page=${redemptionsPage}&limit=10&status=${statusFilter}&highValue=${highValueFilter}`, { headers });
+      const redemptionsRes = await fetch(`/api/admin/redemptions?page=${redemptionsPage}&limit=10&status=${statusFilter}&highValue=${highValueFilter}&vendorId=${selectedVendorId}`, { headers });
       const redData = await redemptionsRes.json();
       if (redData.success) {
         setRedemptions(redData.redemptions || []);
-        setStats(redData.stats || { totalRedeemed: 0, pendingRedemption: 0, userCirculation: 0, vendorCirculation: 0 });
+        setStats(redData.stats || { totalRedeemed: 0, pendingRedemption: 0, userCirculation: 0, vendorCirculation: 0, vendorLifetimeRedeemed: 0 });
         setTotalPagesRedemptions(redData.pagination?.totalPages || 1);
       }
 
@@ -73,7 +84,7 @@ export default function CoinsPage() {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [redemptionsPage, transactionsPage, statusFilter, highValueFilter]);
+  }, [redemptionsPage, transactionsPage, statusFilter, highValueFilter, selectedVendorId]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 text-zinc-800 dark:text-zinc-100">
@@ -279,16 +290,51 @@ export default function CoinsPage() {
                 Rejected
               </button>
             </div>
-            <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
-              <input
-                type="checkbox"
-                checked={highValueFilter}
-                onChange={(e) => setHighValueFilter(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-500 border-zinc-350 focus:ring-amber-500"
-              />
-              High Value Only (200+)
-            </label>
+            <div className="flex gap-4 items-center flex-wrap">
+              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={highValueFilter}
+                  onChange={(e) => setHighValueFilter(e.target.checked)}
+                  className="w-4 h-4 rounded text-amber-500 border-zinc-350 focus:ring-amber-500"
+                />
+                High Value Only (200+)
+              </label>
+
+              <div className="relative">
+                <select
+                  value={selectedVendorId}
+                  onChange={(e) => setSelectedVendorId(e.target.value)}
+                  className="pl-8 pr-4 py-1.5 text-xs font-bold rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-amber-500 appearance-none"
+                >
+                  <option value="">All Vendors</option>
+                  {vendorsList.map(v => (
+                    <option key={v._id} value={v._id}>{v.storeName || v.fullName}</option>
+                  ))}
+                </select>
+                <Search className="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+              </div>
+            </div>
           </div>
+
+          {/* Vendor specific analytics banner */}
+          {selectedVendorId && (
+            <div className="px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/50 flex justify-between items-center">
+               <div className="flex items-center gap-2">
+                 <div className="p-1.5 bg-indigo-500 text-white rounded-md"><Wallet size={14} /></div>
+                 <div>
+                   <p className="text-xs font-bold text-indigo-900 dark:text-indigo-100">
+                     Vendor Filter Active: {vendorsList.find(v => v._id === selectedVendorId)?.storeName || 'Selected Merchant'}
+                   </p>
+                   <p className="text-[10px] text-indigo-600 dark:text-indigo-400">Showing lifetime analytics for this specific merchant</p>
+                 </div>
+               </div>
+               <div className="text-right">
+                 <p className="text-[10px] uppercase font-black tracking-widest text-indigo-500">Lifetime Cleared</p>
+                 <p className="text-lg font-black text-indigo-950 dark:text-indigo-50">{stats.vendorLifetimeRedeemed?.toLocaleString() || 0} Coins</p>
+               </div>
+            </div>
+          )}
 
           {/* Table */}
           <div className="overflow-x-auto">

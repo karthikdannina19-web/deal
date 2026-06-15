@@ -6,6 +6,7 @@ import WalletTransaction from '../../models/walletTransaction.model.js';
 import VendorTransaction from '../../models/vendorTransaction.model.js';
 import Vendor from '../../models/vendor.model.js';
 import User from '../../models/user.model.js';
+import mongoose from 'mongoose';
 
 /**
  * Redemptions Controller
@@ -298,6 +299,7 @@ export class RedemptionsController {
 
       const { searchParams } = new URL(req.url);
       const status = searchParams.get('status');
+      const vendorId = searchParams.get('vendorId');
       const limit = parseInt(searchParams.get('limit') || '20', 10);
       const page = parseInt(searchParams.get('page') || '1', 10);
       const isHighValue = searchParams.get('highValue') === 'true';
@@ -306,6 +308,7 @@ export class RedemptionsController {
 
       let filterQuery = {};
       if (status) filterQuery.status = status;
+      if (vendorId) filterQuery.vendor = vendorId;
       if (isHighValue) filterQuery.coinAmount = { $gte: 200 }; // High value filter threshold
 
       const total = await RedemptionRequest.countDocuments(filterQuery);
@@ -335,6 +338,15 @@ export class RedemptionsController {
         { $group: { _id: null, total: { $sum: '$coinBalance' } } }
       ]);
 
+      let vendorLifetimeRedeemed = 0;
+      if (vendorId) {
+        const vendorStats = await RedemptionRequest.aggregate([
+          { $match: { vendor: new mongoose.Types.ObjectId(vendorId), status: { $in: ['APPROVED', 'success'] } } },
+          { $group: { _id: null, total: { $sum: '$coinAmount' } } }
+        ]);
+        vendorLifetimeRedeemed = vendorStats[0]?.total || 0;
+      }
+
       return Response.json({
         success: true,
         redemptions,
@@ -342,7 +354,8 @@ export class RedemptionsController {
           totalRedeemed: totalApprovedResult[0]?.total || 0,
           pendingRedemption: totalPendingResult[0]?.total || 0,
           userCirculation: systemUserCirculation[0]?.total || 0,
-          vendorCirculation: systemVendorCirculation[0]?.total || 0
+          vendorCirculation: systemVendorCirculation[0]?.total || 0,
+          vendorLifetimeRedeemed
         },
         pagination: {
           total,
