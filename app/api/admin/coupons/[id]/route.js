@@ -21,6 +21,11 @@ export async function PUT(req, { params }) {
     if (formData.has('isCodeUserSpecific')) update.isCodeUserSpecific = formData.get('isCodeUserSpecific') === 'true';
     if (formData.has('isActive')) update.isActive = formData.get('isActive') === 'true';
     if (formData.has('order')) update.order = Number(formData.get('order') || 0);
+    // Location
+    if (formData.has('visibilityScope')) update.visibilityScope = formData.get('visibilityScope');
+    if (formData.has('stateId')) update.stateId = formData.get('stateId') || null;
+    if (formData.has('districtId')) update.districtId = formData.get('districtId') || null;
+    if (formData.has('mandalId')) update.mandalId = formData.get('mandalId') || null;
     const image = formData.get('image');
     if (image && image.size > 0) {
       const upload = await S3Service.upload(image, 'coupons');
@@ -43,6 +48,11 @@ export async function PUT(req, { params }) {
     if (body.sortOrder !== undefined) update.order = Number(body.sortOrder);
     if (body.order !== undefined && body.sortOrder === undefined) update.order = Number(body.order);
     if (body.expiryDate !== undefined) update.expiryDate = body.expiryDate;
+    // Location
+    if (body.visibilityScope !== undefined) update.visibilityScope = body.visibilityScope;
+    if (body.stateId !== undefined) update.stateId = body.stateId || null;
+    if (body.districtId !== undefined) update.districtId = body.districtId || null;
+    if (body.mandalId !== undefined) update.mandalId = body.mandalId || null;
   }
 
   // Basic validation for updates

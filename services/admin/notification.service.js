@@ -2,8 +2,9 @@ import api from '../api';
 
 export const notificationService = {
   /**
-   * Send a broadcast notification
-   * @param {Object} data { title, body, type, targetType, imageUrl, action }
+   * Send a broadcast notification with optional location targeting
+   * @param {Object} data { title, body, type, targetType, imageUrl, action,
+   *                        visibilityScope, stateId, districtId, mandalId }
    */
   sendBroadcast: async (data) => {
     try {

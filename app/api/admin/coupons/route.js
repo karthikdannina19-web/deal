@@ -2,6 +2,7 @@ import { dbConnect } from '@/config/database.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import Coupon from '@/models/coupon.model.js';
 import { S3Service } from '@/services/s3.service.js';
+import mongoose from 'mongoose';
 
 export async function GET(req) {
   await dbConnect();
@@ -17,12 +18,33 @@ export async function GET(req) {
   const q = searchParams.get('q');
   const isActive = searchParams.get('isActive');
 
+  // Location filters
+  const visibilityScope = searchParams.get('visibilityScope');
+  const stateId = searchParams.get('stateId');
+  const districtId = searchParams.get('districtId');
+  const mandalId = searchParams.get('mandalId');
+
   const query = {};
   if (isActive === 'true' || isActive === 'false') query.isActive = isActive === 'true';
   if (q) query.$or = [{ title: { $regex: q, $options: 'i' } }, { category: { $regex: q, $options: 'i' } }];
 
+  // Apply location scope filter
+  if (visibilityScope && ['all', 'state', 'district', 'mandal'].includes(visibilityScope)) {
+    query.visibilityScope = visibilityScope;
+  }
+  if (stateId && mongoose.Types.ObjectId.isValid(stateId)) query.stateId = stateId;
+  if (districtId && mongoose.Types.ObjectId.isValid(districtId)) query.districtId = districtId;
+  if (mandalId && mongoose.Types.ObjectId.isValid(mandalId)) query.mandalId = mandalId;
+
   const [data, total] = await Promise.all([
-    Coupon.find(query).sort({ order: 1, createdAt: -1 }).skip(skip).limit(limit).lean(),
+    Coupon.find(query)
+      .populate('stateId', 'name')
+      .populate('districtId', 'name')
+      .populate('mandalId', 'name')
+      .sort({ order: 1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     Coupon.countDocuments(query),
   ]);
   return Response.json({ success: true, data, pagination: { total, page, limit, totalPages: Math.ceil(total / limit) } }, { status: 200 });
@@ -52,6 +74,11 @@ export async function POST(req) {
       isActive: formData.get('isActive') !== 'false',
       order: Number(formData.get('order') || 0),
       expiryDate: formData.get('expiryDate') || null,
+      // Location
+      visibilityScope: formData.get('visibilityScope') || 'all',
+      stateId: formData.get('stateId') || null,
+      districtId: formData.get('districtId') || null,
+      mandalId: formData.get('mandalId') || null,
     };
     const image = formData.get('image');
     if (image && image.size > 0) {
@@ -73,6 +100,11 @@ export async function POST(req) {
       isActive: body.isActive !== false,
       order: Number(body.sortOrder ?? body.order ?? 0),
       expiryDate: body.expiryDate || null,
+      // Location
+      visibilityScope: body.visibilityScope || 'all',
+      stateId: body.stateId || null,
+      districtId: body.districtId || null,
+      mandalId: body.mandalId || null,
     };
   }
 
@@ -99,6 +131,18 @@ export async function POST(req) {
   if (typeof payload.imageUrl !== 'string') {
     console.error('[API Coupons] Invalid imageUrl type:', typeof payload.imageUrl, payload.imageUrl);
     payload.imageUrl = ''; 
+  }
+
+  // Sanitize location IDs based on scope
+  if (payload.visibilityScope === 'all') {
+    payload.stateId = null;
+    payload.districtId = null;
+    payload.mandalId = null;
+  } else if (payload.visibilityScope === 'state') {
+    payload.districtId = null;
+    payload.mandalId = null;
+  } else if (payload.visibilityScope === 'district') {
+    payload.mandalId = null;
   }
 
   try {

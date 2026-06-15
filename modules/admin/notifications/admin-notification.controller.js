@@ -30,7 +30,8 @@ export class AdminNotificationController {
         return Response.json({ success: false, message: 'Invalid JSON body' }, { status: 400 });
       }
 
-      const { title, body: messageBody, type, imageUrl, action, targetType } = body;
+      const { title, body: messageBody, type, imageUrl, action, targetType,
+               visibilityScope, stateId, districtId, mandalId } = body;
 
       if (!title || !messageBody) {
         return Response.json({ 
@@ -43,6 +44,10 @@ export class AdminNotificationController {
       const validTargets = ['all', 'login_only'];
       const target = validTargets.includes(targetType) ? targetType : 'all';
 
+      // visibilityScope validation
+      const validScopes = ['all', 'state', 'district', 'mandal'];
+      const scope = validScopes.includes(visibilityScope) ? visibilityScope : 'all';
+
       // 3. Invoke Service
       const result = await AdminNotificationService.sendBroadcast({
         title,
@@ -51,6 +56,10 @@ export class AdminNotificationController {
         imageUrl,
         action,
         targetType: target,
+        visibilityScope: scope,
+        stateId: stateId || null,
+        districtId: districtId || null,
+        mandalId: mandalId || null,
         sentBy: user.id
       });
 

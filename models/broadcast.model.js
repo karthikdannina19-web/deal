@@ -21,7 +21,16 @@ const broadcastSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true
-    }
+    },
+    // Location Targeting
+    visibilityScope: {
+      type: String,
+      enum: ['all', 'state', 'district', 'mandal'],
+      default: 'all',
+    },
+    stateId: { type: mongoose.Schema.Types.ObjectId, ref: 'State', default: null },
+    districtId: { type: mongoose.Schema.Types.ObjectId, ref: 'District', default: null },
+    mandalId: { type: mongoose.Schema.Types.ObjectId, ref: 'Mandal', default: null },
   },
   { timestamps: true }
 );
@@ -29,3 +38,4 @@ const broadcastSchema = new mongoose.Schema(
 const Broadcast = mongoose.models.Broadcast || mongoose.model('Broadcast', broadcastSchema);
 
 export default Broadcast;
+
