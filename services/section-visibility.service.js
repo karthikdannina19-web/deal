@@ -10,6 +10,37 @@ function normalizeSectionId(sectionId) {
 }
 
 export class SectionVisibilityService {
+  static applyBannerPlacementFilter(query, placementType = 'section') {
+    const existingOr = Array.isArray(query.$or) ? query.$or : null;
+
+    let placementMatchers;
+    if (placementType === 'home_top') {
+      placementMatchers = [
+        { placementType: 'home_top' },
+        { placementType: { $exists: false }, isTopBanner: true },
+        { placementType: null, isTopBanner: true },
+      ];
+    } else {
+      placementMatchers = [
+        { placementType: 'section' },
+        { placementType: { $exists: false }, isTopBanner: { $ne: true } },
+        { placementType: null, isTopBanner: { $ne: true } },
+      ];
+    }
+
+    if (existingOr) {
+      delete query.$or;
+      query.$and = [
+        { $or: existingOr },
+        { $or: placementMatchers },
+      ];
+      return query;
+    }
+
+    query.$or = placementMatchers;
+    return query;
+  }
+
   static async getVisibleSections({ userLocation = null } = {}) {
     const sections = await Section.find(
       VisibilityService.buildMatchQuery(userLocation, {
@@ -68,15 +99,20 @@ export class SectionVisibilityService {
   }
 
   static filterBannersBySection({ userLocation = null, sectionId = null, categoryId = null, extraFilters = {} } = {}) {
+    const placementType = extraFilters.placementType || 'section';
+    const normalizedExtraFilters = { ...extraFilters };
+    delete normalizedExtraFilters.placementType;
+
     const query = VisibilityService.buildMatchQuery(userLocation, {
       isActive: true,
-      placementType: 'section',
-      ...extraFilters,
+      ...normalizedExtraFilters,
     });
+
+    this.applyBannerPlacementFilter(query, placementType);
 
     if (sectionId) {
       query.section = normalizeSectionId(sectionId);
-    } else if (query.placementType !== 'home_top') {
+    } else if (placementType !== 'home_top') {
       query.section = { $ne: null };
     }
 
