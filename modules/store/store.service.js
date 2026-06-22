@@ -125,8 +125,10 @@ export class StoreService {
     const averageRating = totalReviews > 0 ? parseFloat((sumRatings / totalReviews).toFixed(1)) : 0.0;
 
     // 3. Fetch Active Offers/Deals from both Ad (new) and Ads (legacy) collections
+    const vendorId = vendor?._id || storeDoc?.vendorId || storeId;
+
     const adsList = await Ad.find({ 
-      vendor: storeId, 
+      vendor: vendorId, 
       status: 'approved' 
     })
     .sort({ createdAt: -1 })
@@ -170,7 +172,7 @@ export class StoreService {
 
     // 4. Form legacy deals payload for backward compatibility
     const legacyDeals = await Ads.find({ 
-      vendorId: storeId, 
+      vendorId: vendorId, 
       status: 'approved' 
     })
     .sort({ createdAt: -1 })
