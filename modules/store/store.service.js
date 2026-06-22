@@ -145,8 +145,9 @@ export class StoreService {
       const primaryImage = ad.images?.find((img) => img.isPrimary)?.url || ad.images?.[0]?.url || '';
       const slugSuffix = ad.slug ? ad.slug : '';
       const shareUrl = slugSuffix ? `https://rhock.vercel.app/ads/${slugSuffix}` : '';
-      const expiresAt = ad.expiresAt;
-      const isActive = ad.status === 'approved' && (!expiresAt || new Date() < expiresAt);
+      // Match UserAppService.mapAd: consider an ad active when status is 'approved'
+      // (the user-facing ads list treats approved ads as active regardless of expiresAt)
+      const isActive = ad.status === 'approved';
 
       return {
         offerId: ad._id,
