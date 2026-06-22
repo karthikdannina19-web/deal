@@ -48,14 +48,41 @@ export class SectionVisibilityService {
       })
     ).lean();
 
+    if (!sections.length) {
+      return [];
+    }
+
+    const sectionIds = sections.map((section) => section._id);
+    const bannerQuery = VisibilityService.buildMatchQuery(userLocation, {
+      isActive: true,
+      section: { $in: sectionIds },
+    });
+    this.applyBannerPlacementFilter(bannerQuery, 'section');
+
+    const [adSectionIds, bannerSectionIds] = await Promise.all([
+      Ad.distinct('section', VisibilityService.buildMatchQuery(userLocation, {
+        status: 'approved',
+        section: { $in: sectionIds },
+      })),
+      Banner.distinct('section', bannerQuery),
+    ]);
+
+    const displayableSectionIds = new Set(
+      [...adSectionIds, ...bannerSectionIds]
+        .filter(Boolean)
+        .map((id) => String(id))
+    );
+
+    const contentReadySections = sections.filter((section) => displayableSectionIds.has(String(section._id)));
+
     const ruleMap = await PriorityService.getEffectivePriorityMap(
       'section',
-      sections.map((section) => section._id),
+      contentReadySections.map((section) => section._id),
       userLocation
     );
 
     return PriorityService.sortItemsByPriority(
-      sections,
+      contentReadySections,
       (section) => section._id,
       ruleMap,
       (left, right) => (left.order || 0) - (right.order || 0) || String(left.name || '').localeCompare(String(right.name || ''))

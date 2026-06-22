@@ -15,12 +15,14 @@ export class CmsService {
    */
   static async getPageBySlug(slug, includeInactive = false, audience = 'user') {
     await dbConnect();
+    const audienceFilters = [{ audience }, { audience: { $exists: false } }];
+    if (audience !== 'shared') {
+      audienceFilters.splice(1, 0, { audience: 'shared' });
+    }
+
     const query = {
       slug,
-      $or: [
-        { audience },
-        { audience: { $exists: false } }
-      ]
+      $or: audienceFilters
     };
     if (!includeInactive) query.isActive = true;
 

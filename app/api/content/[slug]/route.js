@@ -1,6 +1,92 @@
 import { dbConnect } from '@/config/database';
 import CmsPage from '@/models/cms.model';
 
+const SOCIAL_PLATFORM_ORDER = ['facebook', 'linkedin', 'youtube', 'instagram', 'x'];
+
+const DEFAULT_SOCIAL_LINKS = [
+  { platform: 'facebook', url: 'https://facebook.com/example', isActive: true, order: 1, iconKey: 'facebook' },
+  { platform: 'linkedin', url: 'https://linkedin.com/company/example', isActive: true, order: 2, iconKey: 'linkedin' },
+  { platform: 'youtube', url: 'https://youtube.com/@example', isActive: true, order: 3, iconKey: 'youtube' },
+  { platform: 'instagram', url: 'https://instagram.com/example', isActive: true, order: 4, iconKey: 'instagram' },
+  { platform: 'x', url: 'https://x.com/example', isActive: true, order: 5, iconKey: 'x' }
+];
+
+function buildAudienceFilters(audience = 'user') {
+  const filters = [{ audience }, { audience: { $exists: false } }];
+  if (audience !== 'shared') {
+    filters.splice(1, 0, { audience: 'shared' });
+  }
+
+  return filters;
+}
+
+function normalizePlatformName(platform = '') {
+  const normalized = String(platform).trim().toLowerCase();
+  if (normalized === 'twitter') return 'x';
+  return normalized;
+}
+
+function normalizeSocialLinks(links = []) {
+  const byPlatform = new Map();
+
+  links.forEach((item, index) => {
+    const platform = normalizePlatformName(item?.platform);
+    if (!SOCIAL_PLATFORM_ORDER.includes(platform)) {
+      return;
+    }
+
+    byPlatform.set(platform, {
+      platform,
+      url: typeof item?.url === 'string' ? item.url.trim() : '',
+      isActive: item?.isActive !== false,
+      order: item?.order || index + 1,
+      iconKey: item?.iconKey || platform
+    });
+  });
+
+  return SOCIAL_PLATFORM_ORDER.map((platform, index) => ({
+    platform,
+    url: byPlatform.get(platform)?.url || '',
+    isActive: byPlatform.get(platform)?.isActive !== false,
+    order: index + 1,
+    iconKey: platform
+  }));
+}
+
+function buildSocialProfiles(links = []) {
+  return normalizeSocialLinks(links).reduce((profiles, item) => {
+    profiles[item.platform] = item.url || '';
+    return profiles;
+  }, {});
+}
+
+function parseCmsPageContent(page) {
+  if (!page) return null;
+
+  if (page.contentType === 'json') {
+    try {
+      return JSON.parse(page.content);
+    } catch (error) {
+      console.error(`Error parsing JSON for CMS page ${page.slug}:`, error);
+      return { contentHtml: page.content };
+    }
+  }
+
+  return {
+    title: page.title,
+    lastUpdated: page.updatedAt,
+    contentHtml: page.content
+  };
+}
+
+async function getSharedAppSettingsPage() {
+  return CmsPage.findOne({
+    slug: 'app-settings',
+    isActive: true,
+    $or: buildAudienceFilters('shared')
+  }).sort({ updatedAt: -1 });
+}
+
 // Helper to parse HTML content into sections for mobile structured view
 function parseHtmlToSections(html) {
   if (!html) return [];
@@ -58,9 +144,7 @@ const DEFAULT_CONTENT = {
       { type: 'whatsapp', label: 'WhatsApp', value: '+1 234 567 8900', actionLabel: 'Chat', actionUrl: 'https://wa.me/12345678900', iconKey: 'whatsapp', iconUrl: 'https://cdn-icons-png.flaticon.com/512/733/733585.png' }
     ],
     socialLinks: [
-      { platform: 'facebook', url: 'https://facebook.com/example', isActive: true, order: 1, iconKey: 'facebook' },
-      { platform: 'instagram', url: 'https://instagram.com/example', isActive: true, order: 2, iconKey: 'instagram' },
-      { platform: 'twitter', url: 'https://twitter.com/example', isActive: true, order: 3, iconKey: 'twitter' }
+      ...DEFAULT_SOCIAL_LINKS
     ],
     footerText: '© 2026 Example Inc. All rights reserved.',
     officeAddress: '123 Main Street, City, Country',
@@ -96,37 +180,30 @@ export async function GET(request, { params }) {
     const page = await CmsPage.findOne({
       slug,
       isActive: true,
-      $or: [
-        { audience },
-        { audience: { $exists: false } }
-      ]
+      $or: buildAudienceFilters(audience)
     }).sort({ updatedAt: -1 });
 
     if (page) {
-      let data = {};
-      
-      // If content is saved as JSON, parse it
-      if (page.contentType === 'json') {
-        try {
-          data = JSON.parse(page.content);
-        } catch (e) {
-          console.error(`Error parsing JSON for CMS page ${slug}:`, e);
-          data = { contentHtml: page.content }; // Fallback
-        }
-      } else {
-        // Assume HTML content
-        data = {
-          title: page.title,
-          lastUpdated: page.updatedAt,
-          contentHtml: page.content
-        };
-      }
+      let data = parseCmsPageContent(page) || {};
 
       // Add common DB fields if not present in parsed JSON
       if (!data.title) data.title = page.title;
       data.updatedAt = page.updatedAt;
       data.slug = slug;
       data.audience = page.audience || audience;
+
+      if (slug === 'contact-us') {
+        const settingsPage = await getSharedAppSettingsPage();
+        const settingsData = parseCmsPageContent(settingsPage) || {};
+        const socialLinksSource = Array.isArray(settingsData.socialLinks) && settingsData.socialLinks.length
+          ? settingsData.socialLinks
+          : Array.isArray(data.socialLinks) && data.socialLinks.length
+            ? data.socialLinks
+            : DEFAULT_SOCIAL_LINKS;
+
+        data.socialLinks = normalizeSocialLinks(socialLinksSource);
+        data.socialProfiles = buildSocialProfiles(data.socialLinks);
+      }
 
       // Automatically generate sections for legal pages if only HTML is available
       if ((slug === 'terms-and-conditions' || slug === 'privacy-policy') && !data.sections) {
@@ -144,11 +221,23 @@ export async function GET(request, { params }) {
     // Fallback to default content if the page doesn't exist yet in the database
     const defaultData = DEFAULT_CONTENT[slug];
     if (defaultData) {
+      const fallbackData = { ...defaultData };
+      if (slug === 'contact-us') {
+        const settingsPage = await getSharedAppSettingsPage();
+        const settingsData = parseCmsPageContent(settingsPage) || {};
+        const socialLinksSource = Array.isArray(settingsData.socialLinks) && settingsData.socialLinks.length
+          ? settingsData.socialLinks
+          : defaultData.socialLinks || DEFAULT_SOCIAL_LINKS;
+
+        fallbackData.socialLinks = normalizeSocialLinks(socialLinksSource);
+        fallbackData.socialProfiles = buildSocialProfiles(fallbackData.socialLinks);
+      }
+
       return Response.json({
         success: true,
         message: 'Content fetched successfully (default)',
         data: {
-          ...defaultData,
+          ...fallbackData,
           slug,
           audience
         },

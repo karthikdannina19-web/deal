@@ -195,7 +195,7 @@ export class StoreService {
         youtube: vendor?.youtube || '',
         website: vendor?.website || '',
         linkedin: vendor?.linkedin || '',
-        x: vendor?.linkedin || ''
+        x: ''
       },
       storeDetails: {
         about: resolvedAbout,
