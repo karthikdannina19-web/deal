@@ -125,10 +125,17 @@ export class StoreService {
     const averageRating = totalReviews > 0 ? parseFloat((sumRatings / totalReviews).toFixed(1)) : 0.0;
 
     // 3. Fetch Active Offers/Deals from both Ad (new) and Ads (legacy) collections
-    const vendorId = vendor?._id || storeDoc?.vendorId || storeId;
+    const vendorId = vendor?._id || storeDoc?.vendorId || null;
+    const requestedId = storeId;
+
+    // Match ads either directly by the requested storeId (if it's a vendor id)
+    // or by the vendorId referenced from a Store document. This ensures
+    // GET /api/stores/:storeId returns all active ads belonging to that store
+    const vendorMatchIds = [requestedId];
+    if (vendorId && vendorId.toString() !== requestedId.toString()) vendorMatchIds.push(vendorId);
 
     const adsList = await Ad.find({ 
-      vendor: vendorId, 
+      vendor: { $in: vendorMatchIds }, 
       status: 'approved' 
     })
     .sort({ createdAt: -1 })
@@ -156,6 +163,7 @@ export class StoreService {
         longitude: hasValidCoordinates ? longitude : null,
         lat: hasValidCoordinates ? latitude : null,
         lng: hasValidCoordinates ? longitude : null,
+        storeId: requestedId,
         store: {
           storeName: vendor?.storeName || '',
           location: {
@@ -172,7 +180,7 @@ export class StoreService {
 
     // 4. Form legacy deals payload for backward compatibility
     const legacyDeals = await Ads.find({ 
-      vendorId: vendorId, 
+      vendorId: { $in: vendorMatchIds }, 
       status: 'approved' 
     })
     .sort({ createdAt: -1 })
