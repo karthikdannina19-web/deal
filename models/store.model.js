@@ -61,9 +61,19 @@ const storeSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     status: {
       type: String,
-      enum: ['pending_approval', 'active', 'rejected'],
+      enum: ['pending_approval', 'active', 'rejected', 'deleted'],
       default: 'pending_approval',
       required: true,
     },

@@ -10,18 +10,32 @@ import Ad from '../../models/ad.model.js';
  * Handles complex store and deal aggregation logic
  */
 export class StoreService {
+  static getActiveVendorQuery(extra = {}) {
+    return {
+      status: 'active',
+      is_deleted: { $ne: true },
+      account_status: { $ne: 'DELETED' },
+      deletedAt: null,
+      ...extra
+    };
+  }
+
+  static getActiveStoreQuery(extra = {}) {
+    return {
+      status: 'active',
+      isDeleted: { $ne: true },
+      deletedAt: null,
+      ...extra
+    };
+  }
+
   static async incrementStoreView(storeId) {
     if (!mongoose.Types.ObjectId.isValid(storeId)) {
       return null;
     }
 
     const vendor = await Vendor.findOneAndUpdate(
-      {
-        _id: storeId,
-        status: 'active',
-        is_deleted: { $ne: true },
-        account_status: { $ne: 'DELETED' }
-      },
+      this.getActiveVendorQuery({ _id: storeId }),
       { $inc: { views: 1 } },
       { returnDocument: 'after' }
     ).select('_id views').lean();
@@ -35,7 +49,7 @@ export class StoreService {
     }
 
     const store = await Store.findOneAndUpdate(
-      { _id: storeId, status: 'active' },
+      this.getActiveStoreQuery({ _id: storeId }),
       { $inc: { views: 1 } },
       { returnDocument: 'after' }
     ).select('_id views').lean();
@@ -59,21 +73,24 @@ export class StoreService {
     // 1. Attempt to fetch active Vendor by the provided storeId
     // If that fails, fall back to a Store document with the same ID.
     let vendor = await Vendor.findOne({
-      _id: storeId,
-      status: 'active'
+      ...this.getActiveVendorQuery(),
+      _id: storeId
     })
       .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours locationCoordinates website instagram linkedin youtube facebook')
       .lean();
 
     let storeDoc = null;
     if (!vendor) {
-      storeDoc = await Store.findOne({ _id: storeId, status: 'active' }).lean();
+      storeDoc = await Store.findOne(this.getActiveStoreQuery({ _id: storeId })).lean();
       if (!storeDoc) {
         return null;
       }
-      vendor = await Vendor.findOne({ _id: storeDoc.vendorId, status: 'active' })
+      vendor = await Vendor.findOne(this.getActiveVendorQuery({ _id: storeDoc.vendorId }))
         .select('_id storeName storeAbout mobileNumber location fullAddress media workingHours locationCoordinates website instagram linkedin youtube facebook')
         .lean();
+      if (!vendor) {
+        return null;
+      }
     }
 
     const source = vendor || storeDoc;
@@ -316,6 +333,13 @@ export class StoreService {
 
     // 1. Geospatial Search (Must be first stage if using $geoNear)
     // $geoNear is required to calculate and return the 'distance' field
+    const activeVendorIds = await Vendor.find(this.getActiveVendorQuery())
+      .distinct('_id');
+
+    const activeStoreMatch = this.getActiveStoreQuery({
+      vendorId: { $in: activeVendorIds }
+    });
+
     if (latitude && longitude) {
       pipeline.push({
         $geoNear: {
@@ -326,12 +350,12 @@ export class StoreService {
           distanceField: 'distance',
           maxDistance: parseFloat(radius) * 1000, // Convert KM to Meters
           spherical: true,
-          query: { status: 'active' } // Filter active stores within the geo stage
+          query: activeStoreMatch // Filter active stores within the geo stage
         }
       });
     } else {
       // Regular filter if no geo-search params provided
-      pipeline.push({ $match: { status: 'active' } });
+      pipeline.push({ $match: activeStoreMatch });
     }
 
     // 2. Search Filter (Store Name Regex)

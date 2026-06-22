@@ -31,11 +31,16 @@ export async function GET(req) {
     const districtId = searchParams.get('districtId');
     const mandalId = searchParams.get('mandalId');
 
-    const storeQuery = { status: 'active' };
+    const storeQuery = {
+      status: 'active',
+      isDeleted: { $ne: true },
+      deletedAt: null
+    };
     const vendorQuery = {
       status: 'active',
       is_deleted: { $ne: true },
-      account_status: { $ne: 'DELETED' }
+      account_status: { $ne: 'DELETED' },
+      deletedAt: null
     };
     
     if (q) {
@@ -101,15 +106,18 @@ export async function GET(req) {
     let sortOption = { createdAt: -1 };
     if (sort === 'popular') sortOption = { views: -1 };
 
-    const [stores, vendors] = await Promise.all([
-      Store.find(storeQuery)
-        .sort(sortOption)
-        .lean(),
-      Vendor.find(vendorQuery)
-        .populate('categoryId', '_id name')
-        .sort(sortOption)
-        .lean()
-    ]);
+    const vendors = await Vendor.find(vendorQuery)
+      .populate('categoryId', '_id name')
+      .sort(sortOption)
+      .lean();
+
+    const activeVendorIds = vendors.map((vendor) => vendor._id);
+    const stores = await Store.find({
+      ...storeQuery,
+      vendorId: { $in: activeVendorIds }
+    })
+      .sort(sortOption)
+      .lean();
 
     const categoryNames = [...new Set(stores.map(store => store.category).filter(Boolean))];
     const categoryDocs = categoryNames.length > 0
@@ -144,6 +152,9 @@ export async function GET(req) {
         resolvedPriority: null,
         priorityScopeLevel: null,
         address: store.address || [store.mandal, store.district, store.state].filter(Boolean).join(', '),
+        status: store.status || 'active',
+        isDeleted: store.isDeleted === true || Boolean(store.deletedAt),
+        deletedAt: store.deletedAt || null,
         location: {
           state: store.state || '',
           district: store.district || '',
@@ -154,7 +165,7 @@ export async function GET(req) {
           lng: storeLng,
           coordinates: storeLat !== null && storeLng !== null ? [storeLng, storeLat] : []
         },
-        isActive: store.status === 'active'
+        isActive: store.status === 'active' && store.isDeleted !== true && !store.deletedAt
       };
     });
 
@@ -181,6 +192,9 @@ export async function GET(req) {
         resolvedPriority: null,
         priorityScopeLevel: null,
         address,
+        status: vendor.status || 'active',
+        isDeleted: vendor.is_deleted === true || vendor.account_status === 'DELETED' || Boolean(vendor.deletedAt),
+        deletedAt: vendor.deletedAt || null,
         location: {
           state: vendor.location?.state || '',
           district: vendor.location?.district || '',
@@ -191,7 +205,7 @@ export async function GET(req) {
           lng: longitude,
           coordinates: latitude !== null && longitude !== null ? [longitude, latitude] : []
         },
-        isActive: vendor.status === 'active'
+        isActive: vendor.status === 'active' && vendor.is_deleted !== true && vendor.account_status !== 'DELETED' && !vendor.deletedAt
       };
     });
 

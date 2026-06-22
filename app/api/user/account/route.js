@@ -21,7 +21,7 @@ export async function DELETE(req) {
     
     try {
       body = await req.json();
-    } catch (e) {
+    } catch {
       // Body is optional
     }
 
@@ -44,7 +44,16 @@ export async function DELETE(req) {
     // If the user is also a vendor, we should mark their ads/store as suspended or deleted
     if (user.role === 'vendor' && user.vendorProfile) {
       await Ad.updateMany({ user: userId }, { $set: { status: 'suspended' } });
-      await Store.updateMany({ vendorId: user.vendorProfile }, { $set: { status: 'rejected' } });
+      await Store.updateMany(
+        { vendorId: user.vendorProfile },
+        {
+          $set: {
+            status: 'deleted',
+            isDeleted: true,
+            deletedAt: new Date()
+          }
+        }
+      );
     }
 
     // Log the reason/feedback if we have a separate collection, or just let it pass for now.
