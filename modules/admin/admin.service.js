@@ -1,8 +1,6 @@
 import Vendor from '@/models/vendor.model.js';
 import User from '@/models/user.model.js';
-import Category from '@/models/category.model.js';
 import Ad from '@/models/ad.model.js';
-import Payment from '@/models/payment.model.js';
 import UserSubscription from '@/models/userSubscription.model.js';
 import WalletTransaction from '@/models/walletTransaction.model.js';
 import VendorTransaction from '@/models/vendorTransaction.model.js';
@@ -14,30 +12,43 @@ import { PriorityService } from '@/services/priority.service.js';
 import mongoose from 'mongoose';
 
 export class AdminService {
-  /**
-   * List all vendors with filters
-   * @param {Object} filters { status, search, page, limit }
-   */
-  static async listVendors(filters = {}) {
-    await dbConnect();
+  static cleanSoftDeletedSuffix(value) {
+    if (!value) return value;
+    let cleaned = String(value);
+    if (cleaned.includes('+del_')) {
+      const parts = cleaned.split('+del_');
+      if (parts.length === 2) {
+        const domain = parts[1].split('@')[1];
+        return `${parts[0]}@${domain}`;
+      }
+    }
+    return cleaned.split('_del_')[0];
+  }
+
+  static escapeSpreadsheet(value = '') {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
+
+  static buildVendorListQuery(filters = {}) {
     const status = filters.status;
     const search = filters.search;
-    const page = parseInt(filters.page || '1', 10);
-    const limit = parseInt(filters.limit || '10', 10);
     const visibilityLevel = filters.visibilityLevel;
-    
+
     const query = {
       is_deleted: { $ne: true },
       account_status: { $ne: 'DELETED' },
+      deletedAt: null,
     };
-    
-    // Status Filter
+
     if (status && status !== 'all' && status !== 'undefined') {
-      // Map 'pending' from frontend to 'pending_approval' in DB
       query.status = status === 'pending' ? 'pending_approval' : status;
     }
 
-    // Search Filter (Store Name or Owner Name or Email)
     if (search) {
       query.$or = [
         { storeName: { $regex: search, $options: 'i' } },
@@ -50,22 +61,11 @@ export class AdminService {
       query.visibilityLevel = visibilityLevel;
     }
 
-    const total = await Vendor.countDocuments(query);
-    const rawVendors = await Vendor.find(query)
-      .populate('userId', 'fullName email phone')
-      .populate('categoryId', 'name')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    return query;
+  }
 
-    // Fetch active credits for each vendor & clean soft-delete suffixes
-    const cleanDel = (val) => {
-      if (!val) return val;
-      return String(val).split('_del_')[0];
-    };
-
-    const vendors = await Promise.all(rawVendors.map(async (v) => {
+  static async hydrateVendorList(rawVendors = []) {
+    return Promise.all(rawVendors.map(async (v) => {
       const activeSub = await UserSubscription.findOne({
         $or: [
           { vendor: v._id },
@@ -77,20 +77,41 @@ export class AdminService {
 
       const cleanedUser = v.userId ? {
         ...v.userId,
-        email: cleanDel(v.userId.email),
-        phone: cleanDel(v.userId.phone)
+        email: this.cleanSoftDeletedSuffix(v.userId.email),
+        phone: this.cleanSoftDeletedSuffix(v.userId.phone)
       } : null;
 
       return {
         ...v,
-        email: cleanDel(v.email),
-        mobileNumber: cleanDel(v.mobileNumber),
-        slug: cleanDel(v.slug),
+        email: this.cleanSoftDeletedSuffix(v.email),
+        mobileNumber: this.cleanSoftDeletedSuffix(v.mobileNumber),
+        slug: this.cleanSoftDeletedSuffix(v.slug),
         userId: cleanedUser,
         creditsRemaining: activeSub?.creditsRemaining || 0,
         creditsAllocated: activeSub?.creditsAllocated || 0
       };
     }));
+  }
+
+  /**
+   * List all vendors with filters
+   * @param {Object} filters { status, search, page, limit }
+   */
+  static async listVendors(filters = {}) {
+    await dbConnect();
+    const page = parseInt(filters.page || '1', 10);
+    const limit = parseInt(filters.limit || '10', 10);
+    const query = this.buildVendorListQuery(filters);
+
+    const total = await Vendor.countDocuments(query);
+    const rawVendors = await Vendor.find(query)
+      .populate('userId', 'fullName email phone')
+      .populate('categoryId', 'name')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean();
+    const vendors = await this.hydrateVendorList(rawVendors);
 
     return {
       vendors,
@@ -153,7 +174,7 @@ export class AdminService {
 
     await vendor.save();
 
-    // If approved, update the associated user's role to 'vendor'
+    // Keep linked user state aligned with the vendor lifecycle
     if (status === 'active') {
       await User.findByIdAndUpdate(vendor.userId, { 
         role: 'vendor',
@@ -167,9 +188,108 @@ export class AdminService {
           { $inc: { totalVendors: 1 } }
         );
       }
+    } else if (status === 'suspended') {
+      await User.findByIdAndUpdate(vendor.userId, {
+        status: 'suspended'
+      });
     }
 
     return vendor;
+  }
+
+  static async exportVendorAudit(filters = {}) {
+    await dbConnect();
+    const isDeletedExport = filters.status === 'deleted';
+    const vendors = isDeletedExport
+      ? (await this.listDeletedVendors({ ...filters, page: 1, limit: 5000 })).vendors
+      : await (async () => {
+          const query = this.buildVendorListQuery(filters);
+          const rawVendors = await Vendor.find(query)
+            .populate('userId', 'fullName email phone')
+            .populate('categoryId', 'name')
+            .sort({ createdAt: -1 })
+            .lean();
+          return this.hydrateVendorList(rawVendors);
+        })();
+
+    const header = [
+      'Vendor ID',
+      'Store Name',
+      'Owner Name',
+      'Vendor Email',
+      'Vendor Phone',
+      'User Email',
+      'User Phone',
+      'Category',
+      'Status',
+      'Approval Status',
+      'Visibility Level',
+      'Credits Remaining',
+      'Credits Allocated',
+      'Coin Balance',
+      'Deleted Flag',
+      'Deleted Reason',
+      'Deleted At',
+      'State',
+      'District',
+      'Mandal',
+      'Full Address',
+      'Created At',
+      'Approved At'
+    ];
+
+    const rows = vendors.map((vendor) => ([
+      vendor._id?.toString() || '',
+      vendor.storeName || '',
+      vendor.fullName || '',
+      vendor.email || '',
+      vendor.mobileNumber || '',
+      vendor.userId?.email || '',
+      vendor.userId?.phone || '',
+      vendor.categoryId?.name || '',
+      vendor.status || '',
+      vendor.approvalStatus || '',
+      vendor.visibilityLevel || '',
+      String(vendor.creditsRemaining || 0),
+      String(vendor.creditsAllocated || 0),
+      String(vendor.coinBalance || 0),
+      vendor.is_deleted === true || vendor.status === 'deleted' ? 'Yes' : 'No',
+      vendor.deletedReason || vendor.deleted_reason || '',
+      vendor.deletedAt ? new Date(vendor.deletedAt).toISOString() : '',
+      vendor.location?.state || '',
+      vendor.location?.district || '',
+      vendor.location?.mandal || '',
+      vendor.fullAddress || '',
+      vendor.createdAt ? new Date(vendor.createdAt).toISOString() : '',
+      vendor.approvedAt ? new Date(vendor.approvedAt).toISOString() : ''
+    ]));
+
+    const worksheetRows = [header, ...rows].map((cells, rowIndex) => {
+      const cellNodes = cells.map((cell) => {
+        const type = rowIndex === 0 ? 'String' : (/^-?\d+(\.\d+)?$/.test(cell) ? 'Number' : 'String');
+        return `<Cell><Data ss:Type="${type}">${this.escapeSpreadsheet(cell)}</Data></Cell>`;
+      }).join('');
+
+      return `<Row>${cellNodes}</Row>`;
+    }).join('');
+
+    const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Worksheet ss:Name="Vendor Audit">
+    <Table>
+      ${worksheetRows}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+
+    return {
+      fileName: `vendor-audit-${new Date().toISOString().slice(0, 10)}.xls`,
+      content: xml
+    };
   }
 
   static async updateVendorVisibility(vendorId, {

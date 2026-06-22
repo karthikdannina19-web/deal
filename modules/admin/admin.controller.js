@@ -191,7 +191,7 @@ export class AdminController {
    * Get Subscription Plans (Admin)
    * GET /api/admin/subscription-plans
    */
-  static async getSubscriptionPlans(req) {
+  static async getSubscriptionPlans() {
     try {
       await dbConnect();
       const plans = await getPlans();
@@ -357,7 +357,7 @@ export class AdminController {
         try {
           const decoded = verifyToken(token);
           adminId = decoded.id;
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -400,7 +400,7 @@ export class AdminController {
    * Get Admin Dashboard Stats
    * GET /api/admin/dashboard/stats
    */
-  static async getDashboardStats(req) {
+  static async getDashboardStats() {
     try {
       const stats = await AdminService.getDashboardStats();
       return Response.json({ success: true, data: stats }, { status: 200 });
@@ -455,7 +455,7 @@ export class AdminController {
    * Get Dashboard Analytics
    * GET /api/admin/dashboard/analytics
    */
-  static async getAnalytics(req) {
+  static async getAnalytics() {
     try {
       const data = await AdminService.getAnalytics();
       return Response.json({ success: true, data }, { status: 200 });
@@ -486,6 +486,36 @@ export class AdminController {
       
       const result = await AdminService.listDeletedVendors(filters);
       return Response.json({ success: true, ...result }, { status: 200 });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * GET /api/admin/vendors/export
+   */
+  static async exportVendors(req) {
+    try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
+      const { searchParams } = new URL(req.url);
+      const filters = {
+        status: searchParams.get('status'),
+        search: searchParams.get('search'),
+        visibilityLevel: searchParams.get('visibilityLevel'),
+      };
+
+      const result = await AdminService.exportVendorAudit(filters);
+
+      return new Response(result.content, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${result.fileName}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
     } catch (error) {
       return Response.json({ success: false, message: error.message }, { status: 500 });
     }

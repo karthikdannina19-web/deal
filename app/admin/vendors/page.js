@@ -10,7 +10,6 @@ import {
   Store, 
   Mail, 
   Phone, 
-  Calendar, 
   CheckCircle2, 
   XCircle, 
   Eye, 
@@ -27,7 +26,8 @@ import {
   Shield,
   CreditCard,
   User as UserIcon,
-  Tag
+  Tag,
+  Download
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -57,6 +57,7 @@ const TABS = [
   { id: 'all', label: 'Complete Ecosystem' },
   { id: 'pending', label: 'Pending Audit' },
   { id: 'active', label: 'Verified Active' },
+  { id: 'inactive', label: 'Inactive Vendors' },
   { id: 'rejected', label: 'Restricted' },
   { id: 'deleted', label: 'Deleted' },
 ];
@@ -80,6 +81,7 @@ export default function VendorsPage() {
     districtId: '',
     mandalId: '',
   });
+  const [isExporting, setIsExporting] = useState(false);
 
   /**
    * Fetch vendors from the dynamic backend API
@@ -88,7 +90,7 @@ export default function VendorsPage() {
     setLoading(true);
     try {
       const filters = {
-        status: activeTab === 'all' ? undefined : activeTab,
+        status: activeTab === 'all' ? undefined : activeTab === 'inactive' ? 'suspended' : activeTab,
         search: searchQuery,
         page: pagination.page,
         limit: pagination.limit
@@ -110,7 +112,7 @@ export default function VendorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchQuery, pagination.page, pagination.limit]);
+  }, [activeTab, searchQuery, pagination.page, pagination.limit, setError, setLoading, setVendors]);
 
   // Initial fetch and dependency-based refresh
   useEffect(() => {
@@ -165,6 +167,59 @@ export default function VendorsPage() {
       alert(error?.message || error || 'Failed to update vendor visibility');
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleStatusChange = async (vendor, status) => {
+    setProcessingId(vendor._id);
+    try {
+      if (status === 'suspended') {
+        await vendorService.suspendVendor(vendor._id);
+      } else if (status === 'active') {
+        await vendorService.activateVendor(vendor._id);
+      } else {
+        await handleReview(vendor._id, status);
+        return;
+      }
+
+      updateVendorStatus(vendor._id, status);
+      if (selectedVendor && selectedVendor._id === vendor._id) {
+        setSelectedVendor({ ...selectedVendor, status });
+      }
+      await fetchVendors();
+    } catch (error) {
+      alert(error?.message || error || 'Failed to update vendor status');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleExportAudit = async () => {
+    setIsExporting(true);
+    try {
+      const response = await vendorService.exportAudit({
+        status: activeTab === 'all' ? undefined : activeTab === 'inactive' ? 'suspended' : activeTab,
+        search: searchQuery || undefined,
+      });
+
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'application/vnd.ms-excel',
+      });
+      const disposition = response.headers['content-disposition'] || '';
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const fileName = match?.[1] || `vendor-audit-${new Date().toISOString().slice(0, 10)}.xls`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error?.message || error || 'Failed to export vendor audit');
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -241,8 +296,12 @@ export default function VendorsPage() {
               className="w-full pl-14 pr-8 py-5 bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-[28px] text-sm font-bold text-zinc-900 dark:text-white focus:ring-8 ring-admin-primary/5 focus:border-admin-primary/20 outline-none transition-all shadow-sm group-hover:shadow-md"
             />
           </div>
-          <button className="flex items-center justify-center gap-3 px-10 py-5 bg-zinc-900 text-white rounded-[28px] text-sm font-semibold uppercase tracking-[0.08em] hover:bg-admin-primary hover:shadow-lg hover:shadow-admin-primary/30 transition-all w-full sm:w-auto">
-            <CreditCard size={20} className="transition-transform" />
+          <button
+            onClick={handleExportAudit}
+            disabled={isExporting}
+            className="flex items-center justify-center gap-3 px-10 py-5 bg-zinc-900 text-white rounded-[28px] text-sm font-semibold uppercase tracking-[0.08em] hover:bg-admin-primary hover:shadow-lg hover:shadow-admin-primary/30 transition-all w-full sm:w-auto disabled:opacity-60"
+          >
+            {isExporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} className="transition-transform" />}
             Export audit
           </button>
         </div>
@@ -351,6 +410,7 @@ export default function VendorsPage() {
                         <span className={cn(
                           "inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-semibold uppercase tracking-[0.08em] border transition-all duration-500",
                           vendor.status === 'active' ? "bg-green-50/50 text-green-700 border-green-100 shadow-sm shadow-green-100/50" :
+                          vendor.status === 'suspended' ? "bg-amber-50/50 text-amber-700 border-amber-100 shadow-sm shadow-amber-100/50" :
                           vendor.status === 'pending_approval' ? "bg-orange-50/50 text-orange-700 border-orange-100 shadow-sm shadow-orange-100/50" :
                           vendor.status === 'rejected' ? "bg-red-50/50 text-red-700 border-red-100 shadow-sm shadow-red-100/50" :
                           vendor.status === 'deleted' ? "bg-zinc-100 text-zinc-600 border-zinc-200" :
@@ -358,6 +418,7 @@ export default function VendorsPage() {
                         )}>
                           <div className={cn("w-2 h-2 rounded-full", 
                             vendor.status === 'active' ? "bg-green-500 animate-pulse" : 
+                            vendor.status === 'suspended' ? "bg-amber-500" :
                             vendor.status === 'pending_approval' ? "bg-orange-500" : 
                             vendor.status === 'deleted' ? "bg-zinc-400" : "bg-red-500"
                           )} />
@@ -504,6 +565,7 @@ export default function VendorsPage() {
                    <span className={cn(
                       "px-4 py-2 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.08em] border",
                       selectedVendor.status === 'active' ? "bg-green-50 text-green-700 border-green-200" :
+                      selectedVendor.status === 'suspended' ? "bg-amber-50 text-amber-700 border-amber-200" :
                       selectedVendor.status === 'pending_approval' ? "bg-orange-50 text-orange-700 border-orange-200" :
                       selectedVendor.status === 'deleted' ? "bg-zinc-100 text-zinc-600 border-zinc-200" :
                       "bg-red-50 text-red-700 border-red-200"
@@ -840,8 +902,28 @@ export default function VendorsPage() {
                                >
                                  {processingId ? 'Saving...' : 'Update Visibility'}
                                </button>
-                             </>
-                          )}
+
+                               {selectedVendor.status === 'active' ? (
+                                 <button
+                                   disabled={!!processingId}
+                                   onClick={() => handleStatusChange(selectedVendor, 'suspended')}
+                                   className="w-full py-5 bg-amber-500 text-white rounded-[32px] font-semibold text-sm hover:bg-amber-600 transition-colors flex items-center justify-center gap-3"
+                                 >
+                                   {processingId ? <Loader2 className="animate-spin" size={20} /> : <Info size={20} />}
+                                   Mark as Inactive
+                                 </button>
+                               ) : selectedVendor.status === 'suspended' ? (
+                                 <button
+                                   disabled={!!processingId}
+                                   onClick={() => handleStatusChange(selectedVendor, 'active')}
+                                   className="w-full py-5 bg-green-600 text-white rounded-[32px] font-semibold text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-3"
+                                 >
+                                   {processingId ? <Loader2 className="animate-spin" size={20} /> : <CheckCircle2 size={20} />}
+                                   Activate Vendor
+                                 </button>
+                               ) : null}
+                              </>
+                           )}
                           
                           <button className="w-full py-5 bg-zinc-100 text-zinc-700 rounded-[32px] font-semibold text-sm hover:bg-zinc-200 transition-colors flex items-center justify-center gap-3">
                              <ExternalLink size={20} />

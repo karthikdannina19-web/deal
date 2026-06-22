@@ -59,6 +59,15 @@ export const vendorService = {
     }
   },
 
+  activateVendor: async (id) => {
+    try {
+      const response = await api.patch(`/api/admin/vendors/${id}`, { status: 'active' });
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to activate vendor';
+    }
+  },
+
   updateVendorVisibility: async (id, payload) => {
     try {
       const response = await api.patch(`/api/admin/vendors/${id}`, payload);
@@ -89,6 +98,18 @@ export const vendorService = {
       return response.data;
     } catch (error) {
       throw error.response?.data?.message || 'Failed to restore vendor';
+    }
+  },
+
+  exportAudit: async (filters = {}) => {
+    try {
+      const response = await api.get('/api/admin/vendors/export', {
+        params: filters,
+        responseType: 'blob',
+      });
+      return response;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to export vendor audit';
     }
   }
 };
