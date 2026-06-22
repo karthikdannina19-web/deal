@@ -10,6 +10,47 @@ import Ad from '../../models/ad.model.js';
  * Handles complex store and deal aggregation logic
  */
 export class StoreService {
+  static async incrementStoreView(storeId) {
+    if (!mongoose.Types.ObjectId.isValid(storeId)) {
+      return null;
+    }
+
+    const vendor = await Vendor.findOneAndUpdate(
+      {
+        _id: storeId,
+        status: 'active',
+        is_deleted: { $ne: true },
+        account_status: { $ne: 'DELETED' }
+      },
+      { $inc: { views: 1 } },
+      { returnDocument: 'after' }
+    ).select('_id views').lean();
+
+    if (vendor) {
+      return {
+        entityType: 'vendor',
+        storeId: vendor._id,
+        viewCount: vendor.views || 0
+      };
+    }
+
+    const store = await Store.findOneAndUpdate(
+      { _id: storeId, status: 'active' },
+      { $inc: { views: 1 } },
+      { returnDocument: 'after' }
+    ).select('_id views').lean();
+
+    if (!store) {
+      return null;
+    }
+
+    return {
+      entityType: 'store',
+      storeId: store._id,
+      viewCount: store.views || 0
+    };
+  }
+
   /**
    * Fetch complete store details along with its approved deals
    * @param {string} storeId (Vendor _id)
@@ -157,6 +198,7 @@ export class StoreService {
       longitude: hasValidCoordinates ? longitude : null,
       hasValidCoordinates,
       workingHours: resolvedWorkingHours,
+      viewCount: vendor?.views || storeDoc?.views || 0,
       media: sourceMedia,
       rating: averageRating,
       totalReviews: totalReviews
@@ -189,6 +231,7 @@ export class StoreService {
       phoneNumber: vendor?.mobileNumber || storeDoc?.phone || '',
       openingHours: resolvedWorkingHours,
       workingHours: resolvedWorkingHours,
+      viewCount: vendor?.views || storeDoc?.views || 0,
       socialLinks: {
         facebook: vendor?.facebook || '',
         instagram: vendor?.instagram || '',

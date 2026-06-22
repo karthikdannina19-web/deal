@@ -61,6 +61,7 @@ export class StoreController {
           phoneNumber: result.phoneNumber,
           openingHours: result.openingHours,
           workingHours: result.workingHours,
+          viewCount: result.viewCount,
           socialLinks: result.socialLinks,
           storeDetails: result.storeDetails,
           storeRatingSummary: result.storeRatingSummary,
@@ -180,7 +181,7 @@ export class StoreController {
    * GET /api/stores/nearby
    * Nearby Discovery: Get stores and deals near a specific location
    */
-  static async getNearby(req) {
+  static async getNearby() {
     try {
       return Response.json({
         success: true,
@@ -191,6 +192,52 @@ export class StoreController {
     } catch (error) {
       console.error('[StoreController.getNearby Error]', error);
       return Response.json({ success: false, message: 'Failed to fetch nearby discovery' }, { status: 500 });
+    }
+  }
+
+  /**
+   * POST /api/stores/:storeId/view
+   * Increment and return persisted store/vendor view count
+   */
+  static async incrementStoreView(req, { params }) {
+    try {
+      await dbConnect();
+      const { storeId } = await params;
+
+      if (!storeId) {
+        return Response.json({
+          success: false,
+          message: 'Store ID is required',
+        }, { status: 400 });
+      }
+
+      const result = await StoreService.incrementStoreView(storeId);
+      if (!result) {
+        return Response.json({
+          success: false,
+          message: 'Store not found',
+        }, { status: 404 });
+      }
+
+      return Response.json({
+        success: true,
+        storeId: result.storeId,
+        entityType: result.entityType,
+        viewCount: result.viewCount
+      }, { status: 200 });
+    } catch (error) {
+      console.error('[StoreController.incrementStoreView Error]', error);
+      if (error.name === 'CastError') {
+        return Response.json({
+          success: false,
+          message: 'Invalid Store ID provided',
+        }, { status: 400 });
+      }
+
+      return Response.json({
+        success: false,
+        message: 'Failed to update store view count',
+      }, { status: 500 });
     }
   }
 

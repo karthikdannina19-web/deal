@@ -56,6 +56,11 @@ const storeSchema = new mongoose.Schema(
       trim: true,
     },
     images: [{ type: String }],
+    views: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     status: {
       type: String,
       enum: ['pending_approval', 'active', 'rejected'],
