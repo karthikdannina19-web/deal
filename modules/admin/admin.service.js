@@ -1,6 +1,7 @@
 import Vendor from '@/models/vendor.model.js';
 import User from '@/models/user.model.js';
 import Ad from '@/models/ad.model.js';
+import '@/models/category.model.js';
 import UserSubscription from '@/models/userSubscription.model.js';
 import WalletTransaction from '@/models/walletTransaction.model.js';
 import VendorTransaction from '@/models/vendorTransaction.model.js';

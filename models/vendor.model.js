@@ -272,9 +272,6 @@ vendorSchema.index({ locationCoordinates: '2dsphere' });
 vendorSchema.index({ storeName: 1 }); // Regular index for starts-with/regex search
 vendorSchema.index({ visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1 });
 
-if (mongoose.models.Vendor) {
-  delete mongoose.models.Vendor;
-}
-const Vendor = mongoose.model('Vendor', vendorSchema);
+const Vendor = mongoose.models.Vendor || mongoose.model('Vendor', vendorSchema);
 
 export default Vendor;
