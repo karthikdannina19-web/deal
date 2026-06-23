@@ -27,9 +27,6 @@ const districtSchema = new mongoose.Schema(
 
 districtSchema.index({ stateId: 1, normalizedName: 1 }, { unique: true });
 
-if (mongoose.models.District) {
-  delete mongoose.models.District;
-}
-const District = mongoose.model('District', districtSchema);
+const District = mongoose.models.District || mongoose.model('District', districtSchema);
 
 export default District;

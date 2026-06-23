@@ -27,9 +27,6 @@ const mandalSchema = new mongoose.Schema(
 
 mandalSchema.index({ districtId: 1, normalizedName: 1 }, { unique: true });
 
-if (mongoose.models.Mandal) {
-  delete mongoose.models.Mandal;
-}
-const Mandal = mongoose.model('Mandal', mandalSchema);
+const Mandal = mongoose.models.Mandal || mongoose.model('Mandal', mandalSchema);
 
 export default Mandal;

@@ -66,9 +66,6 @@ const categorySchema = new mongoose.Schema(
 categorySchema.index({ isActive: 1 });
 categorySchema.index({ sectionId: 1, visibilityLevel: 1, visibilityStateId: 1, visibilityDistrictId: 1, visibilityMandalId: 1, visibilityEnabled: 1, isActive: 1 });
 
-if (mongoose.models.Category) {
-  delete mongoose.models.Category;
-}
-const Category = mongoose.model('Category', categorySchema);
+const Category = mongoose.models.Category || mongoose.model('Category', categorySchema);
 
 export default Category;

@@ -138,9 +138,6 @@ bannerSchema.pre('validate', function () {
   this.isTopBanner = this.placementType === 'home_top';
 });
 
-if (mongoose.models.Banner) {
-  delete mongoose.models.Banner;
-}
-const Banner = mongoose.model('Banner', bannerSchema);
+const Banner = mongoose.models.Banner || mongoose.model('Banner', bannerSchema);
 
 export default Banner;

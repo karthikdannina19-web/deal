@@ -99,9 +99,6 @@ sectionSchema.pre('validate', function () {
   }
 });
 
-if (mongoose.models.Section) {
-  delete mongoose.models.Section;
-}
-const Section = mongoose.model('Section', sectionSchema);
+const Section = mongoose.models.Section || mongoose.model('Section', sectionSchema);
 
 export default Section;

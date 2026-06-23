@@ -27,9 +27,6 @@ const stateSchema = new mongoose.Schema(
   }
 );
 
-if (mongoose.models.State) {
-  delete mongoose.models.State;
-}
-const State = mongoose.model('State', stateSchema);
+const State = mongoose.models.State || mongoose.model('State', stateSchema);
 
 export default State;

@@ -1,4 +1,6 @@
 import Banner from '@/models/banner.model.js';
+import '@/models/section.model.js';
+import '@/models/category.model.js';
 import { uploadToS3 } from '@/services/s3.service.js';
 import { LocationMasterService } from '@/services/location-master.service.js';
 import { VisibilityService } from '@/services/visibility.service.js';
