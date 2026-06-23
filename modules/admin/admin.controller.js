@@ -517,6 +517,31 @@ export class AdminController {
     }
   }
 
+  static async exportPayments(req) {
+    try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
+      const { searchParams } = new URL(req.url);
+      const filters = {
+        search: searchParams.get('search'),
+      };
+
+      const result = await AdminService.exportPaymentLedger(filters);
+
+      return new Response(result.content, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.ms-excel; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${result.fileName}"`,
+          'Cache-Control': 'no-store',
+        },
+      });
+    } catch (error) {
+      return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
   /**
    * Get Dashboard Analytics
    * GET /api/admin/dashboard/analytics

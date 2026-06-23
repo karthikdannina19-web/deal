@@ -100,6 +100,24 @@ export default function SectionsDashboard() {
   const [sectionPriorityDrafts, setSectionPriorityDrafts] = useState({});
   const [isPrioritySaving, setIsPrioritySaving] = useState(false);
 
+  const trackingAds = ads
+    .filter((ad) => ad.status === 'approved' || ad.status === 'active')
+    .map((ad) => ({
+      ...ad,
+      sectionKey: normalizeId(ad.section?._id || ad.section),
+    }));
+
+  const trackingSectionCounts = sections.reduce((acc, section) => {
+    acc[normalizeId(section._id)] = 0;
+    return acc;
+  }, {});
+
+  trackingAds.forEach((ad) => {
+    if (ad.sectionKey) {
+      trackingSectionCounts[ad.sectionKey] = (trackingSectionCounts[ad.sectionKey] || 0) + 1;
+    }
+  });
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
@@ -711,7 +729,7 @@ export default function SectionsDashboard() {
                       {sections.map(s => (
                          <div key={s._id} className="flex flex-col items-center px-4 py-2 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700">
                             <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{s.name}</span>
-                            <span className="text-lg font-black text-zinc-900 dark:text-zinc-50">{s.adCount || 0}</span>
+                            <span className="text-lg font-black text-zinc-900 dark:text-zinc-50">{trackingSectionCounts[normalizeId(s._id)] || 0}</span>
                          </div>
                       ))}
                    </div>
@@ -729,8 +747,8 @@ export default function SectionsDashboard() {
                          </tr>
                       </thead>
                       <tbody className="divide-y divide-zinc-50 dark:divide-zinc-800">
-                         {ads.map((ad, idx) => {
-                            const section = sections.find(s => s._id === ad.section);
+                         {trackingAds.map((ad, idx) => {
+                            const section = sections.find((s) => normalizeId(s._id) === ad.sectionKey);
                             return (
                                <motion.tr 
                                  initial={{ opacity: 0, y: 10 }}

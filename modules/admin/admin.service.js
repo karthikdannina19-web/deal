@@ -633,6 +633,117 @@ export class AdminService {
     };
   }
 
+  static async exportPaymentLedger(filters = {}) {
+    await dbConnect();
+    const { search } = filters;
+
+    const rawSubscriptions = await UserSubscription.find({ paymentStatus: 'completed' })
+      .populate('user', 'fullName email phone')
+      .populate('vendor', 'storeName fullName email phone logo')
+      .populate('plan', 'name price durationDays creditsIncluded')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const payments = await Promise.all(rawSubscriptions.map(async (sub) => {
+      let vendor = sub.vendor;
+      if (!vendor && sub.user) {
+        vendor = await Vendor.findOne({ userId: sub.user._id }).select('storeName fullName email phone').lean();
+      }
+
+      return {
+        _id: sub._id,
+        vendorId: vendor || {
+          fullName: sub.user?.fullName || 'Unknown User',
+          email: sub.user?.email,
+          phone: sub.user?.phone
+        },
+        planId: {
+          name: sub.planSnapshot?.name || sub.plan?.name,
+          price: sub.planSnapshot?.price || sub.plan?.price,
+          validityDays: sub.planSnapshot?.durationDays || sub.plan?.durationDays,
+          credits: sub.planSnapshot?.creditsIncluded || sub.plan?.creditsIncluded
+        },
+        razorpayOrderId: sub.razorpayOrderId,
+        razorpayPaymentId: sub.razorpayPaymentId,
+        amount: sub.finalAmount * 100,
+        status: sub.paymentStatus === 'completed' ? 'paid' : sub.paymentStatus,
+        createdAt: sub.createdAt
+      };
+    }));
+
+    const filteredPayments = search
+      ? payments.filter((payment) => {
+          const needle = String(search).toLowerCase();
+          return (
+            payment.razorpayOrderId?.toLowerCase().includes(needle) ||
+            payment.razorpayPaymentId?.toLowerCase().includes(needle) ||
+            payment.vendorId?.storeName?.toLowerCase().includes(needle) ||
+            payment.vendorId?.fullName?.toLowerCase().includes(needle) ||
+            payment.vendorId?.email?.toLowerCase().includes(needle)
+          );
+        })
+      : payments;
+
+    const header = [
+      'Payment ID',
+      'Order ID',
+      'Vendor Store',
+      'Vendor Owner',
+      'Vendor Email',
+      'Vendor Phone',
+      'Plan Name',
+      'Plan Price',
+      'Validity Days',
+      'Credits',
+      'Status',
+      'Amount',
+      'Created At'
+    ];
+
+    const rows = filteredPayments.map((payment) => ([
+      payment.razorpayPaymentId || '',
+      payment.razorpayOrderId || '',
+      payment.vendorId?.storeName || '',
+      payment.vendorId?.fullName || '',
+      payment.vendorId?.email || '',
+      payment.vendorId?.phone || '',
+      payment.planId?.name || '',
+      String(payment.planId?.price || ''),
+      String(payment.planId?.validityDays || ''),
+      String(payment.planId?.credits || ''),
+      payment.status || '',
+      String((payment.amount || 0) / 100),
+      payment.createdAt ? new Date(payment.createdAt).toISOString() : ''
+    ]));
+
+    const worksheetRows = [header, ...rows].map((cells, rowIndex) => {
+      const cellNodes = cells.map((cell) => {
+        const type = rowIndex === 0 ? 'String' : (/^-?\d+(\.\d+)?$/.test(cell) ? 'Number' : 'String');
+        return `<Cell><Data ss:Type="${type}">${this.escapeSpreadsheet(cell)}</Data></Cell>`;
+      }).join('');
+
+      return `<Row>${cellNodes}</Row>`;
+    }).join('');
+
+    const xml = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Worksheet ss:Name="Payments Ledger">
+    <Table>
+      ${worksheetRows}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+
+    return {
+      fileName: `payments-ledger-${new Date().toISOString().slice(0, 10)}.xls`,
+      content: xml,
+    };
+  }
+
   /**
    * List all soft-deleted vendors
    * @param {Object} filters { search, page, limit }

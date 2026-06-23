@@ -35,6 +35,7 @@ export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const fetchPayments = async () => {
     try {
@@ -71,6 +72,34 @@ export default function PaymentsPage() {
     setIsModalOpen(true);
   };
 
+  const handleExportLedger = async () => {
+    try {
+      setIsExporting(true);
+      const response = await paymentService.exportLedger({
+        search: searchQuery || undefined,
+      });
+
+      const blob = new Blob([response.data], {
+        type: response.headers['content-type'] || 'application/vnd.ms-excel',
+      });
+      const disposition = response.headers['content-disposition'] || '';
+      const match = disposition.match(/filename=\"?([^\"]+)\"?/i);
+      const fileName = match?.[1] || `payments-ledger-${new Date().toISOString().slice(0, 10)}.xls`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      alert(error || 'Failed to export payments ledger');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-10 pb-20">
       {/* 1. Header Section */}
@@ -96,9 +125,14 @@ export default function PaymentsPage() {
               className="w-full pl-12 pr-6 py-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl text-sm font-bold text-zinc-900 dark:text-white focus:ring-4 ring-admin-primary/10 outline-none transition-all"
             />
           </div>
-          <button className="flex items-center justify-center gap-3 px-8 py-4 bg-zinc-900 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-admin-primary transition-all w-full sm:w-auto shadow-xl shadow-zinc-900/10">
-            <Download size={20} />
-            Export Ledger
+          <button
+            type="button"
+            onClick={handleExportLedger}
+            disabled={isExporting}
+            className="flex items-center justify-center gap-3 px-8 py-4 bg-zinc-900 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-admin-primary transition-all w-full sm:w-auto shadow-xl shadow-zinc-900/10 disabled:opacity-60"
+          >
+            {isExporting ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
+            {isExporting ? 'Exporting...' : 'Export Ledger'}
           </button>
         </div>
       </div>
