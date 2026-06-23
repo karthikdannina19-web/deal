@@ -23,6 +23,10 @@ import {
   TrendingUp,
   Zap,
   Globe,
+  Instagram,
+  Facebook,
+  Linkedin,
+  Youtube,
   Shield,
   CreditCard,
   User as UserIcon,
@@ -48,6 +52,16 @@ function getStoreLocationIds(vendor) {
 
 function getVisibilityLabel(level) {
   return level ? `${level} Visibility` : 'All Users';
+}
+
+function getVendorSocialLinks(vendor) {
+  return [
+    { key: 'website', icon: Globe, value: vendor?.website, label: 'Website' },
+    { key: 'instagram', icon: Instagram, value: vendor?.instagram, label: 'Instagram' },
+    { key: 'facebook', icon: Facebook, value: vendor?.facebook, label: 'Facebook' },
+    { key: 'linkedin', icon: Linkedin, value: vendor?.linkedin, label: 'LinkedIn' },
+    { key: 'youtube', icon: Youtube, value: vendor?.youtube, label: 'YouTube' },
+  ].filter((item) => item.value);
 }
 
 /**
@@ -630,27 +644,27 @@ export default function VendorsPage() {
                           <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-3 flex items-center gap-2">
                              <Globe size={14} /> Social links
                           </label>
-                          <div className="flex flex-wrap gap-2">
-                             {[
-                               { icon: Globe, val: selectedVendor.website, label: 'WEB' },
-                               { icon: Globe, val: selectedVendor.instagram, label: 'INSTAGRAM' },
-                               { icon: Globe, val: selectedVendor.facebook, label: 'FACEBOOK' },
-                               { icon: Globe, val: selectedVendor.linkedin, label: 'LINKEDIN' },
-                             ].map((social, idx) => (
-                               <a 
-                                 key={idx}
-                                 href={social.val || '#'} 
-                                 target="_blank"
-                                 rel="noreferrer"
-                                 className={cn(
-                                   "w-11 h-11 rounded-2xl flex items-center justify-center transition-colors duration-200",
-                                   social.val ? "bg-zinc-100 text-zinc-900 hover:bg-admin-primary hover:text-white" : "bg-zinc-50 text-zinc-300 cursor-not-allowed"
-                                 )}
-                               >
-                                  <social.icon size={20} />
-                               </a>
-                             ))}
-                          </div>
+                          {getVendorSocialLinks(selectedVendor).length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                               {getVendorSocialLinks(selectedVendor).map((social) => (
+                                 <a
+                                   key={social.key}
+                                   href={social.value}
+                                   target="_blank"
+                                   rel="noreferrer"
+                                   title={social.label}
+                                   aria-label={social.label}
+                                   className="w-11 h-11 rounded-2xl flex items-center justify-center bg-zinc-100 text-zinc-900 hover:bg-admin-primary hover:text-white transition-colors duration-200"
+                                 >
+                                    <social.icon size={20} />
+                                 </a>
+                               ))}
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-xs font-medium text-zinc-500">
+                              No social media links added for this vendor yet.
+                            </div>
+                          )}
                        </section>
                     </div>
 
