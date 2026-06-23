@@ -34,6 +34,18 @@ export default function ReferralsDashboard() {
   const [logsPage, setLogsPage] = useState(1);
   const [totalPagesLogs, setTotalPagesLogs] = useState(1);
 
+  const normalizeSettings = (incoming = {}) => {
+    const normalizedCoinsForReferrer =
+      incoming.coinsForReferrer ?? incoming.coinsPerReferral ?? defaultSettings.coinsForReferrer;
+
+    return {
+      ...defaultSettings,
+      ...incoming,
+      coinsForReferrer: normalizedCoinsForReferrer,
+      coinsPerReferral: normalizedCoinsForReferrer,
+    };
+  };
+
   const fetchReferralData = async () => {
     try {
       setIsLoading(true);
@@ -51,7 +63,7 @@ export default function ReferralsDashboard() {
       if (data.success) {
         setReferrals(data.referrals || []);
         if (data.settings) {
-          setSettings({ ...defaultSettings, ...data.settings });
+          setSettings(normalizeSettings(data.settings));
         }
         setTotalPagesLogs(data.pagination?.totalPages || 1);
       }
@@ -90,10 +102,13 @@ export default function ReferralsDashboard() {
       const res = await fetch('/api/admin/referral/settings', {
         method: 'POST',
         headers,
-        body: JSON.stringify(settings)
+        body: JSON.stringify(normalizeSettings(settings))
       });
       const data = await res.json();
       if (data.success) {
+        if (data.settings) {
+          setSettings(normalizeSettings(data.settings));
+        }
         setSuccessMsg('Referral settings updated successfully!');
         setTimeout(() => setSuccessMsg(''), 4000);
       } else {
@@ -205,7 +220,14 @@ export default function ReferralsDashboard() {
               <input 
                 type="number" 
                 value={settings.coinsForReferrer ?? settings.coinsPerReferral ?? 0} 
-                onChange={(e) => setSettings({ ...settings, coinsForReferrer: parseInt(e.target.value) || 0 })}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10) || 0;
+                  setSettings({
+                    ...settings,
+                    coinsForReferrer: value,
+                    coinsPerReferral: value,
+                  });
+                }}
                 className="w-full px-4 py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
               />
               <p className="text-[10px] text-zinc-400">The amount of coins credited to the referrer once the referred friend registers.</p>

@@ -212,21 +212,31 @@ export class ReferralsController {
       if (roleError) return roleError;
 
       const body = await req.json();
-      const { coinsPerReferral, coinsForReferrer, coinsForReferred, dailyReferralLimit, maxReferralLimit, activationCondition, expiryDays } = body;
+      const {
+        coinsPerReferral,
+        coinsForReferrer,
+        coinsForReferred,
+        dailyReferralLimit,
+        maxReferralLimit,
+        activationCondition,
+        expiryDays,
+      } = body;
 
       let settings = await ReferralSetting.findOne();
       if (!settings) {
         settings = new ReferralSetting();
       }
 
-      // Support both new explicit fields and legacy alias
-      if (coinsForReferrer !== undefined) settings.coinsForReferrer = coinsForReferrer;
-      if (coinsForReferred !== undefined) settings.coinsForReferred = coinsForReferred;
-      if (coinsPerReferral !== undefined) {
-        settings.coinsPerReferral = coinsPerReferral;
-        // keep coinsForReferrer in sync for legacy callers
-        settings.coinsForReferrer = coinsPerReferral;
+      // Prefer the explicit referrer reward field and only fall back to the legacy alias.
+      const normalizedCoinsForReferrer =
+        coinsForReferrer !== undefined ? coinsForReferrer : coinsPerReferral;
+
+      if (normalizedCoinsForReferrer !== undefined) {
+        settings.coinsForReferrer = normalizedCoinsForReferrer;
+        settings.coinsPerReferral = normalizedCoinsForReferrer;
       }
+
+      if (coinsForReferred !== undefined) settings.coinsForReferred = coinsForReferred;
       if (dailyReferralLimit !== undefined) settings.dailyReferralLimit = dailyReferralLimit;
       if (maxReferralLimit !== undefined) settings.maxReferralLimit = maxReferralLimit;
       if (activationCondition !== undefined) settings.activationCondition = activationCondition;
