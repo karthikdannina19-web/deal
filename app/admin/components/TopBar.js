@@ -8,8 +8,8 @@ import {
   Menu,
   ChevronDown
 } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useAdminStore } from "../../../store/useAdminStore";
-import { cn } from "../../../utils/cn";
 
 /**
  * Floating Glassmorphic TopBar
@@ -17,6 +17,14 @@ import { cn } from "../../../utils/cn";
  */
 export default function TopBar() {
   const { isSidebarOpen, setSidebarOpen, adminUser } = useAdminStore();
+  const pathname = usePathname();
+
+  const pathSegments = pathname.split('/').filter(Boolean);
+  const section = pathSegments[1] || 'dashboard';
+  const title = section
+    .split('-')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
 
   return (
     <header className="h-24 sticky top-0 z-40 px-10 flex items-center justify-between glass-topbar transition-all duration-300">
@@ -31,11 +39,11 @@ export default function TopBar() {
            </button>
         )}
         <div className="flex flex-col">
-          <h2 className="text-2xl font-bold text-[#1A1A2E] tracking-tight">Overview</h2>
+          <h2 className="text-2xl font-bold text-[#1A1A2E] tracking-tight">{title}</h2>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-admin-primary/60">System</span>
             <div className="w-1 h-1 rounded-full bg-zinc-300" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">Dashboard</span>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">{title}</span>
           </div>
         </div>
       </div>
@@ -66,7 +74,7 @@ export default function TopBar() {
           <div className="flex items-center gap-4 pl-2 group cursor-pointer">
             <div className="flex flex-col items-end">
               <p className="text-sm font-black text-[#1A1A2E] tracking-tight group-hover:text-admin-primary transition-colors">
-                {adminUser?.firstName || 'Admin'}
+                {adminUser?.fullName || adminUser?.firstName || 'Admin'}
               </p>
               <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">
                 {adminUser?.role === 'admin' ? 'Super Admin' : 'Staff'}

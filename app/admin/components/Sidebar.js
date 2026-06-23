@@ -51,7 +51,16 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { isSidebarOpen, toggleSidebar } = useAdminStore();
+  const { isSidebarOpen, toggleSidebar, logout } = useAdminStore();
+
+  const handleSignOut = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('admin_user');
+      logout();
+      window.location.href = '/admin/login';
+    }
+  };
 
   return (
     <motion.aside
@@ -171,6 +180,7 @@ export default function Sidebar() {
           </button>
         ) : (
           <button 
+            onClick={handleSignOut}
             className="flex items-center gap-4 px-5 py-4 w-full rounded-2xl text-zinc-500 hover:text-red-500 hover:bg-red-50 transition-all duration-300 group"
           >
             <LogOut size={22} className="shrink-0 group-hover:-translate-x-1 transition-transform" />

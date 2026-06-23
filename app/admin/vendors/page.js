@@ -939,9 +939,14 @@ export default function VendorsPage() {
                               </>
                            )}
                           
-                          <button className="w-full py-5 bg-zinc-100 text-zinc-700 rounded-[32px] font-semibold text-sm hover:bg-zinc-200 transition-colors flex items-center justify-center gap-3">
+                          <button
+                            type="button"
+                            disabled
+                            title="This action is not connected to a live data source yet."
+                            className="w-full py-5 bg-zinc-100 text-zinc-500 rounded-[32px] font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-3 opacity-80"
+                          >
                              <ExternalLink size={20} />
-                             Advanced analytics
+                             Advanced analytics unavailable
                           </button>
                        </div>
                     </div>

@@ -124,9 +124,14 @@ export default function AdminDashboard() {
                 ))}
              </div>
 
-             <button className="w-full mt-12 py-5 rounded-[22px] bg-zinc-900 text-white font-black text-[11px] uppercase tracking-[0.25em] transition-all hover:bg-admin-primary hover:shadow-2xl hover:shadow-admin-primary/30 flex items-center justify-center gap-4 group">
-                Full Security Audit
-                <ArrowUpRight size={18} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+             <button
+               type="button"
+               disabled
+               title="Security statuses shown above are currently a static launch snapshot."
+               className="w-full mt-12 py-5 rounded-[22px] bg-zinc-200 text-zinc-500 font-black text-[11px] uppercase tracking-[0.25em] cursor-not-allowed flex items-center justify-center gap-4"
+             >
+                Security Snapshot
+                <ArrowUpRight size={18} />
              </button>
           </div>
         </div>
