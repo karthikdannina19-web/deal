@@ -23,10 +23,10 @@ import {
   TrendingUp,
   Zap,
   Globe,
-  Instagram,
-  Facebook,
-  Linkedin,
-  Youtube,
+  Camera,
+  Users,
+  BriefcaseBusiness,
+  Play,
   Shield,
   CreditCard,
   User as UserIcon,
@@ -57,10 +57,10 @@ function getVisibilityLabel(level) {
 function getVendorSocialLinks(vendor) {
   return [
     { key: 'website', icon: Globe, value: vendor?.website, label: 'Website' },
-    { key: 'instagram', icon: Instagram, value: vendor?.instagram, label: 'Instagram' },
-    { key: 'facebook', icon: Facebook, value: vendor?.facebook, label: 'Facebook' },
-    { key: 'linkedin', icon: Linkedin, value: vendor?.linkedin, label: 'LinkedIn' },
-    { key: 'youtube', icon: Youtube, value: vendor?.youtube, label: 'YouTube' },
+    { key: 'instagram', icon: Camera, value: vendor?.instagram, label: 'Instagram' },
+    { key: 'facebook', icon: Users, value: vendor?.facebook, label: 'Facebook' },
+    { key: 'linkedin', icon: BriefcaseBusiness, value: vendor?.linkedin, label: 'LinkedIn' },
+    { key: 'youtube', icon: Play, value: vendor?.youtube, label: 'YouTube' },
   ].filter((item) => item.value);
 }
 
