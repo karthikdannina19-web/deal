@@ -137,6 +137,8 @@ export class ReferralsService {
       startOfDay.setHours(0, 0, 0, 0);
       const dailyCount = await Referral.countDocuments({
         referrer: referrerUser._id,
+        status: 'completed',
+        referred: { $ne: referredUser._id },
         createdAt: { $gte: startOfDay }
       }).session(session);
 

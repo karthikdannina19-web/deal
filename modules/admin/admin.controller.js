@@ -433,6 +433,72 @@ export class AdminController {
   }
 
   /**
+   * Update or modify a user (suspend/activate/delete)
+   * PATCH /api/admin/users/[id]
+   */
+  static async updateUser(req, { params }) {
+    try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
+      const resolved = await params;
+      const id = resolved.id || resolved.userId;
+      if (!id) return Response.json({ success: false, message: 'User ID is required' }, { status: 400 });
+
+      const body = await req.json();
+      const { action, status } = body;
+
+      if (action === 'delete' || status === 'deleted') {
+        // Use UserService for soft-delete if available
+        const { UserService } = await import('@/modules/user/user.service.js');
+        await UserService.deleteUserAccount(id);
+        return Response.json({ success: true, message: 'User deleted successfully' }, { status: 200 });
+      }
+
+      if (action === 'suspend' || status === 'suspended') {
+        await User.findByIdAndUpdate(id, { $set: { status: 'suspended' } });
+        return Response.json({ success: true, message: 'User suspended successfully' }, { status: 200 });
+      }
+
+      if (action === 'activate' || status === 'active') {
+        await User.findByIdAndUpdate(id, { $set: { status: 'active' } });
+        return Response.json({ success: true, message: 'User activated successfully' }, { status: 200 });
+      }
+
+      return Response.json({ success: false, message: 'Invalid action' }, { status: 400 });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
+
+  /**
+   * Impersonate a user (generate token for user)
+   * POST /api/admin/users/[id]/impersonate
+   */
+  static async impersonateUser(req, { params }) {
+    try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+
+      const resolved = await params;
+      const id = resolved.id || resolved.userId;
+      if (!id) return Response.json({ success: false, message: 'User ID is required' }, { status: 400 });
+
+      await dbConnect();
+      const user = await User.findById(id).lean();
+      if (!user) return Response.json({ success: false, message: 'User not found' }, { status: 404 });
+
+      const token = generateToken({ id: user._id, role: user.role || 'user', email: user.email });
+
+      return Response.json({ success: true, message: 'Impersonation token generated', data: { token, user } }, { status: 200 });
+    } catch (error) {
+      const status = error.statusCode || 500;
+      return Response.json({ success: false, message: error.message }, { status });
+    }
+  }
+
+  /**
    * Get All Payments
    * GET /api/admin/payments
    */

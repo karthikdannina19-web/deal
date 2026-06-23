@@ -80,6 +80,7 @@ export async function GET(req) {
       data: {
         referralCode,
         availableCoins: user.coinBalance || 0,
+        balance: user.coinBalance || 0,
         totalReferrals,
         totalReferralCoins,
         coinsForReferrer,
@@ -88,6 +89,7 @@ export async function GET(req) {
         shareUrl,
         infoText: 'Coins are digital rewards you can redeem at any partner vendor during your purchase.',
         activity,
+        recentActivity: activity,
       },
     }, { status: 200 });
   } catch (error) {

@@ -38,6 +38,10 @@ export default function UsersPage() {
   const appliedDistrict = appliedState?.districts?.find((district) => district.id === appliedFilters.districtId) || null;
   const appliedMandal = appliedDistrict?.mandals?.find((mandal) => mandal.id === appliedFilters.mandalId) || null;
 
+  const [openActionsFor, setOpenActionsFor] = useState(null);
+  const [modalUser, setModalUser] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -358,10 +362,134 @@ export default function UsersPage() {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                    <td className="px-6 py-4 text-right relative">
+                      <button
+                        onClick={() => setOpenActionsFor(openActionsFor === user._id ? null : user._id)}
+                        className="p-2 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                        aria-haspopup="true"
+                        aria-expanded={openActionsFor === user._id}
+                      >
                         <MoreHorizontal size={18} />
                       </button>
+
+                      {openActionsFor === user._id && (
+                        <div className="absolute right-2 top-10 w-48 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-50">
+                          <ul className="py-1">
+                            <li>
+                              <button
+                                onClick={async () => {
+                                  setOpenActionsFor(null);
+                                  setModalLoading(true);
+                                  try {
+                                    const res = await userService.getUserById(user._id);
+                                    setModalUser(res.user || res.data || res);
+                                  } catch (err) {
+                                    setError(err?.toString?.() || err);
+                                  } finally {
+                                    setModalLoading(false);
+                                  }
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                View Details
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={async () => {
+                                  setOpenActionsFor(null);
+                                  try {
+                                    const wantSuspend = user.status !== 'suspended';
+                                    const ok = confirm(`Are you sure you want to ${wantSuspend ? 'suspend' : 'activate'} this user?`);
+                                    if (!ok) return;
+                                    await userService.updateUser(user._id, { action: wantSuspend ? 'suspend' : 'activate' });
+                                    // refresh list
+                                    fetchUsers();
+                                  } catch (err) {
+                                    setError(err?.toString?.() || err);
+                                  }
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                {user.status === 'suspended' ? 'Activate' : 'Suspend'}
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={async () => {
+                                  setOpenActionsFor(null);
+                                  const ok = confirm('Permanently delete this user (soft-delete identifiers)?');
+                                  if (!ok) return;
+                                  try {
+                                    await userService.deleteUser(user._id);
+                                    fetchUsers();
+                                  } catch (err) {
+                                    setError(err?.toString?.() || err);
+                                  }
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                Delete
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={async () => {
+                                  setOpenActionsFor(null);
+                                  try {
+                                    const res = await userService.impersonateUser(user._id);
+                                    const token = res.data?.token || res.token || (res.data && res.data.token);
+                                    if (token) {
+                                      // provide admin with token and option to open user app
+                                      prompt('Copy impersonation token (use in Authorization header):', token);
+                                    } else {
+                                      setError('Failed to get impersonation token');
+                                    }
+                                  } catch (err) {
+                                    setError(err?.toString?.() || err);
+                                  }
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                Impersonate
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(user._id || '');
+                                  setOpenActionsFor(null);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                Copy ID
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={() => {
+                                  setOpenActionsFor(null);
+                                  if (user.email) window.location.href = `mailto:${user.email}`;
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                Send Email
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                onClick={() => {
+                                  setOpenActionsFor(null);
+                                  if (user.phone) window.location.href = `tel:${user.phone}`;
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                              >
+                                Call
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -390,6 +518,39 @@ export default function UsersPage() {
             </button>
           </div>
         </div>
+      </div>
+      <UserDetailsModal user={modalUser} loading={modalLoading} onClose={() => setModalUser(null)} />
+    </div>
+  );
+}
+
+function UserDetailsModal({ user, loading, onClose }) {
+  if (!user && !loading) return null;
+
+  return (
+    <div className="fixed inset-0 z-60 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 z-70">
+        <div className="flex items-start justify-between">
+          <h3 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">User Details</h3>
+          <button onClick={onClose} className="text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">Close</button>
+        </div>
+
+        {loading ? (
+          <div className="py-6 text-center">Loading...</div>
+        ) : (
+          <div className="mt-4 space-y-3 text-sm text-zinc-700 dark:text-zinc-300">
+            <div><strong>Name:</strong> {user.firstName} {user.lastName}</div>
+            <div><strong>Email:</strong> {user.email || 'N/A'}</div>
+            <div><strong>Phone:</strong> {user.phone || 'N/A'}</div>
+            <div><strong>Status:</strong> {user.status || 'N/A'}</div>
+            <div><strong>Joined:</strong> {user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</div>
+            <div><strong>Location:</strong> {[user.mandal, user.district, user.state].filter(Boolean).join(', ') || 'N/A'}</div>
+            <div className="pt-4">
+              <button onClick={() => { navigator.clipboard?.writeText(user._id || ''); }} className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-md">Copy ID</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,4 @@
 import User from '@/models/user.model.js';
-import Referral from '@/models/referral.model.js';
 import Otp from '@/models/otp.model.js';
 import { generateOtp } from '@/utils/generateOtp.js';
 import { hashData, compareHash } from '@/utils/hash.js';
@@ -134,7 +133,6 @@ export class AuthService {
       profileCompleted: true // Since they provided all details during registration
     });
 
-    let pendingReferral = null;
     if (effectiveReferralCode) {
       const referrer = await User.findOne({ 
         $or: [{ referralCode: effectiveReferralCode }, { phone: effectiveReferralCode }] 
@@ -143,18 +141,9 @@ export class AuthService {
         throw new Error('Invalid referral code');
       }
       user.referredBy = referrer._id;
-      pendingReferral = new Referral({
-        referrer: referrer._id,
-        referred: user._id,
-        rewardCoins: 0,
-        status: 'pending'
-      });
     }
 
     await user.save();
-    if (pendingReferral) {
-      await pendingReferral.save();
-    }
 
     // 5. Automatically trigger Send OTP for the new user
     await this.sendVendorOtp(mobileNumber);

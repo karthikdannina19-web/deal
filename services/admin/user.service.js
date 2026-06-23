@@ -37,4 +37,32 @@ export const userService = {
       throw error.response?.data?.message || 'Failed to fetch user details';
     }
   }
+,
+
+  updateUser: async (id, payload) => {
+    try {
+      const response = await api.patch(`/api/admin/users/${id}`, payload);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to update user';
+    }
+  },
+
+  impersonateUser: async (id) => {
+    try {
+      const response = await api.post(`/api/admin/users/${id}/impersonate`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to impersonate user';
+    }
+  },
+
+  deleteUser: async (id) => {
+    try {
+      const response = await api.delete(`/api/admin/users/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data?.message || 'Failed to delete user';
+    }
+  }
 };
