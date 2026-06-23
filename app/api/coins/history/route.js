@@ -1,6 +1,7 @@
 import { dbConnect } from '@/config/database';
 import { authenticate } from '@/middleware/auth.middleware';
 import WalletTransaction from '@/models/walletTransaction.model';
+import Referral from '@/models/referral.model';
 import User from '@/models/user.model';
 
 export async function GET(req) {
@@ -34,19 +35,47 @@ export async function GET(req) {
       WalletTransaction.countDocuments({ user: userId })
     ]);
 
+    const referralBonusReferenceIds = transactions
+      .filter((tx) => tx.transactionType === 'REFERRAL_BONUS' && tx.referenceId)
+      .map((tx) => tx.referenceId);
+
+    const referralDocs = referralBonusReferenceIds.length > 0
+      ? await Referral.find({ _id: { $in: referralBonusReferenceIds } })
+          .populate('referrer', 'firstName lastName phone')
+          .lean()
+      : [];
+
+    const referralById = new Map(
+      referralDocs.map((referral) => [referral._id.toString(), referral])
+    );
+
     const formattedTransactions = transactions.map(tx => {
       let title = tx.transactionType.replace(/_/g, ' ');
       let subtitle = tx.type === 'credit' ? 'Coins Added' : 'Coins Deducted';
       let type = tx.transactionType.toLowerCase();
+      let relatedReferrer = null;
 
       if (tx.transactionType === 'REFERRAL_REWARD') {
         title = 'Referral Reward';
         subtitle = 'Referral reward credited';
         type = 'referral_reward';
       } else if (tx.transactionType === 'REFERRAL_BONUS') {
+        const referral = tx.referenceId ? referralById.get(tx.referenceId.toString()) : null;
+        const referrer = referral?.referrer || null;
+        const referrerName = `${referrer?.firstName || ''} ${referrer?.lastName || ''}`.trim();
+
         title = 'Referral Bonus';
-        subtitle = 'Welcome bonus credited';
-        type = 'referral_bonus';
+        subtitle = referrerName ? `Referred by ${referrerName}` : 'Welcome bonus credited';
+        type = 'signup_referral_bonus';
+
+        if (referrer) {
+          relatedReferrer = {
+            _id: referrer._id,
+            name: referrerName || referrer.phone || 'Unknown User',
+            fullName: referrerName || referrer.phone || 'Unknown User',
+            mobileNumber: referrer.phone || ''
+          };
+        }
       } else if (tx.transactionType === 'BONUS') {
         title = 'Bonus';
         subtitle = 'Bonus credited';
@@ -61,14 +90,29 @@ export async function GET(req) {
         type = 'adjustment';
       }
 
-      return {
+      const responseItem = {
         id: tx._id,
+        _id: tx._id,
         title,
         subtitle,
         amount: tx.amount,
         type,
         createdAt: tx.createdAt.toISOString()
       };
+
+      if (relatedReferrer) {
+        responseItem.referredBy = relatedReferrer;
+        responseItem.referrer = relatedReferrer;
+        responseItem.friend = relatedReferrer;
+        responseItem.user = relatedReferrer;
+        responseItem.referredByName = relatedReferrer.fullName;
+        responseItem.referrerName = relatedReferrer.fullName;
+        responseItem.friendName = relatedReferrer.fullName;
+        responseItem.userName = relatedReferrer.fullName;
+        responseItem.customerName = relatedReferrer.fullName;
+      }
+
+      return responseItem;
     });
 
     return Response.json({
