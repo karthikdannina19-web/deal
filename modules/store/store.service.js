@@ -69,7 +69,7 @@ export class StoreService {
    * Fetch complete store details along with its approved deals
    * @param {string} storeId (Vendor _id)
    */
-  static async getStoreDetails(storeId) {
+  static async getStoreDetails(storeId, { viewerUserId } = {}) {
     // 1. Attempt to fetch active Vendor by the provided storeId
     // If that fails, fall back to a Store document with the same ID.
     let vendor = await Vendor.findOne({
@@ -108,38 +108,61 @@ export class StoreService {
     const sourceImages = vendor ? sourceMedia.images || [] : (storeDoc?.images || []);
 
     // 2. Fetch Active Reviews & Ratings Breakdown
-    const reviews = await Review.find({ vendorId: vendor?._id || storeDoc?.vendorId, isActive: true })
-      .populate({
-        path: 'userId',
-        select: 'firstName lastName profileImage email phone'
-      })
-      .sort({ createdAt: -1 })
+    const effectiveVendorId = vendor?._id || storeDoc?.vendorId;
+    const reviews = await Review.find({ vendorId: effectiveVendorId, isActive: true })
+      .select('rating')
       .lean();
 
-    let totalReviews = reviews.length;
+    const totalReviews = reviews.length;
     let sumRatings = 0;
     const ratingBreakdown = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-
-    const customerReviews = reviews.map(rev => {
+    for (const rev of reviews) {
       sumRatings += rev.rating;
       const r = Math.min(5, Math.max(1, Math.round(rev.rating)));
       ratingBreakdown[r] = (ratingBreakdown[r] || 0) + 1;
-
-      const u = rev.userId || {};
-      const userName = [u.firstName, u.lastName].filter(Boolean).join(' ') || 'Anonymous User';
-      const userImage = u.profileImage || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
-
-      return {
-        reviewId: rev._id,
-        userName,
-        userImage,
-        comment: rev.reviewText || '',
-        rating: rev.rating,
-        createdAt: rev.createdAt
-      };
-    });
+    }
 
     const averageRating = totalReviews > 0 ? parseFloat((sumRatings / totalReviews).toFixed(1)) : 0.0;
+    const publicRatingSummary = {
+      averageRating,
+      avgRating: averageRating,
+      totalReviews,
+      reviewCount: totalReviews,
+      ratingBreakdown,
+      counts: ratingBreakdown
+    };
+
+    let currentUserReview = null;
+    if (viewerUserId && mongoose.Types.ObjectId.isValid(viewerUserId)) {
+      const myReviewDoc = await Review.findOne({
+        vendorId: effectiveVendorId,
+        userId: viewerUserId,
+        isActive: true
+      })
+        .populate({
+          path: 'userId',
+          select: 'firstName lastName profileImage phone'
+        })
+        .lean();
+
+      if (myReviewDoc) {
+        const u = myReviewDoc.userId || {};
+        currentUserReview = {
+          reviewId: myReviewDoc._id,
+          userId: u._id || viewerUserId,
+          mobileNumber: u.phone || '',
+          userName: [u.firstName, u.lastName].filter(Boolean).join(' ') || 'You',
+          userImage: u.profileImage || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+          comment: myReviewDoc.reviewText || '',
+          reviewText: myReviewDoc.reviewText || '',
+          rating: myReviewDoc.rating,
+          createdAt: myReviewDoc.createdAt,
+          updatedAt: myReviewDoc.updatedAt
+        };
+      }
+    }
+
+    const customerReviews = currentUserReview ? [currentUserReview] : [];
 
     // 3. Fetch Active Offers/Deals from both Ad (new) and Ads (legacy) collections
     const vendorId = vendor?._id || storeDoc?.vendorId || null;
@@ -282,11 +305,15 @@ export class StoreService {
         latitude: hasValidCoordinates ? latitude : null,
         longitude: hasValidCoordinates ? longitude : null
       },
-      storeRatingSummary: {
-        averageRating,
-        totalReviews,
-        ratingBreakdown
-      },
+      averageRating,
+      avgRating: averageRating,
+      totalReviews,
+      reviewCount: totalReviews,
+      ratingBreakdown,
+      counts: ratingBreakdown,
+      storeRatingSummary: publicRatingSummary,
+      currentUserReview,
+      myReview: currentUserReview,
       customerReviews,
       offers,
 

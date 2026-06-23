@@ -1,5 +1,6 @@
 import { StoreService } from '@/modules/store/store.service.js';
 import { dbConnect } from '@/config/database.js';
+import { authenticate } from '@/middleware/auth.middleware.js';
 
 /**
  * Store Controller
@@ -27,8 +28,17 @@ export class StoreController {
         }, { status: 400 });
       }
 
+      let viewerUserId = null;
+      const authHeader = req.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const authResult = await authenticate(req);
+        if (!authResult.error) {
+          viewerUserId = authResult.user.id;
+        }
+      }
+
       // 3. Fetch consolidated data from Service
-      const result = await StoreService.getStoreDetails(storeId);
+      const result = await StoreService.getStoreDetails(storeId, { viewerUserId });
 
       // 4. Verify store existence and status
       if (!result) {
@@ -63,8 +73,16 @@ export class StoreController {
           workingHours: result.workingHours,
           viewCount: result.viewCount,
           socialLinks: result.socialLinks,
+          averageRating: result.averageRating,
+          avgRating: result.avgRating,
+          totalReviews: result.totalReviews,
+          reviewCount: result.reviewCount,
+          ratingBreakdown: result.ratingBreakdown,
+          counts: result.counts,
           storeDetails: result.storeDetails,
           storeRatingSummary: result.storeRatingSummary,
+          currentUserReview: result.currentUserReview,
+          myReview: result.myReview,
           customerReviews: result.customerReviews,
           offers: result.offers,
           
