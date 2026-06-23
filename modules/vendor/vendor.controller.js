@@ -548,6 +548,13 @@ export class VendorController {
         thumbnailUrl: profile.media?.thumbnailUrl || '',
         bannerUrl: profile.media?.bannerUrl || '',
         category: profile.categoryId?.name || '',
+        socialLinks: {
+          website: profile.website || '',
+          instagram: profile.instagram || '',
+          linkedin: profile.linkedin || '',
+          youtube: profile.youtube || '',
+          facebook: profile.facebook || ''
+        },
         subscription: activeSubscription ? {
           planName: activeSubscription.planSnapshot?.name || 'Unknown Plan',
           planSlug: activeSubscription.planSnapshot?.slug || '',
@@ -609,6 +616,14 @@ export class VendorController {
         thumbnailUrl: updatedProfile.media?.thumbnailUrl || '',
         bannerUrl: updatedProfile.media?.bannerUrl || '',
         category: updatedProfile.categoryId?.name || ''
+      ,
+        socialLinks: {
+          website: updatedProfile.website || '',
+          instagram: updatedProfile.instagram || '',
+          linkedin: updatedProfile.linkedin || '',
+          youtube: updatedProfile.youtube || '',
+          facebook: updatedProfile.facebook || ''
+        }
       };
 
       return Response.json({

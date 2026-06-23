@@ -690,10 +690,21 @@ export class VendorService {
       };
     }
 
-    // Any vendor profile edit must go back through admin review.
-    vendor.status = 'pending_approval';
-    vendor.rejectionReason = '';
-    vendor.registrationStep = Math.max(vendor.registrationStep || 1, 3);
+    // Determine if this update requires admin approval.
+    // Allow social-links-only updates to persist immediately (no approval required).
+    const socialOnlyKeys = ['website', 'instagram', 'linkedin', 'youtube', 'facebook'];
+    const incomingKeys = Object.keys(updateData).filter(k => updateData[k] !== undefined);
+    const requiresApproval = incomingKeys.some(k => !socialOnlyKeys.includes(k));
+
+    if (requiresApproval) {
+      // Any non-social-link change must go back through admin review.
+      vendor.status = 'pending_approval';
+      vendor.rejectionReason = '';
+      vendor.registrationStep = Math.max(vendor.registrationStep || 1, 3);
+    } else {
+      // Social-links-only update: persist without changing approval status
+      // Keep existing status, rejectionReason and registrationStep intact.
+    }
 
     if (vendor.location?.state && vendor.location?.district && vendor.location?.mandal) {
       await LocationMasterService.syncLegacyLocation(vendor);
