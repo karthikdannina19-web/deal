@@ -4,6 +4,8 @@ import User from '@/models/user.model';
 import ReferralLog from '@/models/referralLog.model';
 import ReferralSetting from '@/models/referralSetting.model';
 
+const DEBIT_ACTIVITY_TYPES = new Set(['coins_redeemed', 'redeem', 'wallet_debit']);
+
 function buildUserName(user) {
   if (!user) return 'Unknown User';
   const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
@@ -23,6 +25,11 @@ function formatJoinedAt(dateValue) {
     hour12: true,
   }).format(date);
   return `Joined on ${datePart}, ${timePart}`;
+}
+
+function getSignedAmount(amount, isDebit) {
+  const normalizedAmount = Math.abs(Number(amount) || 0);
+  return isDebit ? -normalizedAmount : normalizedAmount;
 }
 
 export async function GET(req) {
@@ -57,12 +64,16 @@ export async function GET(req) {
     const referralCode = user.referralCode || 'N/A';
     const shareUrl = `${baseUrl}/register?ref=${encodeURIComponent(referralCode)}`;
     const activity = logs.map((log) => {
+      const type = 'referral_reward';
       const referredUserName = buildUserName(log.newUserId);
-      const amount = log.coinsGivenToReferrer || 0;
+      const amount = getSignedAmount(
+        log.coinsGivenToReferrer || 0,
+        DEBIT_ACTIVITY_TYPES.has(type)
+      );
 
       return {
         id: log._id.toString(),
-        type: 'referral_reward',
+        type,
         referredUserName,
         title: referredUserName,
         subtitle: formatJoinedAt(log.createdAt),

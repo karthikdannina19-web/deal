@@ -4,6 +4,22 @@ import WalletTransaction from '@/models/walletTransaction.model';
 import Referral from '@/models/referral.model';
 import User from '@/models/user.model';
 
+const DEBIT_TRANSACTION_TYPES = new Set([
+  'REDEMPTION_DEBIT',
+  'WALLET_DEBIT',
+  'COINS_REDEEMED',
+  'REDEEM',
+]);
+
+function isDebitTransaction(tx) {
+  return tx?.type === 'debit' || DEBIT_TRANSACTION_TYPES.has(tx?.transactionType);
+}
+
+function getSignedAmount(amount, isDebit) {
+  const normalizedAmount = Math.abs(Number(amount) || 0);
+  return isDebit ? -normalizedAmount : normalizedAmount;
+}
+
 export async function GET(req) {
   try {
     await dbConnect();
@@ -50,8 +66,10 @@ export async function GET(req) {
     );
 
     const formattedTransactions = transactions.map(tx => {
+      const debitTransaction = isDebitTransaction(tx);
+      const signedAmount = getSignedAmount(tx.amount, debitTransaction);
       let title = tx.transactionType.replace(/_/g, ' ');
-      let subtitle = tx.type === 'credit' ? 'Coins Added' : 'Coins Deducted';
+      let subtitle = debitTransaction ? 'Coins Deducted' : 'Coins Added';
       let type = tx.transactionType.toLowerCase();
       let relatedReferrer = null;
 
@@ -95,7 +113,8 @@ export async function GET(req) {
         _id: tx._id,
         title,
         subtitle,
-        amount: tx.amount,
+        amount: signedAmount,
+        isPositive: signedAmount >= 0,
         type,
         createdAt: tx.createdAt.toISOString()
       };
