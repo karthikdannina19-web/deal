@@ -2,6 +2,8 @@ import { dbConnect } from '@/config/database';
 import Ad from '@/models/ad.model';
 import '@/models/vendor.model.js';
 import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
+import { VisibilityService } from '@/services/visibility.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 export async function GET(req) {
   try {
@@ -13,6 +15,9 @@ export async function GET(req) {
     const state = searchParams.get('state');
     const district = searchParams.get('district');
     const mandal = searchParams.get('mandal');
+    const stateId = searchParams.get('stateId');
+    const districtId = searchParams.get('districtId');
+    const mandalId = searchParams.get('mandalId');
     const lat = parseCoordinate(searchParams.get('lat'));
     const lng = parseCoordinate(searchParams.get('lng'));
     
@@ -24,20 +29,37 @@ export async function GET(req) {
     
     const sort = searchParams.get('sort') || 'newest';
 
-    const query = { status: 'approved' };
+    let userLocation = stateId ? {
+      stateId,
+      districtId: districtId || null,
+      mandalId: mandalId || null,
+    } : null;
+
+    if (!userLocation && (state || district || mandal)) {
+      try {
+        const resolved = await LocationMasterService.findByNames({ state, district, mandal });
+        userLocation = {
+          stateId: resolved.state?._id || null,
+          districtId: resolved.district?._id || null,
+          mandalId: resolved.mandal?._id || null,
+        };
+      } catch {
+        userLocation = null;
+      }
+    }
+
+    const query = VisibilityService.buildMatchQuery(userLocation, { status: 'approved' });
     
     if (q) {
-      query.$or = [
+      const searchMatchers = [
         { title: { $regex: q, $options: 'i' } },
         { description: { $regex: q, $options: 'i' } }
       ];
+      query.$and = [...(query.$and || []), { $or: query.$or }, { $or: searchMatchers }];
+      delete query.$or;
     }
     
     if (category && category !== 'all') query.category = category;
-    if (state) query.state = state;
-    if (district) query.district = district;
-    if (mandal) query.mandal = mandal;
-
     if (lat !== null && lng !== null) {
       query.location = {
         $geoWithin: {

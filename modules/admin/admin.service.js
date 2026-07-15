@@ -175,6 +175,13 @@ export class AdminService {
 
     await vendor.save();
 
+    if (status === 'active') {
+      await Ad.updateMany(
+        { vendor: vendor._id, status: 'approved' },
+        { $set: VisibilityService.inheritFromStore(vendor) }
+      );
+    }
+
     // Keep linked user state aligned with the vendor lifecycle
     if (status === 'active') {
       await User.findByIdAndUpdate(vendor.userId, { 
@@ -320,6 +327,11 @@ export class AdminService {
     vendor.visibilityMandalId = visibility.visibilityMandalId;
     vendor.visibilityEnabled = visibility.visibilityEnabled;
     await vendor.save();
+
+    await Ad.updateMany(
+      { vendor: vendor._id, status: 'approved' },
+      { $set: VisibilityService.inheritFromStore(vendor) }
+    );
 
     if (priority) {
       await PriorityService.upsertRule({

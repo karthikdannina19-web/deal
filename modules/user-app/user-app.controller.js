@@ -407,7 +407,8 @@ export class UserAppController {
     await dbConnect();
     const { user, error } = await authenticate(req);
     if (error) return error;
-    const data = await UserAppService.getSavedAds(user.id);
+    const authUser = await User.findById(user.id).select('stateId districtId mandalId').lean();
+    const data = await UserAppService.getSavedAds(user.id, VisibilityService.getUserLocation(authUser));
     return Response.json({ success: true, data }, { status: 200 });
   }
 

@@ -740,12 +740,12 @@ export async function moderateAd(
   sectionId = undefined,
   category = undefined,
   categoryId = undefined,
-  visibilityLevel = undefined,
-  visibilityStateId = undefined,
-  visibilityDistrictId = undefined,
-  visibilityMandalId = undefined,
+  _visibilityLevel = undefined,
+  _visibilityStateId = undefined,
+  _visibilityDistrictId = undefined,
+  _visibilityMandalId = undefined,
   priority = undefined,
-  priorityScopeLevel = undefined
+  _priorityScopeLevel = undefined
 ) {
   const ad = await Ad.findById(adId);
 
@@ -780,14 +780,7 @@ export async function moderateAd(
   ad.reviewedBy = adminId;
   ad.reviewedAt = new Date();
 
-  const hasVisibilityUpdate = action === 'approve' && (
-    visibilityLevel !== undefined ||
-    visibilityStateId !== undefined ||
-    visibilityDistrictId !== undefined ||
-    visibilityMandalId !== undefined
-  );
-
-  if (hasVisibilityUpdate) {
+  if (action === 'approve' || action === 'activate') {
     const vendor = await Vendor.findById(ad.vendor);
     if (!vendor) {
       throw {
@@ -800,16 +793,7 @@ export async function moderateAd(
     await LocationMasterService.syncLegacyLocation(vendor);
     await vendor.save();
 
-    const requestedVisibilityLevel = VisibilityService.validateChildVisibilityLevel(
-      vendor.visibilityLevel || 'global',
-      visibilityLevel || 'global'
-    );
-    const visibility = requestedVisibilityLevel === 'global'
-      ? VisibilityService.normalizeVisibilityPayload({
-        visibilityLevel: 'global',
-        visibilityEnabled: true,
-      })
-      : VisibilityService.deriveFromStore(vendor, requestedVisibilityLevel);
+    const visibility = VisibilityService.inheritFromStore(vendor);
 
     ad.visibilityLevel = visibility.visibilityLevel;
     ad.visibilityStateId = visibility.visibilityStateId;
@@ -819,7 +803,7 @@ export async function moderateAd(
   }
 
   if ((action === 'approve' || action === 'activate') && priority !== undefined && priority !== null && priority !== '') {
-    const resolvedScopeLevel = priorityScopeLevel || ad.visibilityLevel || visibilityLevel || 'global';
+    const resolvedScopeLevel = ad.visibilityLevel || 'global';
     await PriorityService.upsertRule({
       entityType: 'ad',
       entityId: ad._id,

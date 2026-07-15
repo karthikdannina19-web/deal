@@ -282,10 +282,13 @@ export class UserAppService {
     return User.findByIdAndUpdate(userId, { $pull: { savedAds: adId } }, { returnDocument: 'after' }).select('savedAds').lean();
   }
 
-  static async getSavedAds(userId) {
+  static async getSavedAds(userId, userLocation = null) {
     const user = await User.findById(userId).select('savedAds').lean();
     if (!user) return [];
-    const ads = await Ad.find({ _id: { $in: user.savedAds || [] }, status: 'approved' })
+    const ads = await Ad.find(VisibilityService.buildMatchQuery(userLocation, {
+      _id: { $in: user.savedAds || [] },
+      status: 'approved',
+    }))
       .populate('vendor', 'location')
       .lean({ virtuals: true });
     return ads.map(mapAd);

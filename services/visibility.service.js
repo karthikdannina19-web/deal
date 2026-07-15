@@ -102,6 +102,14 @@ export class VisibilityService {
     };
   }
 
+  static inheritFromStore(store) {
+    const visibility = this.deriveFromStore(store, store?.visibilityLevel || 'global');
+    return {
+      ...visibility,
+      visibilityEnabled: store?.visibilityEnabled !== false,
+    };
+  }
+
   static getAllowedChildLevels(parentVisibilityLevel = 'global') {
     const parentRank = VISIBILITY_LEVEL_RANK[parentVisibilityLevel || 'global'] ?? 0;
     return VISIBILITY_LEVELS.filter((level) => VISIBILITY_LEVEL_RANK[level] >= parentRank);
@@ -152,10 +160,14 @@ export class VisibilityService {
     const normalizedLocation = this.normalizeLocation(location);
     const matchers = [
       { visibilityLevel: 'global' },
-      { visibilityLevel: { $exists: false } },
-      { visibilityLevel: null },
-      { visibilityStateId: { $exists: false } },
-      { visibilityStateId: null },
+      {
+        $and: [
+          { $or: [{ visibilityLevel: { $exists: false } }, { visibilityLevel: null }] },
+          { $or: [{ visibilityStateId: { $exists: false } }, { visibilityStateId: null }] },
+          { $or: [{ visibilityDistrictId: { $exists: false } }, { visibilityDistrictId: null }] },
+          { $or: [{ visibilityMandalId: { $exists: false } }, { visibilityMandalId: null }] },
+        ],
+      },
     ];
 
     if (normalizedLocation?.stateId) {

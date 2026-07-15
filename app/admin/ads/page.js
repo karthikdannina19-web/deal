@@ -15,19 +15,6 @@ function normalizeId(value) {
   return String(value);
 }
 
-const VISIBILITY_LEVELS = ['global', 'state', 'district', 'mandal'];
-const VISIBILITY_LEVEL_RANK = {
-  global: 0,
-  state: 1,
-  district: 2,
-  mandal: 3,
-};
-
-function getAllowedVisibilityLevels(vendorVisibilityLevel = 'global') {
-  const parentRank = VISIBILITY_LEVEL_RANK[vendorVisibilityLevel || 'global'] ?? 0;
-  return VISIBILITY_LEVELS.filter((level) => VISIBILITY_LEVEL_RANK[level] >= parentRank);
-}
-
 function getVisibilityLabel(level) {
   return level === 'global' ? 'All Users' : `${level} Visibility`;
 }
@@ -118,18 +105,12 @@ export default function AdsPage() {
   }, [isModerationModalOpen]);
 
   const handleOpenModeration = (ad) => {
-    const allowedVisibilityLevels = getAllowedVisibilityLevels(ad.vendor?.visibilityLevel || 'global');
-    const currentVisibilityLevel = ad.visibilityLevel || ad.vendor?.visibilityLevel || 'global';
-    const nextVisibilityLevel = allowedVisibilityLevels.includes(currentVisibilityLevel)
-      ? currentVisibilityLevel
-      : allowedVisibilityLevels[0];
-
     setSelectedAd(ad);
     const nextSectionId = normalizeId(ad.section?._id || ad.section);
     setSelectedSection(nextSectionId);
     setSelectedCategory(ad.category || '');
     setSelectedCategoryId(normalizeId(ad.categoryId?._id || ad.categoryId));
-    setSelectedVisibilityLevel(nextVisibilityLevel);
+    setSelectedVisibilityLevel(ad.vendor?.visibilityLevel || 'global');
     setSelectedPriority("");
     setReviewNotes("");
     setIsModerationModalOpen(true);
@@ -176,8 +157,6 @@ export default function AdsPage() {
   };
 
   const sectionCategories = categories;
-  const allowedAdVisibilityLevels = selectedAd ? getAllowedVisibilityLevels(selectedAd.vendor?.visibilityLevel || 'global') : VISIBILITY_LEVELS;
-
   useEffect(() => {
     if (!selectedAd) {
       setSelectedPriority("");
@@ -767,33 +746,11 @@ export default function AdsPage() {
                         Location IDs are applied automatically from the approved store profile.
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {allowedAdVisibilityLevels.map((level) => {
-                        const isSelected = selectedVisibilityLevel === level;
-                        return (
-                          <button
-                            key={level}
-                            type="button"
-                            onClick={() => setSelectedVisibilityLevel(level)}
-                            className={`text-left rounded-2xl border px-4 py-3 transition-all ${
-                              isSelected
-                                ? 'border-admin-primary bg-admin-primary/10 text-admin-primary'
-                                : 'border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-100 hover:border-admin-primary/50'
-                            }`}
-                          >
-                            <p className="font-black text-sm capitalize">{getVisibilityLabel(level)}</p>
-                            <p className="text-xs opacity-70 mt-1">
-                              {level === 'global'
-                                ? 'Visible in every location'
-                                : level === 'state'
-                                ? selectedAd.vendor?.location?.state || 'Store state'
-                                : level === 'district'
-                                  ? selectedAd.vendor?.location?.district || 'Store district'
-                                  : selectedAd.vendor?.location?.mandal || 'Store mandal'}
-                            </p>
-                          </button>
-                        );
-                      })}
+                    <div className="rounded-2xl border border-admin-primary bg-admin-primary/10 px-4 py-3 text-admin-primary">
+                      <p className="font-black text-sm capitalize">{getVisibilityLabel(selectedVisibilityLevel)}</p>
+                      <p className="text-xs opacity-70 mt-1">
+                        This ad automatically inherits the store visibility target and cannot be broadened separately.
+                      </p>
                     </div>
                   </div>
 
