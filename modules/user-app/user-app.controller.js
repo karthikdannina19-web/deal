@@ -10,11 +10,6 @@ export class UserAppController {
   static async resolveRequestLocation({ req, authUser = null }) {
     const { searchParams } = new URL(req.url);
 
-    const normalizedAuthLocation = VisibilityService.getUserLocation(authUser);
-    if (normalizedAuthLocation) {
-      return normalizedAuthLocation;
-    }
-
     const queryStateId = searchParams.get('stateId');
     const queryDistrictId = searchParams.get('districtId');
     const queryMandalId = searchParams.get('mandalId');
@@ -24,6 +19,11 @@ export class UserAppController {
         districtId: queryDistrictId || null,
         mandalId: queryMandalId || null,
       };
+    }
+
+    const normalizedAuthLocation = VisibilityService.getUserLocation(authUser);
+    if (normalizedAuthLocation) {
+      return normalizedAuthLocation;
     }
 
     const lat = Number(searchParams.get('lat') || searchParams.get('latitude'));
@@ -74,9 +74,8 @@ export class UserAppController {
     const authUser = auth?.user?.id
       ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
       : null;
-    const sections = await UserAppService.listSections({
-      userLocation: VisibilityService.getUserLocation(authUser),
-    });
+    const userLocation = await this.resolveRequestLocation({ req, authUser });
+    const sections = await UserAppService.listSections({ userLocation });
     const data = sections.map((section) => {
       const imageUrl = section.image?.url || '';
       const bannerUrl = section.banner?.url || imageUrl;
@@ -185,47 +184,7 @@ export class UserAppController {
       : null;
     const { searchParams } = new URL(req.url);
     const sectionId = searchParams.get('sectionId') || searchParams.get('section');
-    const queryState = searchParams.get('state');
-    const queryDistrict = searchParams.get('district');
-    const queryMandal = searchParams.get('mandal');
-    const lat = Number(searchParams.get('lat'));
-    const lng = Number(searchParams.get('lng'));
-
-    let location = VisibilityService.getUserLocation(authUser);
-
-    if ((!location || location === null) && Number.isFinite(lat) && Number.isFinite(lng)) {
-      try {
-        const resolved = await LocationResolverService.resolveCoordinates({ latitude: lat, longitude: lng });
-        location = {
-          stateId: resolved.state._id,
-          districtId: resolved.district._id,
-          mandalId: resolved.mandal._id,
-        };
-      } catch {
-        location = null;
-      }
-    }
-
-    if (!location && queryState && queryDistrict && queryMandal) {
-      try {
-        const resolved = await LocationMasterService.findByNames({
-          state: queryState,
-          district: queryDistrict,
-          mandal: queryMandal,
-          autoCreateMissingDistrict: false,
-          autoCreateMissingMandal: false,
-        });
-        if (resolved.state && resolved.district && resolved.mandal) {
-          location = {
-            stateId: resolved.state._id,
-            districtId: resolved.district._id,
-            mandalId: resolved.mandal._id,
-          };
-        }
-      } catch {
-        location = null;
-      }
-    }
+    const location = await this.resolveRequestLocation({ req, authUser });
 
     const categories = await UserAppService.listCategories({
       userLocation: location,

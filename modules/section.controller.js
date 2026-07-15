@@ -16,11 +16,6 @@ export class SectionController {
   static async resolveRequestLocation(req, authUser = null) {
     const { searchParams } = new URL(req.url);
 
-    const normalizedAuthLocation = VisibilityService.getUserLocation(authUser);
-    if (normalizedAuthLocation) {
-      return normalizedAuthLocation;
-    }
-
     const queryStateId = searchParams.get('stateId');
     const queryDistrictId = searchParams.get('districtId');
     const queryMandalId = searchParams.get('mandalId');
@@ -30,6 +25,11 @@ export class SectionController {
         districtId: queryDistrictId || null,
         mandalId: queryMandalId || null,
       };
+    }
+
+    const normalizedAuthLocation = VisibilityService.getUserLocation(authUser);
+    if (normalizedAuthLocation) {
+      return normalizedAuthLocation;
     }
 
     const latitude = parseCoordinate(searchParams.get('lat') || searchParams.get('latitude'));
@@ -85,7 +85,7 @@ export class SectionController {
       const authUser = auth?.user?.id
         ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
         : null;
-      const userLocation = VisibilityService.getUserLocation(authUser);
+      const userLocation = await this.resolveRequestLocation(req, authUser);
       const sections = await SectionVisibilityService.getVisibleSections({ userLocation });
       return Response.json({ success: true, data: sections }, { status: 200 });
     } catch (error) {
