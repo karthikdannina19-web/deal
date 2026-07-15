@@ -741,9 +741,9 @@ export async function moderateAd(
   category = undefined,
   categoryId = undefined,
   _visibilityLevel = undefined,
-  _visibilityStateId = undefined,
-  _visibilityDistrictId = undefined,
-  _visibilityMandalId = undefined,
+  visibilityStateId = undefined,
+  visibilityDistrictId = undefined,
+  visibilityMandalId = undefined,
   priority = undefined,
   _priorityScopeLevel = undefined
 ) {
