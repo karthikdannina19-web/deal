@@ -2,6 +2,7 @@ import { dbConnect } from '@/config/database.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import Coupon from '@/models/coupon.model.js';
 import { S3Service } from '@/services/s3.service.js';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 export async function PUT(req, { params }) {
   await dbConnect();
@@ -63,7 +64,40 @@ export async function PUT(req, { params }) {
     }, { status: 400 });
   }
 
-  const coupon = await Coupon.findByIdAndUpdate(id, { $set: update }, { new: true });
+  const existing = await Coupon.findById(id);
+  if (!existing) return Response.json({ success: false, message: 'Coupon not found' }, { status: 404 });
+
+  const visibilityScope = update.visibilityScope ?? existing.visibilityScope ?? 'all';
+  const visibility = {
+    visibilityScope,
+    stateId: update.stateId !== undefined ? update.stateId : existing.stateId,
+    districtId: update.districtId !== undefined ? update.districtId : existing.districtId,
+    mandalId: update.mandalId !== undefined ? update.mandalId : existing.mandalId,
+  };
+  if (!['all', 'state', 'district', 'mandal'].includes(visibilityScope)) {
+    return Response.json({ success: false, message: 'Invalid coupon visibility scope' }, { status: 400 });
+  }
+  if (visibilityScope === 'all') {
+    visibility.stateId = null;
+    visibility.districtId = null;
+    visibility.mandalId = null;
+  } else {
+    if (!visibility.stateId) return Response.json({ success: false, message: 'State is required for coupon visibility' }, { status: 400 });
+    if (visibilityScope === 'state') {
+      visibility.districtId = null;
+      visibility.mandalId = null;
+    } else if (!visibility.districtId) {
+      return Response.json({ success: false, message: 'District is required for coupon visibility' }, { status: 400 });
+    } else if (visibilityScope === 'district') {
+      visibility.mandalId = null;
+    } else if (!visibility.mandalId) {
+      return Response.json({ success: false, message: 'Mandal is required for coupon visibility' }, { status: 400 });
+    }
+    await LocationMasterService.validateHierarchy(visibility);
+  }
+  Object.assign(update, visibility);
+
+  const coupon = await Coupon.findByIdAndUpdate(id, { $set: update }, { returnDocument: 'after', runValidators: true });
   if (!coupon) return Response.json({ success: false, message: 'Coupon not found' }, { status: 404 });
   return Response.json({ success: true, data: coupon }, { status: 200 });
 }

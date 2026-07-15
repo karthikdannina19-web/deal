@@ -269,9 +269,12 @@ export class UserAppService {
     };
   }
 
-  static async getCouponCode(id) {
+  static async getCouponCode(id, userLocation = null) {
     if (!mongoose.Types.ObjectId.isValid(id)) return null;
-    return Coupon.findOne({ _id: id, isActive: true }).lean();
+    return Coupon.findOne(VisibilityService.buildCouponVisibilityQuery(userLocation, {
+      _id: id,
+      isActive: true,
+    })).lean();
   }
 
   static async saveAd(userId, adId) {

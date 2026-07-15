@@ -3,6 +3,7 @@ import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import Coupon from '@/models/coupon.model.js';
 import { S3Service } from '@/services/s3.service.js';
 import mongoose from 'mongoose';
+import { LocationMasterService } from '@/services/location-master.service.js';
 
 export async function GET(req) {
   await dbConnect();
@@ -145,7 +146,23 @@ export async function POST(req) {
     payload.mandalId = null;
   }
 
+  if (!['all', 'state', 'district', 'mandal'].includes(payload.visibilityScope)) {
+    return Response.json({ success: false, message: 'Invalid coupon visibility scope' }, { status: 400 });
+  }
+  if (payload.visibilityScope !== 'all' && !payload.stateId) {
+    return Response.json({ success: false, message: 'State is required for coupon visibility' }, { status: 400 });
+  }
+  if (['district', 'mandal'].includes(payload.visibilityScope) && !payload.districtId) {
+    return Response.json({ success: false, message: 'District is required for coupon visibility' }, { status: 400 });
+  }
+  if (payload.visibilityScope === 'mandal' && !payload.mandalId) {
+    return Response.json({ success: false, message: 'Mandal is required for coupon visibility' }, { status: 400 });
+  }
+
   try {
+    if (payload.visibilityScope !== 'all') {
+      await LocationMasterService.validateHierarchy(payload);
+    }
     const created = await Coupon.create(payload);
     return Response.json({ success: true, data: created }, { status: 201 });
   } catch (err) {

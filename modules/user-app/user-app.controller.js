@@ -303,6 +303,10 @@ export class UserAppController {
           storeName: c.storeName || '',
           terms: c.terms || '',
           ctaLink: safeCtaLink,
+          visibilityScope: c.visibilityScope || 'all',
+          stateId: c.stateId || null,
+          districtId: c.districtId || null,
+          mandalId: c.mandalId || null,
         };
       });
       return Response.json({
@@ -334,7 +338,14 @@ export class UserAppController {
     try {
       await dbConnect();
       const { id } = await params;
-      const coupon = await UserAppService.getCouponCode(id);
+      const authHeader = req.headers.get('authorization');
+      const auth = authHeader ? await authenticate(req) : { user: null, error: null };
+      if (auth?.error && authHeader) return auth.error;
+      const authUser = auth?.user?.id
+        ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
+        : null;
+      const userLocation = await this.resolveRequestLocation({ req, authUser });
+      const coupon = await UserAppService.getCouponCode(id, userLocation);
       if (!coupon) return Response.json({ success: false, message: 'Coupon not found' }, { status: 404 });
       return Response.json({ success: true, data: { id: coupon._id, couponCode: coupon.couponCode || '' } }, { status: 200 });
     } catch {
