@@ -4,6 +4,7 @@ import Category from '@/models/category.model';
 import Vendor from '@/models/vendor.model';
 import { calculateDistanceKm, getVendorCoordinates, parseCoordinate } from '@/utils/offer-location.js';
 import { PriorityService } from '@/services/priority.service.js';
+import { VisibilityService } from '@/services/visibility.service.js';
 import { LocationMasterService } from '@/services/location-master.service.js';
 
 export async function GET(req) {
@@ -36,22 +37,54 @@ export async function GET(req) {
       isDeleted: { $ne: true },
       deletedAt: null
     };
-    const vendorQuery = {
+
+    const userLocation = stateId
+      ? {
+          stateId,
+          districtId: districtId || null,
+          mandalId: mandalId || null,
+        }
+      : (state || district || mandal)
+        ? await (async () => {
+            try {
+              const resolved = await LocationMasterService.findByNames({
+                state,
+                district,
+                mandal,
+              });
+              return {
+                stateId: resolved.state?._id || null,
+                districtId: resolved.district?._id || null,
+                mandalId: resolved.mandal?._id || null,
+              };
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+
+    const vendorQuery = VisibilityService.buildMatchQuery(userLocation, {
       status: 'active',
       is_deleted: { $ne: true },
       account_status: { $ne: 'DELETED' },
-      deletedAt: null
-    };
+      deletedAt: null,
+    });
     
     if (q) {
       storeQuery.$or = [
         { businessName: { $regex: q, $options: 'i' } },
         { address: { $regex: q, $options: 'i' } }
       ];
-      vendorQuery.$or = [
+      const searchOr = [
         { storeName: { $regex: q, $options: 'i' } },
         { fullAddress: { $regex: q, $options: 'i' } }
       ];
+      if (Array.isArray(vendorQuery.$or)) {
+        vendorQuery.$and = [{ $or: vendorQuery.$or }, { $or: searchOr }];
+        delete vendorQuery.$or;
+      } else {
+        vendorQuery.$or = searchOr;
+      }
     }
 
     let categoryName = null;
@@ -208,31 +241,6 @@ export async function GET(req) {
         isActive: vendor.status === 'active' && vendor.is_deleted !== true && vendor.account_status !== 'DELETED' && !vendor.deletedAt
       };
     });
-
-    const userLocation = stateId
-      ? {
-          stateId,
-          districtId: districtId || null,
-          mandalId: mandalId || null,
-        }
-      : (state || district || mandal)
-        ? await (async () => {
-            try {
-              const resolved = await LocationMasterService.findByNames({
-                state,
-                district,
-                mandal,
-              });
-              return {
-                stateId: resolved.state?._id || null,
-                districtId: resolved.district?._id || null,
-                mandalId: resolved.mandal?._id || null,
-              };
-            } catch {
-              return null;
-            }
-          })()
-        : null;
 
     const [vendorPriorityMap, storePriorityMap] = await Promise.all([
       PriorityService.getEffectivePriorityMap('vendor', vendors.map((vendor) => vendor._id), userLocation),

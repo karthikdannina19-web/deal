@@ -171,4 +171,41 @@ export class VisibilityService {
       $or: matchers,
     };
   }
+
+  static buildCouponVisibilityQuery(location, extraFilters = {}) {
+    const matchers = [
+      { visibilityScope: 'all' },
+      { visibilityScope: { $exists: false } },
+      { visibilityScope: null },
+    ];
+
+    if (location?.stateId) {
+      matchers.push({
+        visibilityScope: 'state',
+        stateId: objectIdOrNull(location.stateId),
+      });
+    }
+
+    if (location?.stateId && location?.districtId) {
+      matchers.push({
+        visibilityScope: 'district',
+        stateId: objectIdOrNull(location.stateId),
+        districtId: objectIdOrNull(location.districtId),
+      });
+    }
+
+    if (location?.stateId && location?.districtId && location?.mandalId) {
+      matchers.push({
+        visibilityScope: 'mandal',
+        stateId: objectIdOrNull(location.stateId),
+        districtId: objectIdOrNull(location.districtId),
+        mandalId: objectIdOrNull(location.mandalId),
+      });
+    }
+
+    return {
+      ...extraFilters,
+      $or: matchers,
+    };
+  }
 }

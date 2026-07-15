@@ -301,6 +301,13 @@ export class UserAppController {
   static async coupons(req) {
     try {
       await dbConnect();
+      const authHeader = req.headers.get('authorization');
+      const auth = authHeader ? await authenticate(req) : { user: null, error: null };
+      if (auth?.error && authHeader) return auth.error;
+      const authUser = auth?.user?.id
+        ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
+        : null;
+      const userLocation = await this.resolveRequestLocation({ req, authUser });
       const { searchParams } = new URL(req.url);
       const page = searchParams.get('page') || 1;
       const limit = searchParams.get('limit') || 20;
@@ -317,6 +324,7 @@ export class UserAppController {
         isActive,
         sortBy,
         sortOrder,
+        userLocation,
       });
       const items = data.map((c) => {
         let safeCtaLink = c.ctaLink || '';

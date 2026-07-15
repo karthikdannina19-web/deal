@@ -241,10 +241,11 @@ export class UserAppService {
       .lean();
   }
 
-  static async listCoupons({ page = 1, limit = 20, category, isActive = true, sortBy = 'order', sortOrder = 'asc' }) {
-    const query = {};
-    if (typeof isActive === 'boolean') query.isActive = isActive;
-    if (category) query.category = category;
+  static async listCoupons({ page = 1, limit = 20, category, isActive = true, sortBy = 'order', sortOrder = 'asc', userLocation = null }) {
+    const query = VisibilityService.buildCouponVisibilityQuery(userLocation, {
+      ...(typeof isActive === 'boolean' ? { isActive } : {}),
+      ...(category ? { category } : {}),
+    });
 
     const safePage = Math.max(1, Number(page) || 1);
     const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
