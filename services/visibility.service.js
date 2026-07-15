@@ -120,19 +120,36 @@ export class VisibilityService {
     return normalizedChildLevel;
   }
 
-  static getUserLocation(user) {
-    if (!user?.stateId) {
+  static normalizeLocation(location = null) {
+    if (!location) {
+      return null;
+    }
+
+    const stateId = location.stateId || location.state || null;
+    const districtId = location.districtId || location.district || null;
+    const mandalId = location.mandalId || location.mandal || null;
+
+    if (!stateId) {
       return null;
     }
 
     return {
-      stateId: user.stateId,
-      districtId: user?.districtId || null,
-      mandalId: user?.mandalId || null,
+      stateId,
+      districtId: districtId || null,
+      mandalId: mandalId || null,
     };
   }
 
+  static getLocationFromAuthUser(user) {
+    return this.normalizeLocation(user);
+  }
+
+  static getUserLocation(user) {
+    return this.getLocationFromAuthUser(user);
+  }
+
   static buildMatchQuery(location, extraFilters = {}) {
+    const normalizedLocation = this.normalizeLocation(location);
     const matchers = [
       { visibilityLevel: 'global' },
       { visibilityLevel: { $exists: false } },
@@ -141,27 +158,27 @@ export class VisibilityService {
       { visibilityStateId: null },
     ];
 
-    if (location?.stateId) {
+    if (normalizedLocation?.stateId) {
       matchers.push({
         visibilityLevel: 'state',
-        visibilityStateId: objectIdOrNull(location.stateId),
+        visibilityStateId: objectIdOrNull(normalizedLocation.stateId),
       });
     }
 
-    if (location?.stateId && location?.districtId) {
+    if (normalizedLocation?.stateId && normalizedLocation?.districtId) {
       matchers.push({
         visibilityLevel: 'district',
-        visibilityStateId: objectIdOrNull(location.stateId),
-        visibilityDistrictId: objectIdOrNull(location.districtId),
+        visibilityStateId: objectIdOrNull(normalizedLocation.stateId),
+        visibilityDistrictId: objectIdOrNull(normalizedLocation.districtId),
       });
     }
 
-    if (location?.stateId && location?.districtId && location?.mandalId) {
+    if (normalizedLocation?.stateId && normalizedLocation?.districtId && normalizedLocation?.mandalId) {
       matchers.push({
         visibilityLevel: 'mandal',
-        visibilityStateId: objectIdOrNull(location.stateId),
-        visibilityDistrictId: objectIdOrNull(location.districtId),
-        visibilityMandalId: objectIdOrNull(location.mandalId),
+        visibilityStateId: objectIdOrNull(normalizedLocation.stateId),
+        visibilityDistrictId: objectIdOrNull(normalizedLocation.districtId),
+        visibilityMandalId: objectIdOrNull(normalizedLocation.mandalId),
       });
     }
 
@@ -173,33 +190,34 @@ export class VisibilityService {
   }
 
   static buildCouponVisibilityQuery(location, extraFilters = {}) {
+    const normalizedLocation = this.normalizeLocation(location);
     const matchers = [
       { visibilityScope: 'all' },
       { visibilityScope: { $exists: false } },
       { visibilityScope: null },
     ];
 
-    if (location?.stateId) {
+    if (normalizedLocation?.stateId) {
       matchers.push({
         visibilityScope: 'state',
-        stateId: objectIdOrNull(location.stateId),
+        stateId: objectIdOrNull(normalizedLocation.stateId),
       });
     }
 
-    if (location?.stateId && location?.districtId) {
+    if (normalizedLocation?.stateId && normalizedLocation?.districtId) {
       matchers.push({
         visibilityScope: 'district',
-        stateId: objectIdOrNull(location.stateId),
-        districtId: objectIdOrNull(location.districtId),
+        stateId: objectIdOrNull(normalizedLocation.stateId),
+        districtId: objectIdOrNull(normalizedLocation.districtId),
       });
     }
 
-    if (location?.stateId && location?.districtId && location?.mandalId) {
+    if (normalizedLocation?.stateId && normalizedLocation?.districtId && normalizedLocation?.mandalId) {
       matchers.push({
         visibilityScope: 'mandal',
-        stateId: objectIdOrNull(location.stateId),
-        districtId: objectIdOrNull(location.districtId),
-        mandalId: objectIdOrNull(location.mandalId),
+        stateId: objectIdOrNull(normalizedLocation.stateId),
+        districtId: objectIdOrNull(normalizedLocation.districtId),
+        mandalId: objectIdOrNull(normalizedLocation.mandalId),
       });
     }
 

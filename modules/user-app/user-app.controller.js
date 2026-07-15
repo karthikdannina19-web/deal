@@ -3,18 +3,16 @@ import { authenticate } from '@/middleware/auth.middleware.js';
 import { UserAppService } from './user-app.service.js';
 import { LocationResolverService } from '@/services/location-resolver.service.js';
 import { LocationMasterService } from '@/services/location-master.service.js';
+import { VisibilityService } from '@/services/visibility.service.js';
 import User from '@/models/user.model.js';
 
 export class UserAppController {
   static async resolveRequestLocation({ req, authUser = null }) {
     const { searchParams } = new URL(req.url);
 
-    if (authUser?.stateId && authUser?.districtId && authUser?.mandalId) {
-      return {
-        stateId: authUser.stateId,
-        districtId: authUser.districtId,
-        mandalId: authUser.mandalId,
-      };
+    const normalizedAuthLocation = VisibilityService.getUserLocation(authUser);
+    if (normalizedAuthLocation) {
+      return normalizedAuthLocation;
     }
 
     const queryStateId = searchParams.get('stateId');
@@ -77,11 +75,7 @@ export class UserAppController {
       ? await User.findById(auth.user.id).select('stateId districtId mandalId').lean()
       : null;
     const sections = await UserAppService.listSections({
-      userLocation: authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
-        stateId: authUser.stateId,
-        districtId: authUser.districtId,
-        mandalId: authUser.mandalId,
-      } : null,
+      userLocation: VisibilityService.getUserLocation(authUser),
     });
     const data = sections.map((section) => {
       const imageUrl = section.image?.url || '';
@@ -197,11 +191,7 @@ export class UserAppController {
     const lat = Number(searchParams.get('lat'));
     const lng = Number(searchParams.get('lng'));
 
-    let location = authUser?.stateId && authUser?.districtId && authUser?.mandalId ? {
-      stateId: authUser.stateId,
-      districtId: authUser.districtId,
-      mandalId: authUser.mandalId,
-    } : null;
+    let location = VisibilityService.getUserLocation(authUser);
 
     if ((!location || location === null) && Number.isFinite(lat) && Number.isFinite(lng)) {
       try {

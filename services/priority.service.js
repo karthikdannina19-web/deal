@@ -228,29 +228,34 @@ export class PriorityService {
   }
 
   static buildLocationOrQuery(location = null) {
+    const normalizedLocation = location ? {
+      stateId: location.stateId || location.state || null,
+      districtId: location.districtId || location.district || null,
+      mandalId: location.mandalId || location.mandal || null,
+    } : null;
     const matchers = [{ scopeLevel: 'global' }];
 
-    if (location?.stateId) {
+    if (normalizedLocation?.stateId) {
       matchers.push({
         scopeLevel: 'state',
-        stateId: toObjectIdOrNull(location.stateId),
+        stateId: toObjectIdOrNull(normalizedLocation.stateId),
       });
     }
 
-    if (location?.stateId && location?.districtId) {
+    if (normalizedLocation?.stateId && normalizedLocation?.districtId) {
       matchers.push({
         scopeLevel: 'district',
-        stateId: toObjectIdOrNull(location.stateId),
-        districtId: toObjectIdOrNull(location.districtId),
+        stateId: toObjectIdOrNull(normalizedLocation.stateId),
+        districtId: toObjectIdOrNull(normalizedLocation.districtId),
       });
     }
 
-    if (location?.stateId && location?.districtId && location?.mandalId) {
+    if (normalizedLocation?.stateId && normalizedLocation?.districtId && normalizedLocation?.mandalId) {
       matchers.push({
         scopeLevel: 'mandal',
-        stateId: toObjectIdOrNull(location.stateId),
-        districtId: toObjectIdOrNull(location.districtId),
-        mandalId: toObjectIdOrNull(location.mandalId),
+        stateId: toObjectIdOrNull(normalizedLocation.stateId),
+        districtId: toObjectIdOrNull(normalizedLocation.districtId),
+        mandalId: toObjectIdOrNull(normalizedLocation.mandalId),
       });
     }
 

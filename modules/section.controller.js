@@ -16,12 +16,9 @@ export class SectionController {
   static async resolveRequestLocation(req, authUser = null) {
     const { searchParams } = new URL(req.url);
 
-    if (authUser?.stateId && authUser?.districtId && authUser?.mandalId) {
-      return {
-        stateId: authUser.stateId,
-        districtId: authUser.districtId,
-        mandalId: authUser.mandalId,
-      };
+    const normalizedAuthLocation = VisibilityService.getUserLocation(authUser);
+    if (normalizedAuthLocation) {
+      return normalizedAuthLocation;
     }
 
     const queryStateId = searchParams.get('stateId');
