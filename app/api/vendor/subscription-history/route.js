@@ -1,6 +1,7 @@
 import { dbConnect } from '@/config/database.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import UserSubscription from '@/models/userSubscription.model.js';
+import { generateInvoiceToken } from '@/utils/invoiceToken.js';
 
 function formatDate(date) {
   return date ? new Date(date).toISOString().slice(0, 10) : null;
@@ -61,7 +62,10 @@ export async function GET(req) {
         || null,
       purchased_at: subscription.createdAt ? new Date(subscription.createdAt).toISOString() : null,
       invoice_url: subscription.paymentStatus === 'completed'
-        ? `${origin}/api/vendor/subscription-history/${subscription._id}/invoice`
+        ? `${origin}/api/vendor/subscription-history/${subscription._id}/invoice?token=${encodeURIComponent(generateInvoiceToken({
+            userId: user.id,
+            subscriptionId: subscription._id,
+          }))}`
         : null,
     }));
 

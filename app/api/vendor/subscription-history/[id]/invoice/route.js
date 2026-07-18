@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { dbConnect } from '@/config/database.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware.js';
 import UserSubscription from '@/models/userSubscription.model.js';
+import { verifyInvoiceToken } from '@/utils/invoiceToken.js';
 
 function pdfText(value) {
   return String(value ?? '')
@@ -96,20 +97,36 @@ export async function GET(req, { params }) {
   try {
     await dbConnect();
 
-    const { user, error: authError } = await authenticate(req);
-    if (authError) return authError;
-
-    const roleError = authorize(user, ['vendor']);
-    if (roleError) return roleError;
-
     const { id } = await params;
     if (!mongoose.isValidObjectId(id)) {
       return Response.json({ status: false, message: 'Invoice not found' }, { status: 404 });
     }
 
+    const downloadToken = new URL(req.url).searchParams.get('token');
+    let userId;
+
+    if (downloadToken) {
+      try {
+        const payload = verifyInvoiceToken(downloadToken);
+        if (payload.subscriptionId !== id || !mongoose.isValidObjectId(payload.userId)) {
+          return Response.json({ status: false, message: 'Invalid invoice link' }, { status: 403 });
+        }
+        userId = payload.userId;
+      } catch {
+        return Response.json({ status: false, message: 'Invoice link is invalid or expired' }, { status: 401 });
+      }
+    } else {
+      const { user, error: authError } = await authenticate(req);
+      if (authError) return authError;
+
+      const roleError = authorize(user, ['vendor']);
+      if (roleError) return roleError;
+      userId = user.id;
+    }
+
     const subscription = await UserSubscription.findOne({
       _id: id,
-      user: user.id,
+      user: userId,
       paymentStatus: 'completed',
     })
       .populate('plan', 'name slug')
