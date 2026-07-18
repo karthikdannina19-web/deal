@@ -39,6 +39,8 @@ export async function GET(req) {
       .sort({ createdAt: -1 })
       .lean();
 
+    const origin = new URL(req.url).origin;
+
     const data = subscriptions.map((subscription) => ({
       id: subscription._id.toString(),
       plan_id: subscription.plan?._id?.toString() || subscription.plan?.toString() || null,
@@ -58,6 +60,9 @@ export async function GET(req) {
         || subscription.razorpayOrderId
         || null,
       purchased_at: subscription.createdAt ? new Date(subscription.createdAt).toISOString() : null,
+      invoice_url: subscription.paymentStatus === 'completed'
+        ? `${origin}/api/vendor/subscription-history/${subscription._id}/invoice`
+        : null,
     }));
 
     return Response.json({
