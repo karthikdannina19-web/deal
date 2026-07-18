@@ -73,6 +73,7 @@ export class AdminService {
           { user: v.userId?._id || v.userId }
         ],
         status: { $in: ['active', 'trial'] },
+        paymentStatus: 'completed',
         endDate: { $gte: new Date() }
       }).select('creditsRemaining creditsAllocated').sort({ createdAt: -1 }).lean();
 
@@ -88,8 +89,9 @@ export class AdminService {
         mobileNumber: this.cleanSoftDeletedSuffix(v.mobileNumber),
         slug: this.cleanSoftDeletedSuffix(v.slug),
         userId: cleanedUser,
-        creditsRemaining: activeSub?.creditsRemaining || 0,
-        creditsAllocated: activeSub?.creditsAllocated || 0
+        creditsRemaining: activeSub?.creditsRemaining ?? 0,
+        creditsAllocated: activeSub?.creditsAllocated ?? 0,
+        coinBalance: v.coinBalance ?? 0
       };
     }));
   }

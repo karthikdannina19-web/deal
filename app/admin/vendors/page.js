@@ -175,7 +175,7 @@ export default function VendorsPage() {
       });
 
       const updatedVendor = response.data;
-      setSelectedVendor(updatedVendor);
+      setSelectedVendor((currentVendor) => ({ ...currentVendor, ...updatedVendor }));
       await fetchVendors();
     } catch (error) {
       alert(error?.message || error || 'Failed to update vendor visibility');
@@ -721,7 +721,7 @@ export default function VendorsPage() {
                           <div className="space-y-4">
                              <div className="bg-admin-primary rounded-[32px] p-8 text-white shadow-sm border border-admin-primary/15">
                                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70 mb-2">Active credits</p>
-                                <h3 className="text-4xl font-semibold tracking-tight">{(selectedVendor.creditsRemaining || 0).toLocaleString()}</h3>
+                                <h3 className="text-4xl font-semibold tracking-tight">{(selectedVendor.creditsRemaining ?? 0).toLocaleString()}</h3>
                                 <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-white/15 rounded-full">
                                    <TrendingUp size={14} className="text-white" />
                                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/80">Protocol credits</span>
@@ -731,7 +731,7 @@ export default function VendorsPage() {
                              <div className="bg-zinc-50 rounded-[32px] p-6 flex items-center justify-between border border-zinc-200">
                                 <div>
                                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500 mb-1">Rhock coins</p>
-                                   <p className="text-2xl font-semibold text-zinc-900">₹{(selectedVendor.coinBalance || 0).toLocaleString()}</p>
+                                   <p className="text-2xl font-semibold text-zinc-900">{(selectedVendor.coinBalance ?? 0).toLocaleString()} coins</p>
                                 </div>
                                 <div className="p-3 bg-admin-primary/10 rounded-2xl text-admin-primary">
                                    <CreditCard size={24} />
