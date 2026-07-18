@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { validateLocationName } from '../utils/location-name.js';
 
 const mandalSchema = new mongoose.Schema(
   {
@@ -12,6 +13,12 @@ const mandalSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      validate: {
+        validator(value) {
+          return validateLocationName(value).valid;
+        },
+        message: 'Mandal name must be plain text, not an object or object-like string',
+      },
     },
     normalizedName: {
       type: String,

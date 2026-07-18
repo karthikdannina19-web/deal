@@ -471,7 +471,11 @@ export class UserController {
 
     } catch (error) {
       console.error('[UserController.saveLocation Error]', error);
-      return Response.json({ success: false, message: 'Failed to save location' }, { status: 500 });
+      const invalidLocationName = error instanceof TypeError && /name|candidate/i.test(error.message);
+      return Response.json({
+        success: false,
+        message: invalidLocationName ? error.message : 'Failed to save location'
+      }, { status: invalidLocationName ? 400 : 500 });
     }
   }
 

@@ -123,17 +123,13 @@ export async function GET(req) {
       vendorQuery._id = null;
     }
 
+    // Preserve the existing state boundary for physical store results. District
+    // and mandal are audience refinements handled cumulatively by
+    // VisibilityService; applying them here would exclude broader state-level
+    // visibility when a user drills down.
     if (state) {
       storeQuery.state = state;
       vendorQuery['location.state'] = state;
-    }
-    if (district) {
-      storeQuery.district = district;
-      vendorQuery['location.district'] = district;
-    }
-    if (mandal) {
-      storeQuery.mandal = mandal;
-      vendorQuery['location.mandal'] = mandal;
     }
 
     let sortOption = { createdAt: -1 };

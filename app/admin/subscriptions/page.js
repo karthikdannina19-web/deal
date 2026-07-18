@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Plus, MoreHorizontal, Check, X, IndianRupee, Layers, Star, Loader2, X as CloseIcon } from "lucide-react";
+import { Plus, Check, X, IndianRupee, Layers, Star, Loader2, X as CloseIcon } from "lucide-react";
 
 // Client-side fetching instead of server-side for easier interactivity
 
@@ -10,6 +10,8 @@ export default function SubscriptionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState(null);
+  const [error, setError] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -21,16 +23,24 @@ export default function SubscriptionsPage() {
     features: [{ label: '1 post = 1 credit', included: true }, { label: 'Post your ad with ease', included: true }]
   });
 
+  const getAdminHeaders = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  };
+
   const fetchPlans = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch('/api/admin/subscription-plans');
+      setError('');
+      const res = await fetch('/api/admin/subscription-plans', { headers: getAdminHeaders() });
       const data = await res.json();
-      if (data.success) {
-        setPlans(data.data || []);
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to load subscription plans');
       }
+      setPlans(data.data || []);
     } catch (err) {
       console.error(err);
+      setError(err.message || 'Failed to load subscription plans');
     } finally {
       setIsLoading(false);
     }
@@ -40,13 +50,53 @@ export default function SubscriptionsPage() {
     fetchPlans();
   }, []);
 
+  const resetForm = () => {
+    setEditingPlanId(null);
+    setFormData({
+      name: '',
+      description: '',
+      price: '',
+      creditsIncluded: '',
+      billingCycle: 'monthly',
+      badge: '',
+      features: [{ label: '1 post = 1 credit', included: true }, { label: 'Post your ad with ease', included: true }]
+    });
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (plan) => {
+    setEditingPlanId(plan._id);
+    setFormData({
+      name: plan.name || '',
+      description: plan.description || '',
+      price: String(plan.price ?? ''),
+      creditsIncluded: String(plan.creditsIncluded ?? ''),
+      billingCycle: plan.billingCycle || 'monthly',
+      badge: plan.badge || '',
+      features: Array.isArray(plan.features) ? plan.features.map(({ label, included }) => ({ label, included })) : []
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/admin/subscription-plans', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const endpoint = editingPlanId
+        ? `/api/admin/subscription-plans/${editingPlanId}`
+        : '/api/admin/subscription-plans';
+      const res = await fetch(endpoint, {
+        method: editingPlanId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
         body: JSON.stringify({
           ...formData,
           price: Number(formData.price),
@@ -54,23 +104,13 @@ export default function SubscriptionsPage() {
         })
       });
       const data = await res.json();
-      if (data.success) {
-        setIsModalOpen(false);
-        setFormData({
-          name: '',
-          description: '',
-          price: '',
-          creditsIncluded: '',
-          billingCycle: 'monthly',
-          badge: '',
-          features: [{ label: '1 post = 1 credit', included: true }, { label: 'Post your ad with ease', included: true }]
-        });
-        fetchPlans();
-      } else {
-        alert(data.message || 'Failed to create plan');
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `Failed to ${editingPlanId ? 'update' : 'create'} plan`);
       }
+      closeModal();
+      await fetchPlans();
     } catch (err) {
-      alert('Error creating plan');
+      alert(err.message || `Error ${editingPlanId ? 'updating' : 'creating'} plan`);
     } finally {
       setIsSubmitting(false);
     }
@@ -85,13 +125,20 @@ export default function SubscriptionsPage() {
         </div>
         
         <button 
-          onClick={() => setIsModalOpen(true)}
+          onClick={openCreateModal}
           className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-xl text-sm font-medium hover:bg-zinc-800 dark:hover:bg-white transition-colors shadow-sm"
         >
           <Plus size={16} />
           Create Plan
         </button>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+          <button type="button" onClick={fetchPlans} className="ml-3 font-semibold underline">Retry</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-8">
         {isLoading ? (
@@ -175,16 +222,13 @@ export default function SubscriptionsPage() {
               </div>
 
               <div className="mt-auto pt-4 flex gap-2">
-                <button className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors
+                <button onClick={() => openEditModal(plan)} className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors
                   ${plan.isPopular 
                     ? 'bg-blue-500 hover:bg-blue-600 text-white' 
                     : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200'
                   }`}
                 >
                   Edit Plan
-                </button>
-                <button className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 transition-colors">
-                  <MoreHorizontal size={18} />
                 </button>
               </div>
             </div>
@@ -197,8 +241,8 @@ export default function SubscriptionsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">Create New Plan</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-50">{editingPlanId ? 'Edit Plan' : 'Create New Plan'}</h3>
+              <button onClick={closeModal} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
                 <CloseIcon size={20} className="text-zinc-500" />
               </button>
             </div>
@@ -286,7 +330,7 @@ export default function SubscriptionsPage() {
               <div className="pt-4 border-t border-zinc-100 dark:border-zinc-800 flex gap-3">
                 <button 
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={closeModal}
                   className="flex-1 py-3 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-semibold rounded-2xl hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
                 >
                   Cancel
@@ -297,7 +341,7 @@ export default function SubscriptionsPage() {
                   className="flex-1 py-3 bg-blue-500 text-white font-semibold rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check size={20} />}
-                  Create Plan
+                  {editingPlanId ? 'Save Changes' : 'Create Plan'}
                 </button>
               </div>
             </form>

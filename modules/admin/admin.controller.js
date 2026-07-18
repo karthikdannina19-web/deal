@@ -3,7 +3,7 @@ import User from '@/models/user.model.js';
 import { generateToken } from '@/utils/jwt.js';
 import { dbConnect } from '@/config/database.js';
 import { authenticate, authorize } from '@/middleware/auth.middleware.js';
-import { createPlan, getPlans } from '@/services/subscription.service.js';
+import { createPlan, getPlans, updatePlan } from '@/services/subscription.service.js';
 import { listAds, moderateAd, assignSectionToAd, adminDeleteAd } from '@/services/ad.service.js';
 import { verifyToken } from '@/utils/jwt.js';
 
@@ -174,7 +174,8 @@ export class AdminController {
    */
   static async createSubscriptionPlan(req) {
     try {
-      await dbConnect();
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
       const body = await req.json();
       console.log('[AdminController.createSubscriptionPlan] Body:', body);
       
@@ -191,14 +192,33 @@ export class AdminController {
    * Get Subscription Plans (Admin)
    * GET /api/admin/subscription-plans
    */
-  static async getSubscriptionPlans() {
+  static async getSubscriptionPlans(req) {
     try {
-      await dbConnect();
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
       const plans = await getPlans();
       return Response.json({ success: true, data: plans }, { status: 200 });
     } catch (error) {
       console.error('[AdminController.getSubscriptionPlans Error]', error);
       return Response.json({ success: false, message: error.message }, { status: 500 });
+    }
+  }
+
+  /**
+   * Update Subscription Plan (Admin)
+   * PATCH /api/admin/subscription-plans/:id
+   */
+  static async updateSubscriptionPlan(req, planId) {
+    try {
+      const { error } = await this.requireAdmin(req);
+      if (error) return error;
+      const body = await req.json();
+      const plan = await updatePlan(planId, body);
+      return Response.json({ success: true, message: 'Plan updated successfully', data: plan }, { status: 200 });
+    } catch (error) {
+      console.error('[AdminController.updateSubscriptionPlan Error]', error);
+      const status = error.statusCode || (error.name === 'ValidationError' ? 400 : 500);
+      return Response.json({ success: false, message: error.message || 'Internal server error' }, { status });
     }
   }
 

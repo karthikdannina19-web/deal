@@ -2,6 +2,7 @@ import State from '@/models/state.model.js';
 import District from '@/models/district.model.js';
 import Mandal from '@/models/mandal.model.js';
 import locationData from '@/utils/locationData.js';
+import { assertLocationName } from '@/utils/location-name.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const SEED_WRITE_OPTIONS = { ordered: false };
@@ -304,6 +305,20 @@ class LocationMasterService {
     if (!state) {
       throw new Error('State is required');
     }
+
+    state = assertLocationName(state, 'State name');
+    if (district !== undefined && district !== null && district !== '') {
+      district = assertLocationName(district, 'District name');
+    }
+    if (mandal !== undefined && mandal !== null && mandal !== '') {
+      mandal = assertLocationName(mandal, 'Mandal name');
+    }
+    districtCandidates = districtCandidates.map((candidate) => (
+      assertLocationName(candidate, 'District candidate')
+    ));
+    mandalCandidates = mandalCandidates.map((candidate) => (
+      assertLocationName(candidate, 'Mandal candidate')
+    ));
 
     let stateDoc = await State.findOne({ normalizedName: normalizeName(state) });
     if (!stateDoc) {

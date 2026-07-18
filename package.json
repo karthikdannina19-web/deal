@@ -10,6 +10,8 @@
     "lint": "eslint . --ext .js,.jsx",
     "lint:fix": "eslint . --ext .js,.jsx --fix",
     "ads:sync-visibility": "node scripts/sync-approved-ad-visibility.js",
+    "locations:cleanup-kurnool": "node scripts/remove-invalid-kurnool-mandal.js",
+    "test:location-name": "node --test utils/location-name.test.js",
     "db:connect": "echo 'Ensure MongoDB is running'",
     "env:check": "node -e \"require('dotenv').config({ path: '.env.local' }); console.log('Environment loaded');\""
   },
