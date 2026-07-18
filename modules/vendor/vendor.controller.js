@@ -862,11 +862,18 @@ export class VendorController {
         await profile.save();
       }
 
+      if (!profile.slug) {
+        return Response.json({ success: false, message: 'Vendor store slug is unavailable' }, { status: 422 });
+      }
+
+      const origin = new URL(req.url).origin;
+
       return Response.json({
         success: true,
         data: {
           slug: profile.slug,
-          qrCodeUrl: profile.qrCodeUrl,
+          qrCodeUrl: `${origin}/v/${profile.slug}`,
+          qrDownloadUrl: `${origin}/api/vendor/qr/${encodeURIComponent(profile.slug)}/download`,
           storeName: profile.storeName
         }
       }, { status: 200 });
